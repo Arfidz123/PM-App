@@ -3,8 +3,8 @@
  */
 
 // ===== Asset Types =====
-export type AssetCategory = 'hvac' | 'cooling' | 'electrical' | 'plumbing' | 'other';
-export type AssetStatus = 'active' | 'inactive' | 'maintenance';
+export type AssetCategory = 'telecom' | 'power' | 'cooling' | 'hvac' | 'electrical' | 'plumbing' | 'other';
+export type AssetStatus = 'active' | 'inactive' | 'maintenance' | 'offline';
 
 export interface AssetData {
   id: string;
@@ -102,8 +102,6 @@ export interface DashboardStats {
 // ===== Navigation Types =====
 export type RootStackParamList = {
   MainTabs: undefined;
-  AssetDetail: {assetId: string};
-  AddAsset: {assetId?: string}; // undefined = add new, assetId = edit
   StartInspection: undefined;
   CapturePhoto: {assetId: string};
   Checklist: {assetId: string; inspectionId: string};
@@ -111,13 +109,22 @@ export type RootStackParamList = {
   Signature: {inspectionId: string};
   InspectionDetail: {inspectionId: string};
   ReportPreview: {inspectionId: string};
-  TemplateEditor: {templateId?: string};
+  CategoryForm: {categoryId: string; categoryLabel: string};
+  SelectPop: undefined;
+  InfoPop: undefined;
+  KwhMeter: undefined;
+  Rectifier: undefined;
+  PowerSystem: undefined;
+  Battery: undefined;
+  MechanicalElect: undefined;
+  Dokumentasi: undefined;
+  ReviewPdf: undefined;
+  HistoryReviewPdf: {inspectionId: string};
+  AssetDetail: {assetId: string};
+  AddAsset: {assetId?: string} | undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
-  Assets: undefined;
-  NewInspection: undefined;
   History: undefined;
-  Settings: undefined;
 };

@@ -5,9 +5,9 @@
 
 export const Colors = {
   // Primary palette
-  primary: '#1E3A5F',
-  primaryLight: '#2A4D7A',
-  primaryDark: '#142840',
+  primary: '#3B82F6', // Standard Blue
+  primaryLight: '#60A5FA',
+  primaryDark: '#2E78F1',
 
   // Status colors
   success: '#2ECC71',
@@ -27,30 +27,30 @@ export const Colors = {
   infoDark: '#2471A3',
 
   // Background
-  background: '#0F1923',
-  backgroundSecondary: '#141F2B',
-  surface: '#1A2A3A',
-  surfaceLight: '#223344',
-  surfaceElevated: '#2A3A4A',
+  background: '#0B1120', // Dark industrial blue
+  backgroundSecondary: '#182954', // Dark Slate Blue (ICONNET)
+  surface: '#1E293B', // Card background for grid items
+  surfaceLight: '#334155',
+  surfaceElevated: '#334155',
 
   // Text
-  text: '#ECF0F1',
-  textSecondary: '#7F8C9B',
-  textMuted: '#4A5568',
-  textInverse: '#0F1923',
+  text: '#F8FAFC',
+  textSecondary: '#CBD5E1',
+  textMuted: '#94A3B8',
+  textInverse: '#0B1120',
 
   // Border
-  border: '#2A3A4A',
-  borderLight: '#344455',
-  borderFocus: '#3498DB',
+  border: '#334155',
+  borderLight: '#475569',
+  borderFocus: '#3B82F6',
 
   // Overlay
-  overlay: 'rgba(0, 0, 0, 0.6)',
-  overlayLight: 'rgba(0, 0, 0, 0.3)',
+  overlay: 'rgba(0, 0, 0, 0.7)',
+  overlayLight: 'rgba(0, 0, 0, 0.4)',
 
   // Glass effect
-  glass: 'rgba(26, 42, 58, 0.85)',
-  glassBorder: 'rgba(255, 255, 255, 0.08)',
+  glass: 'rgba(30, 41, 59, 0.85)',
+  glassBorder: 'rgba(255, 255, 255, 0.1)',
 
   // Misc
   white: '#FFFFFF',

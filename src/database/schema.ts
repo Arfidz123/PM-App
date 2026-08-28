@@ -16,6 +16,8 @@ export const schema = appSchema({
         {name: 'name', type: 'string'},
         {name: 'category', type: 'string'},
         {name: 'location', type: 'string'},
+        {name: 'latitude', type: 'number', isOptional: true},
+        {name: 'longitude', type: 'number', isOptional: true},
         {name: 'manufacturer', type: 'string'},
         {name: 'model', type: 'string'},
         {name: 'serial_number', type: 'string'},
@@ -47,6 +49,7 @@ export const schema = appSchema({
       name: 'checklist_items',
       columns: [
         {name: 'template_id', type: 'string', isIndexed: true},
+        {name: 'category', type: 'string'},
         {name: 'label', type: 'string'},
         {name: 'type', type: 'string'},
         {name: 'unit', type: 'string'},
@@ -71,6 +74,8 @@ export const schema = appSchema({
         {name: 'notes', type: 'string'},
         {name: 'signature_path', type: 'string'},
         {name: 'pdf_path', type: 'string'},
+        {name: 'form_data', type: 'string', isOptional: true}, // JSON of full inspection data
+        {name: 'is_synced', type: 'boolean', isOptional: true}, // For Supabase sync tracking
         {name: 'created_at', type: 'number'},
         {name: 'updated_at', type: 'number'},
       ],
@@ -82,6 +87,7 @@ export const schema = appSchema({
       columns: [
         {name: 'inspection_id', type: 'string', isIndexed: true},
         {name: 'template_item_id', type: 'string'},
+        {name: 'category', type: 'string'},
         {name: 'label', type: 'string'},
         {name: 'type', type: 'string'},
         {name: 'value', type: 'string'},
