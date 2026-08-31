@@ -13,21 +13,21 @@ import {
   ActivityIndicator,
   Dimensions,
   Share,
-  Alert,
   Platform,
   NativeModules,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, Share2, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Download, Share2, ChevronLeft, ChevronRight, Edit3 } from 'lucide-react-native';
 import WebView from 'react-native-webview';
 import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
 import LinearGradient from 'react-native-linear-gradient';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header } from '../../components/common';
+import { Header, showAlert } from '../../components/common';
 import database from '../../database';
 import { Inspection, Asset } from '../../database/models';
+import { useInspectionStore } from '../../store/inspectionStore';
 import { generateDownloadablePdfHtml, generatePdfSections } from '../../utils/pdfTemplate';
 import { formatDate, cleanPopId, cleanPopName, sharePdfFile } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
@@ -81,6 +81,7 @@ export const HistoryReviewPdfScreen: React.FC = () => {
 
       const merged = {
         ...parsedForm,
+        inspectionStartTime: parsedForm.inspectionStartTime || (insp.inspectionDate ? new Date(insp.inspectionDate).toISOString() : new Date().toISOString()),
         photos: parsedPhotos.length > 0 ? parsedPhotos : (parsedForm.photos || []),
         notes: insp.notes || parsedForm.notes || '',
       };
@@ -176,10 +177,10 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           `Laporan PM untuk ${cleanPopName(popName)} - ${formatDate(inspection?.inspectionDate || Date.now())}`,
         );
       } catch (error) {
-        Alert.alert('Error', 'Gagal membagikan PDF');
+        showAlert({type: 'error', title: 'Error', message: 'Gagal membagikan PDF'});
       }
     } else {
-      Alert.alert('Info', 'Gagal membuat file PDF untuk laporan ini');
+      showAlert({type: 'info', title: 'Info', message: 'Gagal membuat file PDF untuk laporan ini'});
     }
   };
 
@@ -202,8 +203,27 @@ export const HistoryReviewPdfScreen: React.FC = () => {
         console.warn('Open PDF notice:', shareErr);
       }
     } else {
-      Alert.alert('Error', 'Gagal membuat file PDF.');
+      showAlert({type: 'error', title: 'Error', message: 'Gagal membuat file PDF.'});
     }
+  };
+
+  const handleEditInspection = () => {
+    if (!inspection) return;
+    showAlert({
+      type: 'confirm',
+      title: 'Edit Laporan PM',
+      message: `Anda akan membuka formulir inspeksi "${cleanPopName(popName || activePopId || 'POP')}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Edit Sekarang',
+          onPress: () => {
+            useInspectionStore.getState().loadExistingInspection(inspection, asset);
+            navigation.navigate('InfoPop');
+          },
+        },
+      ],
+    });
   };
 
   if (loading) {
@@ -333,6 +353,24 @@ export const HistoryReviewPdfScreen: React.FC = () => {
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity
+            style={[styles.actionBtn, styles.editBtn]}
+            activeOpacity={0.85}
+            onPress={handleEditInspection}>
+            <LinearGradient
+              colors={['#F59E0B', '#D97706']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionBtnGradient}>
+              <Edit3
+                color={Colors.white}
+                size={18}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.actionBtnText}>Edit</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.actionBtn, styles.downloadBtn]}
             activeOpacity={0.85}
             onPress={handleDownloadPdf}>
@@ -343,10 +381,10 @@ export const HistoryReviewPdfScreen: React.FC = () => {
               style={styles.actionBtnGradient}>
               <Download
                 color={Colors.white}
-                size={20}
-                style={{ marginRight: 8 }}
+                size={18}
+                style={{ marginRight: 6 }}
               />
-              <Text style={styles.actionBtnText}>Download PDF</Text>
+              <Text style={styles.actionBtnText}>Download</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -361,10 +399,10 @@ export const HistoryReviewPdfScreen: React.FC = () => {
               style={styles.actionBtnGradient}>
               <Share2
                 color={Colors.white}
-                size={20}
-                style={{ marginRight: 8 }}
+                size={18}
+                style={{ marginRight: 6 }}
               />
-              <Text style={styles.actionBtnText}>Bagikan PDF</Text>
+              <Text style={styles.actionBtnText}>Bagikan</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -533,6 +571,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
     ...Shadow.md,
+  },
+  editBtn: {
   },
   downloadBtn: {
   },

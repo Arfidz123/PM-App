@@ -121,7 +121,7 @@ function MainTabs() {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon IconComponent={Home} focused={focused} label="Home" />
+            <TabIcon IconComponent={Home} focused={focused} label="Beranda" />
           ),
         }}
       />

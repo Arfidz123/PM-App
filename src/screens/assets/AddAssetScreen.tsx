@@ -9,12 +9,11 @@ import {
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Input, Button, Card} from '../../components/common';
+import {Header, Input, Button, Card, showAlert} from '../../components/common';
 import database from '../../database';
 import {Asset, ChecklistTemplate} from '../../database/models';
 import type {RootStackParamList, AssetCategory} from '../../types';
@@ -79,7 +78,7 @@ export const AddAssetScreen: React.FC = () => {
 
   const handleSave = async () => {
     if (!assetCode.trim() || !name.trim()) {
-      Alert.alert('Error', 'Kode aset dan nama aset wajib diisi');
+      showAlert({type: 'error', title: 'Error', message: 'Kode aset dan nama aset wajib diisi'});
       return;
     }
 
@@ -120,7 +119,7 @@ export const AddAssetScreen: React.FC = () => {
 
       navigation.goBack();
     } catch (error) {
-      Alert.alert('Error', 'Gagal menyimpan aset');
+      showAlert({type: 'error', title: 'Error', message: 'Gagal menyimpan aset'});
       console.error(error);
     } finally {
       setSaving(false);

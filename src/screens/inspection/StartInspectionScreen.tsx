@@ -1,6 +1,6 @@
 /**
  * Start Inspection (Camera + GPS Detection) Screen
- * Opens system camera/gallery to take a photo of POP and automatically detects closest POP via GPS
+ * Opens system camera/gallery to take a photo of POP and automatically detects closest POP within 100 meters via GPS
  */
 
 import React, { useState } from 'react';
@@ -10,14 +10,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
-  Image,
+  Modal,
+  FlatList,
 } from 'react-native';
+import {showAlert} from '../../components/common';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Geolocation from '@react-native-community/geolocation';
 import { getDistance } from 'geolib';
-import { Camera as CameraIcon, MapPin, Image as ImageIcon, ChevronLeft, Search } from 'lucide-react-native';
+import { Camera as CameraIcon, MapPin, Image as ImageIcon, Building2, CheckCircle2, ChevronRight } from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
@@ -29,11 +30,18 @@ import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+interface NearbyPopItem {
+  asset: Asset;
+  distance: number;
+}
+
 export const StartInspectionScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [detecting, setDetecting] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
+  const [nearbyPops, setNearbyPops] = useState<NearbyPopItem[]>([]);
+  const [showMultiPopModal, setShowMultiPopModal] = useState(false);
 
   const {
     setActivePop,
@@ -47,6 +55,56 @@ export const StartInspectionScreen: React.FC = () => {
     handleOpenCamera();
   }, []);
 
+  const applySelectedPop = async (selectedAsset: Asset, photoUri?: string) => {
+    try {
+      setShowMultiPopModal(false);
+      setDetecting(true);
+      setLoadingMsg(`Menyiapkan data: ${cleanPopName(selectedAsset.name)}...`);
+
+      const templateItems = await database
+        .get<ChecklistItem>('checklist_items')
+        .query()
+        .fetch();
+
+      const assetTemplateItems = templateItems.filter(
+        (item) => item.templateId === selectedAsset?.checklistTemplateId
+      );
+
+      const entries = assetTemplateItems.map((item) => ({
+        templateItemId: (item as any).id,
+        category: item.category,
+        label: item.label,
+        type: item.type,
+        unit: item.unit,
+        options: item.options ? JSON.parse(item.options) : [],
+        minValue: item.minValue,
+        maxValue: item.maxValue,
+        required: item.isRequired,
+        status: 'na' as any,
+        value: '',
+        photoPath: '',
+        notes: '',
+        order: item.sortOrder,
+      }));
+
+      setChecklistEntries(entries);
+      setActivePop(selectedAsset.assetCode, selectedAsset.name, selectedAsset.location, selectedAsset.specifications);
+      setAsset((selectedAsset as any).id);
+
+      if (photoUri) {
+        addPhoto(photoUri);
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      setDetecting(false);
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error applying selected POP:', error);
+      setDetecting(false);
+      navigation.goBack();
+    }
+  };
+
   const processGpsDetection = async (photoUri?: string) => {
     setDetecting(true);
     setLoadingMsg('Mendapatkan lokasi GPS...');
@@ -58,7 +116,7 @@ export const StartInspectionScreen: React.FC = () => {
         Geolocation.getCurrentPosition(
           (pos) => resolve(pos.coords),
           (err) => reject(err),
-          { enableHighAccuracy: enableHighAcc, timeout: 10000, maximumAge: 10000 }
+          { enableHighAccuracy: enableHighAcc, timeout: 10000, maximumAge: 0 }
         );
       });
     };
@@ -77,100 +135,102 @@ export const StartInspectionScreen: React.FC = () => {
 
     if (coords) {
       const { latitude, longitude } = coords;
+      const coordsStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
       setCurrentLocation({ lat: latitude, lng: longitude });
 
-      setLoadingMsg('Mencari POP terdekat...');
+      if (photoUri) {
+        addPhoto(photoUri, undefined, coordsStr);
+      }
+
+      setLoadingMsg('Mencari POP terdekat dalam radius 100m...');
 
       try {
         const assets = await database.get<Asset>('assets').query().fetch();
-        let closestAsset: Asset | null = null;
-        let minDistance = Infinity;
-
+        
+        const matchedPops: NearbyPopItem[] = [];
         for (const asset of assets) {
           if (asset.latitude && asset.longitude) {
             const distance = getDistance(
               { latitude, longitude },
               { latitude: asset.latitude, longitude: asset.longitude }
             );
-            if (distance < minDistance) {
-              minDistance = distance;
-              closestAsset = asset;
+            // Jarak deteksi dibatasi 100 meter
+            if (distance <= 100) {
+              matchedPops.push({ asset, distance });
             }
           }
         }
 
-        if (photoUri) addPhoto(photoUri);
+        matchedPops.sort((a, b) => a.distance - b.distance);
 
-        // Accept GPS match if within 500 meters
-        if (closestAsset && minDistance <= 500) {
-          setLoadingMsg(`POP Ditemukan: ${cleanPopName(closestAsset.name)}`);
-
-          const templateItems = await database
-            .get<ChecklistItem>('checklist_items')
-            .query()
-            .fetch();
-
-          const assetTemplateItems = templateItems.filter(
-            (item) => item.templateId === closestAsset?.checklistTemplateId
-          );
-
-          const entries = assetTemplateItems.map((item) => ({
-            templateItemId: (item as any).id,
-            category: item.category,
-            label: item.label,
-            type: item.type,
-            unit: item.unit,
-            options: item.options ? JSON.parse(item.options) : [],
-            minValue: item.minValue,
-            maxValue: item.maxValue,
-            required: item.isRequired,
-            status: 'na' as any,
-            value: '',
-            photoPath: '',
-            notes: '',
-            order: item.sortOrder,
-          }));
-
-          setChecklistEntries(entries);
-          setActivePop(closestAsset.assetCode, closestAsset.name, closestAsset.location, closestAsset.specifications);
-          setAsset((closestAsset as any).id);
-
-          await new Promise<void>((resolve) => setTimeout(resolve, 600));
+        // Jika ditemukan 1 POP
+        if (matchedPops.length === 1) {
+          const singlePop = matchedPops[0];
           setDetecting(false);
 
-          Alert.alert(
-            'POP Terdeteksi!',
-            `Terdeteksi via GPS:\n${cleanPopName(closestAsset.name)} (${cleanPopId(closestAsset.assetCode)})\nJarak: ${minDistance} meter`,
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
-          );
+          showAlert({
+            type: 'success',
+            title: 'POP Terdeteksi!',
+            message: `Terdeteksi via GPS:\n${cleanPopName(singlePop.asset.name)} (${cleanPopId(singlePop.asset.assetCode)})\nJarak: ${singlePop.distance} meter`,
+            buttons: [
+              {
+                text: 'Pilih POP Lain',
+                style: 'cancel',
+                onPress: () => navigation.replace('SelectPop'),
+              },
+              {
+                text: 'Lanjutkan',
+                onPress: () => applySelectedPop(singlePop.asset, photoUri),
+              },
+            ],
+          });
+          return;
+        }
+
+        // Jika ditemukan lebih dari 1 POP dalam 100m
+        if (matchedPops.length > 1) {
+          setNearbyPops(matchedPops);
+          setDetecting(false);
+          setShowMultiPopModal(true);
           return;
         }
       } catch (error) {
-        console.error(error);
+        console.error('Error during GPS matching:', error);
+      }
+    } else {
+      if (photoUri) {
+        addPhoto(photoUri);
       }
     }
 
     setDetecting(false);
-    if (photoUri) addPhoto(photoUri);
-    Alert.alert(
-      'Foto Disimpan',
-      'Lokasi GPS tidak terdeteksi atau tidak pas dengan koordinat POP. Silakan pilih POP target dari daftar.',
-      [
+    showAlert({
+      type: 'warning',
+      title: 'Lokasi Tidak Cocok',
+      message: 'Lokasi GPS Anda tidak berada dalam radius 100 meter dari POP manapun. Silakan pilih POP target secara manual.',
+      buttons: [
+        {
+          text: 'Batal',
+          style: 'cancel',
+          onPress: () => navigation.goBack(),
+        },
         {
           text: 'Pilih POP',
           onPress: () => navigation.replace('SelectPop'),
         },
-        { text: 'Batal', style: 'cancel' },
-      ]
-    );
+      ],
+    });
   };
 
   const handleOpenCamera = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('Izin Kamera Ditolak', 'Aplikasi memerlukan izin kamera untuk fitur ini.', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      showAlert({
+        type: 'error',
+        title: 'Izin Kamera Ditolak',
+        message: 'Aplikasi memerlukan izin kamera untuk fitur ini.',
+        buttons: [{ text: 'OK', onPress: () => navigation.goBack() }],
+      });
       return;
     }
 
@@ -178,42 +238,22 @@ export const StartInspectionScreen: React.FC = () => {
       {
         mediaType: 'photo',
         cameraType: 'back',
-        quality: 0.8,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
         saveToPhotos: false,
         includeBase64: false,
       },
       (response) => {
         if (response.didCancel) {
-          console.log('User cancelled camera');
           navigation.goBack();
         } else if (response.errorCode) {
-          console.log('ImagePicker Error: ', response.errorMessage);
-          Alert.alert('Error Kamera', response.errorMessage || 'Gagal membuka kamera pada perangkat ini', [
-            { text: 'OK', onPress: () => navigation.goBack() }
-          ]);
-        } else if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            setCapturedPhotoUri(uri);
-            processGpsDetection(uri);
-          }
-        }
-      }
-    );
-  };
-
-  const handleOpenGallery = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        quality: 0.8,
-        includeBase64: false,
-      },
-      (response) => {
-        if (response.didCancel) {
-          console.log('User cancelled gallery');
-        } else if (response.errorCode) {
-          Alert.alert('Error Galeri', response.errorMessage || 'Gagal membuka galeri');
+          showAlert({
+            type: 'error',
+            title: 'Error Kamera',
+            message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini',
+            buttons: [{ text: 'OK', onPress: () => navigation.goBack() }],
+          });
         } else if (response.assets && response.assets.length > 0) {
           const uri = response.assets[0].uri;
           if (uri) {
@@ -232,9 +272,72 @@ export const StartInspectionScreen: React.FC = () => {
         <Text style={styles.detectingText}>{loadingMsg || 'Membuka Kamera...'}</Text>
         <View style={styles.locationBadge}>
           <MapPin color={Colors.info} size={16} />
-          <Text style={styles.locationText}>Mendeteksi Koordinat GPS</Text>
+          <Text style={styles.locationText}>Radius Deteksi GPS: 100 Meter</Text>
         </View>
       </View>
+
+      {/* Modal Pilihan Multi-POP Terdekat */}
+      <Modal
+        visible={showMultiPopModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowMultiPopModal(false);
+          navigation.goBack();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconCircle}>
+                <Building2 color={Colors.primary} size={24} />
+              </View>
+              <Text style={styles.modalTitle}>Pilih POP Terdekat</Text>
+              <Text style={styles.modalSubtitle}>
+                Ditemukan {nearbyPops.length} POP dalam radius 100 meter dari posisi Anda:
+              </Text>
+            </View>
+
+            <FlatList
+              data={nearbyPops}
+              keyExtractor={(item) => (item.asset as any).id || item.asset.assetCode}
+              style={styles.popList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.popCard}
+                  activeOpacity={0.75}
+                  onPress={() => applySelectedPop(item.asset, capturedPhotoUri || undefined)}
+                >
+                  <View style={styles.popCardLeft}>
+                    <Text style={styles.popCardName}>{cleanPopName(item.asset.name)}</Text>
+                    <Text style={styles.popCardCode}>{cleanPopId(item.asset.assetCode)}</Text>
+                    {item.asset.location ? (
+                      <Text style={styles.popCardLocation} numberOfLines={1}>{item.asset.location}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.distanceBadge}>
+                    <Text style={styles.distanceText}>{item.distance}m</Text>
+                    <ChevronRight color={Colors.primary} size={16} />
+                  </View>
+                </TouchableOpacity>
+              )}
+            />
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.selectManualBtn}
+                onPress={() => {
+                  setShowMultiPopModal(false);
+                  navigation.replace('SelectPop');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.selectManualText}>Pilih POP Lainnya dari Daftar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -243,122 +346,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    paddingTop: 56,
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.backgroundSecondary,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  backText: {
-    color: Colors.white,
-    ...Typography.body,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    color: Colors.white,
-    ...Typography.h4,
-    fontWeight: 'bold',
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: 40,
-  },
-  cameraBoxContainer: {
-    width: '100%',
-    height: 280,
-    borderRadius: BorderRadius['2xl'],
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    overflow: 'hidden',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-    ...Shadow.lg,
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  cameraPreviewContent: {
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  cameraTitle: {
-    ...Typography.h3,
-    color: Colors.white,
-    fontWeight: 'bold',
-    marginBottom: Spacing.xs,
-  },
-  cameraHelperText: {
-    color: Colors.textMuted,
-    textAlign: 'center',
-    ...Typography.bodySmall,
-    lineHeight: 20,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    width: '100%',
-    marginBottom: Spacing.lg,
-  },
-  mainActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    height: 52,
-    borderRadius: BorderRadius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadow.md,
-  },
-  cameraBtn: {
-    backgroundColor: Colors.primary,
-  },
-  galleryBtn: {
-    backgroundColor: Colors.backgroundSecondary,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-  },
-  mainActionText: {
-    ...Typography.button,
-    color: Colors.white,
-    fontWeight: 'bold',
-  },
-  selectManuallyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-  },
-  selectManuallyText: {
-    ...Typography.bodySmall,
-    color: Colors.primary,
-    fontWeight: '600',
+    padding: Spacing.xl,
   },
   detectingContainer: {
     alignItems: 'center',
@@ -368,6 +358,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     width: '100%',
+    ...Shadow.lg,
   },
   detectingText: {
     color: Colors.white,
@@ -388,5 +379,115 @@ const styles = StyleSheet.create({
     color: Colors.info,
     ...Typography.caption,
     marginLeft: Spacing.xs,
+    fontWeight: '600',
+  },
+
+  // Multi-POP Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.glassBorder,
+    width: '100%',
+    maxHeight: '80%',
+    padding: Spacing.lg,
+    ...Shadow.lg,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    color: Colors.white,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  popList: {
+    marginVertical: Spacing.sm,
+  },
+  popCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.backgroundSecondary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  popCardLeft: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  popCardName: {
+    ...Typography.body,
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  popCardCode: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  popCardLocation: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    gap: 2,
+  },
+  distanceText: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  modalFooter: {
+    marginTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    paddingTop: Spacing.md,
+  },
+  selectManualBtn: {
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  selectManualText: {
+    color: Colors.primary,
+    ...Typography.button,
+    fontSize: 13,
   },
 });

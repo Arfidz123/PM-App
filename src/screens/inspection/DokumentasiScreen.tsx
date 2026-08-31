@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   Platform,
   Animated,
   Easing,
@@ -17,9 +16,9 @@ import { ChevronUp, ChevronDown, Camera, Trash2, Plus, Image as ImageIcon, Clock
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard } from '../../components/common';
+import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission, fetchCurrentLocation } from '../../utils/helpers';
+import { requestCameraPermission, fetchCurrentLocation, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -36,6 +35,7 @@ export const DokumentasiScreen: React.FC = () => {
     activePopLocation,
     formData,
     getPhotoTimestamp,
+    getPhotoCoordinates,
   } = useInspectionStore();
   const [fotoExpanded, setFotoExpanded] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export const DokumentasiScreen: React.FC = () => {
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('Izin Kamera Ditolak', 'Aplikasi memerlukan izin kamera untuk mengambil foto.');
+      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
       return;
     }
 
@@ -124,19 +124,25 @@ export const DokumentasiScreen: React.FC = () => {
       {
         mediaType: 'photo',
         cameraType: 'back',
-        quality: 0.8,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
         saveToPhotos: false,
         includeBase64: false,
       },
-      (response) => {
+      async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          Alert.alert('Kamera Error', response.errorMessage || 'Tidak dapat membuka kamera pada perangkat ini');
+          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Tidak dapat membuka kamera pada perangkat ini'});
           return;
         }
         if (response.assets && response.assets.length > 0) {
           const uri = response.assets[0].uri;
-          if (uri) addPhoto(uri);
+          if (uri) {
+            const liveCoords = await getLiveCoordinatesString();
+            const photoTs = getCurrentFormattedTimestamp();
+            addPhoto(uri, photoTs, liveCoords || undefined);
+          }
         }
       }
     );
@@ -146,13 +152,19 @@ export const DokumentasiScreen: React.FC = () => {
     launchImageLibrary(
       {
         mediaType: 'photo',
-        quality: 0.8,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
         selectionLimit: 5,
       },
-      response => {
+      async (response) => {
         if (response.assets && response.assets.length > 0) {
-          response.assets.forEach(asset => {
-            if (asset.uri) addPhoto(asset.uri);
+          const liveCoords = await getLiveCoordinatesString();
+          const photoTs = getCurrentFormattedTimestamp();
+          response.assets.forEach((asset) => {
+            if (asset.uri) {
+              addPhoto(asset.uri, photoTs, liveCoords || undefined);
+            }
           });
         }
       }
@@ -207,7 +219,7 @@ export const DokumentasiScreen: React.FC = () => {
                       }
                     }}
                     dateStr={getPhotoTimestamp(item.uri)}
-                    coordsStr={coordsStr}
+                    coordsStr={getPhotoCoordinates(item.uri) || coordsStr}
                     addressStr={addressStr}
                     label={item.label}
                   />

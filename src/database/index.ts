@@ -18,7 +18,7 @@ import {
 const adapter = new SQLiteAdapter({
   schema,
   dbName: 'cmms_db',
-  jsi: true, // Enable JSI for better performance
+  jsi: false, // Set to false to avoid JSI crashes on Android
   onSetUpError: (error: Error) => {
     console.error('Database setup error:', error);
   },

@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Dimensions,
   NativeModules,
@@ -18,7 +17,7 @@ import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
 import LinearGradient from 'react-native-linear-gradient';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header } from '../../components/common';
+import { Header, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { generatePdfSections, generateDownloadablePdfHtml } from '../../utils/pdfTemplate';
 import database from '../../database';
@@ -43,7 +42,9 @@ export const ReviewPdfScreen: React.FC = () => {
     currentLocation,
     formData,
     photos,
-    resetInspection
+    editingInspectionId,
+    originalInspectionDate,
+    resetInspection,
   } = useInspectionStore();
 
   const mergedFormData = useMemo(() => ({
@@ -98,7 +99,8 @@ export const ReviewPdfScreen: React.FC = () => {
       console.log('PDF Generation error:', pdfErr);
     }
 
-    const inspectionId = `insp_${timestamp}`;
+    const inspectionId = editingInspectionId || `insp_${timestamp}`;
+    const effectiveInspectionDate = originalInspectionDate || timestamp;
     let isCloudSaved = false;
 
     try {
@@ -106,7 +108,7 @@ export const ReviewPdfScreen: React.FC = () => {
         id: inspectionId,
         assetId: activePopId || 'unknown',
         inspectorName: 'Teknisi',
-        inspectionDate: timestamp,
+        inspectionDate: effectiveInspectionDate,
         type: 'PM',
         status: 'completed',
         pdfPath: pdfPath,
@@ -122,20 +124,38 @@ export const ReviewPdfScreen: React.FC = () => {
     }
 
     try {
+      let existingRecord: any = null;
+      if (editingInspectionId) {
+        try {
+          existingRecord = await database.get('inspections').find(editingInspectionId);
+        } catch (findErr) {}
+      }
+
       await database.write(async () => {
-        await database.get('inspections').create((inspection: any) => {
-          inspection._raw.id = inspectionId;
-          inspection.assetId = activePopId || 'unknown';
-          inspection.inspectorName = 'Teknisi';
-          inspection.inspectionDate = timestamp;
-          inspection.type = 'PM';
-          inspection.status = 'completed';
-          inspection.pdfPath = pdfPath;
-          inspection.formData = JSON.stringify(mergedFormData);
-          inspection.photos = JSON.stringify(photos || []);
-          inspection.notes = (mergedFormData as any)?.infoPop?.catatan || '';
-          inspection.isSynced = isCloudSaved;
-        });
+        if (existingRecord) {
+          await existingRecord.update((insp: any) => {
+            insp.assetId = activePopId || 'unknown';
+            insp.pdfPath = pdfPath;
+            insp.formData = JSON.stringify(mergedFormData);
+            insp.photos = JSON.stringify(photos || []);
+            insp.notes = (mergedFormData as any)?.infoPop?.catatan || '';
+            insp.isSynced = isCloudSaved;
+          });
+        } else {
+          await database.get('inspections').create((inspection: any) => {
+            inspection._raw.id = inspectionId;
+            inspection.assetId = activePopId || 'unknown';
+            inspection.inspectorName = 'Teknisi';
+            inspection.inspectionDate = timestamp;
+            inspection.type = 'PM';
+            inspection.status = 'completed';
+            inspection.pdfPath = pdfPath;
+            inspection.formData = JSON.stringify(mergedFormData);
+            inspection.photos = JSON.stringify(photos || []);
+            inspection.notes = (mergedFormData as any)?.infoPop?.catatan || '';
+            inspection.isSynced = isCloudSaved;
+          });
+        }
       });
     } catch (dbErr) {
       console.warn('Local database save fallback error:', dbErr);
@@ -163,25 +183,29 @@ export const ReviewPdfScreen: React.FC = () => {
         }
       }
 
+      const isEditing = !!editingInspectionId;
       resetInspection();
       setSaving(false);
 
-      Alert.alert(
-        'Sukses',
-        `Data inspeksi & file PDF berhasil disimpan ke folder Downloads HP!`,
-        [
+      showAlert({
+        type: 'success',
+        title: 'Sukses',
+        message: isEditing
+          ? 'Perubahan laporan & file PDF berhasil diperbarui!'
+          : 'Data inspeksi & file PDF berhasil disimpan ke folder Downloads HP!',
+        buttons: [
           {
             text: 'OK',
             onPress: () => {
               navigation.navigate('MainTabs' as any);
             },
           },
-        ]
-      );
+        ],
+      });
     } catch (error) {
       console.error('Error in handleDownloadPdf:', error);
       setSaving(false);
-      Alert.alert('Sukses', 'Data inspeksi berhasil disimpan!');
+      showAlert({type: 'success', title: 'Sukses', message: 'Data inspeksi berhasil disimpan!'});
       resetInspection();
       navigation.navigate('MainTabs' as any);
     }

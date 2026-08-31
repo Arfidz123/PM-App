@@ -8,6 +8,7 @@ import {StatusBar, View, Text, StyleSheet, Animated, Easing} from 'react-native'
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {DatabaseProvider} from '@nozbe/watermelondb/DatabaseProvider';
 import {AppNavigator} from './src/navigation/AppNavigator';
+import {AlertProvider} from './src/components/common';
 import database from './src/database';
 import {seedDefaultTemplates, seedSampleAssets} from './src/database/seeds';
 import {useAppStore} from './src/store/appStore';
@@ -19,7 +20,9 @@ function App() {
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
       <DatabaseProvider database={database}>
-        <AppInitializer />
+        <AlertProvider>
+          <AppInitializer />
+        </AlertProvider>
       </DatabaseProvider>
     </SafeAreaProvider>
   );

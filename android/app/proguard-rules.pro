@@ -13,3 +13,8 @@
 -keep class com.tom_roush.pdfbox.** { *; }
 -dontwarn org.bouncycastle.**
 -dontwarn javax.annotation.**
+
+# WatermelonDB
+-keep class com.nozbe.watermelondb.** { *; }
+-keepclassmembers class * extends com.nozbe.watermelondb.** { *; }
+

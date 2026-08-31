@@ -31,6 +31,8 @@ interface InspectionState {
   notes: string;
   signaturePath: string;
   inspectionId: string | null;
+  editingInspectionId: string | null;
+  originalInspectionDate: number | null;
   activePopId: string | null;
   activePopName: string | null;
   activePopLocation: string | null;
@@ -42,26 +44,30 @@ interface InspectionState {
   // Form Data storage for multiple screens
   formData: Record<string, any>;
   photoTimestamps: Record<string, string>;
+  photoCoordinates: Record<string, string>;
 
   // Actions
   setAsset: (assetId: string) => void;
   setInspectionType: (type: InspectionType) => void;
-  addPhoto: (path: string) => void;
+  addPhoto: (path: string, customTs?: string, customCoords?: string) => void;
   removePhoto: (index: number) => void;
-  addPhotoBySection: (section: string, path: string) => void;
+  addPhotoBySection: (section: string, path: string, customTs?: string, customCoords?: string) => void;
   removePhotoBySection: (section: string, index: number) => void;
   getPhotoTimestamp: (path: string) => string;
+  getPhotoCoordinates: (path: string) => string;
   setChecklistEntries: (entries: ChecklistEntry[]) => void;
   updateChecklistEntry: (index: number, updates: Partial<ChecklistEntry>) => void;
   setNotes: (notes: string) => void;
   setSignaturePath: (path: string) => void;
   setInspectionId: (id: string) => void;
+  setEditingInspectionId: (id: string | null) => void;
   setCurrentStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
   setActivePop: (id: string | null, name?: string, location?: string, specifications?: string) => void;
   setCurrentLocation: (loc: {lat: number; lng: number; address?: string} | null) => void;
   updateFormData: (section: string, data: any) => void;
+  loadExistingInspection: (inspection: any, asset?: any) => void;
   resetInspection: () => void;
 }
 
@@ -78,6 +84,8 @@ const initialState = {
   notes: '',
   signaturePath: '',
   inspectionId: null,
+  editingInspectionId: null,
+  originalInspectionDate: null,
   activePopId: null,
   activePopName: null,
   activePopLocation: null,
@@ -85,6 +93,7 @@ const initialState = {
   currentStep: 0,
   formData: {},
   photoTimestamps: {} as Record<string, string>,
+  photoCoordinates: {} as Record<string, string>,
 };
 
 export const useInspectionStore = create<InspectionState>()((set, get) => ({
@@ -94,16 +103,20 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
 
   setInspectionType: (type) => set({inspectionType: type}),
 
-  addPhoto: (path) =>
+  addPhoto: (path, customTs, customCoords) =>
     set((state) => {
-      const ts = state.photoTimestamps[path] || formatTimestamp();
+      const ts = customTs || state.photoTimestamps[path] || formatTimestamp();
+      const coords = customCoords || state.photoCoordinates[path] || (state.currentLocation ? `${state.currentLocation.lat.toFixed(5)}, ${state.currentLocation.lng.toFixed(5)}` : '');
       const newTimestamps = { ...state.photoTimestamps, [path]: ts };
+      const newCoordinates = coords ? { ...state.photoCoordinates, [path]: coords } : state.photoCoordinates;
       return {
         photos: state.photos.includes(path) ? state.photos : [...state.photos, path],
         photoTimestamps: newTimestamps,
+        photoCoordinates: newCoordinates,
         formData: {
           ...state.formData,
           photoTimestamps: newTimestamps,
+          photoCoordinates: newCoordinates,
         },
       };
     }),
@@ -113,20 +126,24 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
       photos: state.photos.filter((_, i) => i !== index),
     })),
 
-  addPhotoBySection: (section, path) =>
+  addPhotoBySection: (section, path, customTs, customCoords) =>
     set((state) => {
       const sectionData = state.formData[section] || {};
       const sectionPhotos: string[] = sectionData.photos || [];
       const newSectionPhotos = sectionPhotos.includes(path) ? sectionPhotos : [...sectionPhotos, path];
       const newPhotos = state.photos.includes(path) ? state.photos : [...state.photos, path];
-      const ts = state.photoTimestamps[path] || formatTimestamp();
+      const ts = customTs || state.photoTimestamps[path] || formatTimestamp();
+      const coords = customCoords || state.photoCoordinates[path] || (state.currentLocation ? `${state.currentLocation.lat.toFixed(5)}, ${state.currentLocation.lng.toFixed(5)}` : '');
       const newTimestamps = { ...state.photoTimestamps, [path]: ts };
+      const newCoordinates = coords ? { ...state.photoCoordinates, [path]: coords } : state.photoCoordinates;
       return {
         photos: newPhotos,
         photoTimestamps: newTimestamps,
+        photoCoordinates: newCoordinates,
         formData: {
           ...state.formData,
           photoTimestamps: newTimestamps,
+          photoCoordinates: newCoordinates,
           [section]: {
             ...sectionData,
             photos: newSectionPhotos,
@@ -151,6 +168,26 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
       },
     }));
     return ts;
+  },
+
+  getPhotoCoordinates: (path: string) => {
+    if (!path) return '';
+    const state = get();
+    if (state.photoCoordinates && state.photoCoordinates[path]) {
+      return state.photoCoordinates[path];
+    }
+    const coords = state.currentLocation ? `${state.currentLocation.lat.toFixed(5)}, ${state.currentLocation.lng.toFixed(5)}` : '';
+    if (coords) {
+      const newCoordinates = { ...(state.photoCoordinates || {}), [path]: coords };
+      set((s) => ({
+        photoCoordinates: newCoordinates,
+        formData: {
+          ...s.formData,
+          photoCoordinates: newCoordinates,
+        },
+      }));
+    }
+    return coords;
   },
 
   removePhotoBySection: (section, index) =>
@@ -301,6 +338,7 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
     }));
   },
   setCurrentLocation: (loc) => set({currentLocation: loc}),
+  setEditingInspectionId: (id) => set({editingInspectionId: id}),
 
   updateFormData: (section: string, data: any) => set((state) => ({
     formData: {
@@ -311,6 +349,49 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
       }
     }
   })),
+
+  loadExistingInspection: (insp: any, asset?: any) => {
+    let parsedForm: any = {};
+    if (insp.formData) {
+      try {
+        parsedForm = typeof insp.formData === 'string' ? JSON.parse(insp.formData) : insp.formData;
+      } catch (e) {}
+    }
+    let parsedPhotos: any[] = [];
+    if (insp.photos) {
+      try {
+        parsedPhotos = typeof insp.photos === 'string' ? JSON.parse(insp.photos) : insp.photos;
+      } catch (e) {}
+    }
+
+    const pTimestamps = parsedForm.photoTimestamps || {};
+    const pCoordinates = parsedForm.photoCoordinates || {};
+
+    const popId = (asset as any)?.assetCode || insp.assetId || parsedForm?.infoPop?.popId || '';
+    const popName = (asset as any)?.name || parsedForm?.infoPop?.namaPop || '';
+    const popLocation = (asset as any)?.location || parsedForm?.infoPop?.alamat || '';
+
+    set({
+      currentAssetId: (asset as any)?.id || insp.assetId || null,
+      editingInspectionId: insp.id,
+      originalInspectionDate: insp.inspectionDate || Date.now(),
+      inspectionType: (insp.type as any) || 'preventive',
+      photos: parsedPhotos.length > 0 ? parsedPhotos : (parsedForm.photos || []),
+      notes: insp.notes || parsedForm.notes || '',
+      activePopId: popId,
+      activePopName: popName,
+      activePopLocation: popLocation,
+      currentLocation: parsedForm.currentLocation || null,
+      photoTimestamps: pTimestamps,
+      photoCoordinates: pCoordinates,
+      formData: {
+        ...parsedForm,
+        inspectionStartTime: parsedForm.inspectionStartTime || (insp.inspectionDate ? new Date(insp.inspectionDate).toISOString() : new Date().toISOString()),
+        photoTimestamps: pTimestamps,
+        photoCoordinates: pCoordinates,
+      },
+    });
+  },
 
   resetInspection: () => set(initialState),
 }));

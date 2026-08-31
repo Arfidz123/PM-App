@@ -9,7 +9,6 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  Alert,
   Share,
   Animated,
   StatusBar,
@@ -30,12 +29,16 @@ import {
   Minus,
   ClipboardList,
   Eye,
+  Edit3,
+  Cloud,
+  CloudOff,
 } from 'lucide-react-native';
 
 import {Colors, Typography, Spacing, BorderRadius, Shadow, FontFamily} from '../../theme';
-import {Button, StatusBadge} from '../../components/common';
+import {Button, StatusBadge, showAlert} from '../../components/common';
 import database from '../../database';
 import {Inspection, InspectionItem, Asset} from '../../database/models';
+import {useInspectionStore} from '../../store/inspectionStore';
 import {formatDate, cleanPopId, cleanPopName, cleanInspectorName, sharePdfFile} from '../../utils/helpers';
 import type {RootStackParamList} from '../../types';
 import {TouchableOpacity} from 'react-native';
@@ -131,11 +134,30 @@ export const InspectionDetailScreen: React.FC = () => {
           )}`,
         );
       } catch (error) {
-        Alert.alert('Error', 'Gagal membagikan PDF');
+        showAlert({type: 'error', title: 'Error', message: 'Gagal membagikan PDF'});
       }
     } else {
-      Alert.alert('Info', 'PDF belum tersedia untuk laporan ini');
+      showAlert({type: 'info', title: 'Info', message: 'PDF belum tersedia untuk laporan ini'});
     }
+  };
+
+  const handleEditInspection = () => {
+    if (!inspection) return;
+    showAlert({
+      type: 'confirm',
+      title: 'Edit Laporan PM',
+      message: `Anda akan membuka formulir inspeksi "${cleanPopName(asset?.name || asset?.assetCode || 'POP')}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Edit Sekarang',
+          onPress: () => {
+            useInspectionStore.getState().loadExistingInspection(inspection, asset);
+            navigation.navigate('InfoPop');
+          },
+        },
+      ],
+    });
   };
 
   if (!inspection || !asset) {
@@ -147,6 +169,11 @@ export const InspectionDetailScreen: React.FC = () => {
       </View>
     );
   }
+
+  const isEdited =
+    inspection.updatedAt &&
+    inspection.createdAt &&
+    new Date(inspection.updatedAt).getTime() - new Date(inspection.createdAt).getTime() > 60000;
 
   const statusCounts = {
     ok: items.filter((i) => i.status === 'ok').length,
@@ -201,6 +228,24 @@ export const InspectionDetailScreen: React.FC = () => {
               <Calendar size={12} color={Colors.white} style={{marginRight: 4}} />
               <Text style={styles.chipText}>{formatDate(inspection.inspectionDate)}</Text>
             </View>
+            {inspection.isSynced ? (
+              <View style={[styles.chip, styles.chipCloud]}>
+                <Cloud size={12} color="#6EE7B7" style={{marginRight: 4}} />
+                <Text style={styles.chipCloudText}>Tersimpan di Cloud</Text>
+              </View>
+            ) : (
+              <View style={[styles.chip, styles.chipLocal]}>
+                <CloudOff size={12} color="#FDE68A" style={{marginRight: 4}} />
+                <Text style={styles.chipLocalText}>Tersimpan di HP (Lokal)</Text>
+              </View>
+            )}
+            {isEdited ? (
+              <View style={[styles.chip, styles.chipEdited]}>
+                <Text style={styles.chipEditedText}>
+                  ✏️ Revisi {formatDate(new Date(inspection.updatedAt).getTime())}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.chip}>
               <User size={12} color={Colors.white} style={{marginRight: 4}} />
               <Text style={styles.chipText}>{cleanInspectorName(inspection.inspectorName)}</Text>
@@ -277,6 +322,23 @@ export const InspectionDetailScreen: React.FC = () => {
 
           {/* Actions */}
           <View style={styles.actionsSection}>
+            {/* Edit Inspection Button */}
+            {hasFormData && (
+              <TouchableOpacity
+                style={styles.editBtn}
+                activeOpacity={0.85}
+                onPress={handleEditInspection}>
+                <LinearGradient
+                  colors={['#F59E0B', '#D97706']}
+                  start={{x: 0, y: 0}}
+                  end={{x: 1, y: 1}}
+                  style={styles.editBtnGradient}>
+                  <Edit3 size={20} color={Colors.white} style={{marginRight: 8}} />
+                  <Text style={styles.editBtnText}>Edit Laporan</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+
             {/* Review PDF Button - only show if formData exists */}
             {hasFormData && (
               <TouchableOpacity
@@ -557,8 +619,60 @@ const styles = StyleSheet.create({
   },
 
   // Actions
+  chipCloud: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    borderColor: 'rgba(16, 185, 129, 0.5)',
+    borderWidth: 1,
+  },
+  chipCloudText: {
+    ...Typography.caption,
+    color: '#6EE7B7',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  chipLocal: {
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    borderWidth: 1,
+  },
+  chipLocalText: {
+    ...Typography.caption,
+    color: '#FDE68A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  chipEdited: {
+    backgroundColor: 'rgba(245, 158, 11, 0.25)',
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    borderWidth: 1,
+  },
+  chipEditedText: {
+    ...Typography.caption,
+    color: '#FDE68A',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   actionsSection: {
     marginTop: Spacing.md,
+  },
+  editBtn: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+    ...Shadow.md,
+  },
+  editBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: BorderRadius.xl,
+  },
+  editBtnText: {
+    ...Typography.button,
+    color: Colors.white,
+    fontWeight: '700',
+    fontSize: 16,
   },
   reviewPdfBtn: {
     borderRadius: BorderRadius.xl,

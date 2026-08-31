@@ -323,6 +323,33 @@ export async function fetchCurrentLocation(): Promise<{ lat: number; lng: number
 }
 
 /**
+ * Fetch real-time GPS coordinate string (lat, lng) with high accuracy
+ */
+export async function getLiveCoordinatesString(): Promise<string | null> {
+  const Geolocation = require('@react-native-community/geolocation').default;
+  const hasPermission = await requestLocationPermission();
+  if (!hasPermission) return null;
+
+  return new Promise((resolve) => {
+    Geolocation.getCurrentPosition(
+      (pos: any) => {
+        resolve(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      },
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 }
+    );
+  });
+}
+
+/**
+ * Get current Indonesian timestamp string for photos
+ */
+export function getCurrentFormattedTimestamp(): string {
+  const now = new Date();
+  return `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
+}
+
+/**
  * Share PDF file using native Android FileProvider intent or fallback Share.share
  */
 export async function sharePdfFile(
@@ -349,4 +376,5 @@ export async function sharePdfFile(
     });
   }
 }
+
 

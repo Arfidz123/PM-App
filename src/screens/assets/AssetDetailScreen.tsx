@@ -11,12 +11,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  Alert,
 } from 'react-native';
 import {useNavigation, useRoute, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Card, Header, StatusBadge, Button} from '../../components/common';
+import {Card, Header, StatusBadge, Button, showAlert} from '../../components/common';
 import database from '../../database';
 import {Asset, Inspection} from '../../database/models';
 import {formatDate, getCategoryIcon, getRelativeTime, cleanInspectorName} from '../../utils/helpers';
@@ -57,10 +56,11 @@ export const AssetDetailScreen: React.FC = () => {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Hapus Aset',
-      'Apakah Anda yakin ingin menghapus aset ini? Semua data terkait juga akan dihapus.',
-      [
+    showAlert({
+      type: 'confirm',
+      title: 'Hapus Aset',
+      message: 'Apakah Anda yakin ingin menghapus aset ini? Semua data terkait juga akan dihapus.',
+      buttons: [
         {text: 'Batal', style: 'cancel'},
         {
           text: 'Hapus',
@@ -77,7 +77,7 @@ export const AssetDetailScreen: React.FC = () => {
           },
         },
       ],
-    );
+    });
   };
 
   if (!asset) {

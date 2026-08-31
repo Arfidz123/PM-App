@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  Alert,
   Animated,
   Easing,
   Platform,
@@ -18,9 +17,9 @@ import { ChevronUp, ChevronDown, ChevronLeft, Clock, Zap, Camera, FileText, Tras
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard } from '../../components/common';
+import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission } from '../../utils/helpers';
+import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -56,7 +55,7 @@ export const KwhMeterScreen: React.FC = () => {
     Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
   };
 
-  const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp } = useInspectionStore();
+  const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
   const kwhData = formData.kwhMeter || {};
   const sectionPhotos: string[] = kwhData.photos || [];
 
@@ -69,21 +68,31 @@ export const KwhMeterScreen: React.FC = () => {
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      Alert.alert('Izin Kamera Ditolak', 'Aplikasi memerlukan izin kamera untuk mengambil foto.');
+      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
       return;
     }
     launchCamera(
-      { mediaType: 'photo', cameraType: 'back', quality: 0.8, saveToPhotos: false, includeBase64: false },
-      (response) => {
+      {
+        mediaType: 'photo',
+        cameraType: 'back',
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
+        saveToPhotos: false,
+        includeBase64: false,
+      },
+      async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          Alert.alert('Kamera Error', response.errorMessage || 'Gagal membuka kamera pada perangkat ini');
+          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini'});
           return;
         }
         if (response.assets && response.assets.length > 0) {
           const uri = response.assets[0].uri;
           if (uri) {
-            addPhotoBySection('kwhMeter', uri);
+            const liveCoords = await getLiveCoordinatesString();
+            const photoTs = getCurrentFormattedTimestamp();
+            addPhotoBySection('kwhMeter', uri, photoTs, liveCoords || undefined);
           }
         }
       }
@@ -92,17 +101,25 @@ export const KwhMeterScreen: React.FC = () => {
 
   const handlePickGallery = () => {
     launchImageLibrary(
-      { mediaType: 'photo', quality: 0.8, includeBase64: false },
-      (response) => {
+      {
+        mediaType: 'photo',
+        maxWidth: 1280,
+        maxHeight: 1280,
+        quality: 0.7,
+        includeBase64: false,
+      },
+      async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          Alert.alert('Galeri Error', response.errorMessage || 'Gagal membuka galeri');
+          showAlert({type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri'});
           return;
         }
         if (response.assets && response.assets.length > 0) {
           const uri = response.assets[0].uri;
           if (uri) {
-            addPhotoBySection('kwhMeter', uri);
+            const liveCoords = await getLiveCoordinatesString();
+            const photoTs = getCurrentFormattedTimestamp();
+            addPhotoBySection('kwhMeter', uri, photoTs, liveCoords || undefined);
           }
         }
       }
@@ -596,7 +613,7 @@ export const KwhMeterScreen: React.FC = () => {
                       onPress={() => setSelectedPhoto(fotoUri)}
                       onDelete={() => removePhotoBySection('kwhMeter', index)}
                       dateStr={getPhotoTimestamp(fotoUri)}
-                      coordsStr={coordsStr}
+                      coordsStr={getPhotoCoordinates(fotoUri) || coordsStr}
                       addressStr={addressStr}
                       label={`KWH Meter #${index + 1}`}
                     />

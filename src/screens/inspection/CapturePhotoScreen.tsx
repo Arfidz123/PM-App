@@ -12,12 +12,11 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
-  Alert,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Button, Card} from '../../components/common';
+import {Header, Button, Card, showAlert} from '../../components/common';
 import {useInspectionStore} from '../../store/inspectionStore';
 import {useAppStore} from '../../store/appStore';
 import database from '../../database';
@@ -103,7 +102,7 @@ export const CapturePhotoScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error preparing checklist:', error);
-      Alert.alert('Error', 'Gagal mempersiapkan checklist');
+      showAlert({type: 'error', title: 'Error', message: 'Gagal mempersiapkan checklist'});
     } finally {
       setLoading(false);
     }

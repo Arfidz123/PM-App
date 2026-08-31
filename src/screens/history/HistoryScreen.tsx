@@ -32,13 +32,15 @@ import {
   FileCheck,
   TrendingUp,
   MapPin,
+  Cloud,
+  CloudOff,
 } from 'lucide-react-native';
 
 import {Colors, Typography, Spacing, BorderRadius, Shadow, FontFamily} from '../../theme';
 import {StatusBadge} from '../../components/common';
 import database from '../../database';
 import {Inspection, Asset} from '../../database/models';
-import {restoreInspectionsFromSupabase} from '../../services/syncService';
+import {restoreInspectionsFromSupabase, syncInspectionsToSupabase} from '../../services/syncService';
 import {formatDate, getRelativeTime, cleanPopId, cleanPopName, cleanInspectorName} from '../../utils/helpers';
 import type {RootStackParamList} from '../../types';
 
@@ -163,6 +165,17 @@ const InspectionCard: React.FC<{
               <User size={12} color={Colors.textSecondary} style={{marginRight: 4}} />
               <Text style={inspectionCardStyles.metaChipText}>{cleanInspectorName(item.inspectorName)}</Text>
             </View>
+            {item.isSynced ? (
+              <View style={inspectionCardStyles.syncCloudChip}>
+                <Cloud size={11} color="#059669" style={{marginRight: 3}} />
+                <Text style={inspectionCardStyles.syncCloudChipText}>Cloud</Text>
+              </View>
+            ) : (
+              <View style={inspectionCardStyles.syncLocalChip}>
+                <CloudOff size={11} color="#D97706" style={{marginRight: 3}} />
+                <Text style={inspectionCardStyles.syncLocalChipText}>Lokal</Text>
+              </View>
+            )}
             {item.pdfPath ? (
               <View style={inspectionCardStyles.pdfChip}>
                 <FileCheck size={12} color={Colors.success} style={{marginRight: 3}} />
@@ -171,8 +184,15 @@ const InspectionCard: React.FC<{
             ) : null}
           </View>
           <View style={inspectionCardStyles.typeRow}>
-            <View style={inspectionCardStyles.typeTag}>
-              <Text style={inspectionCardStyles.typeTagText}>{item.typeLabel}</Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+              <View style={inspectionCardStyles.typeTag}>
+                <Text style={inspectionCardStyles.typeTagText}>{item.typeLabel}</Text>
+              </View>
+              {item.updatedAt && item.createdAt && (new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime() > 60000) ? (
+                <View style={inspectionCardStyles.editedTag}>
+                  <Text style={inspectionCardStyles.editedTagText}>✏️ Diedit</Text>
+                </View>
+              ) : null}
             </View>
             <View style={inspectionCardStyles.timeAgoRow}>
               <Clock size={11} color={Colors.textMuted} style={{marginRight: 3}} />
@@ -245,10 +265,12 @@ export const HistoryScreen: React.FC = () => {
 
   const loadInspections = async () => {
     try {
-      // Automatically restore cloud backup silently
-      restoreInspectionsFromSupabase().catch((err) => {
-        console.warn('Silent cloud restore error:', err);
-      });
+      // Automatically sync unsynced local inspections and restore cloud backup silently
+      syncInspectionsToSupabase()
+        .then(() => restoreInspectionsFromSupabase())
+        .catch((err) => {
+          console.warn('Silent cloud sync/restore error:', err);
+        });
 
       const allInspections = await database
         .get<Inspection>('inspections')
@@ -738,6 +760,38 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 11,
   },
+  syncCloudChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  syncCloudChipText: {
+    fontSize: 10,
+    fontFamily: FontFamily.semiBold,
+    color: '#059669',
+    fontWeight: '700',
+  },
+  syncLocalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+  },
+  syncLocalChipText: {
+    fontSize: 10,
+    fontFamily: FontFamily.semiBold,
+    color: '#D97706',
+    fontWeight: '700',
+  },
   pdfChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -768,6 +822,20 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '600',
     fontSize: 10,
+  },
+  editedTag: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  editedTagText: {
+    ...Typography.caption,
+    color: '#D97706',
+    fontWeight: '700',
+    fontSize: 9,
   },
   timeAgoRow: {
     flexDirection: 'row',

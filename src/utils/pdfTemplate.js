@@ -36,6 +36,17 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                 (activePopLocation ? activePopLocation : '-');
         var popAddress = (formData.currentLocation && formData.currentLocation.address ? formData.currentLocation.address : null) || (infoPop.alamat && infoPop.alamat !== 'Kendari' ? infoPop.alamat : null) || (activePopLocation ? activePopLocation : '-');
 
+        var photoTimestamps = formData.photoTimestamps || {};
+        var photoCoordinates = formData.photoCoordinates || {};
+        var getPhotoTs = function (pUri) {
+                if (!pUri) return currDate + ' ' + currTime;
+                return photoTimestamps[pUri] || (currDate + ' ' + currTime);
+        };
+        var getPhotoCoord = function (pUri) {
+                if (!pUri) return popCoords;
+                return photoCoordinates[pUri] || popCoords;
+        };
+
         var safeStr = function (val) {
                 if (val === null || val === undefined) return '';
                 return String(val);
@@ -305,8 +316,8 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
                                 '<img src="' + item.uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 5px; line-height: 1.1; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Koordinat : ' + popCoords + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + getPhotoTs(item.uri) + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Koordinat : ' + getPhotoCoord(item.uri) + '</div>' +
                                 '<div style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
                                 '</div>' +
@@ -1466,8 +1477,8 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                         '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                         '</div>' +
                                         '</div></div>';
@@ -1568,8 +1579,8 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                         '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                         '</div>' +
                                         '</div></div>';
@@ -1665,8 +1676,8 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
                                 '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                 '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
                                 '</div></div></td>';
@@ -1788,6 +1799,17 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                 (formData.currentLocation && formData.currentLocation.lat ? (formData.currentLocation.lat.toFixed(5) + ', ' + formData.currentLocation.lng.toFixed(5)) : '') ||
                 (activePopLocation ? activePopLocation : '-');
         var popAddress = (formData.currentLocation && formData.currentLocation.address ? formData.currentLocation.address : null) || (infoPop.alamat && infoPop.alamat !== 'Kendari' ? infoPop.alamat : null) || (activePopLocation ? activePopLocation : '-');
+
+        var photoTimestamps = formData.photoTimestamps || {};
+        var photoCoordinates = formData.photoCoordinates || {};
+        var getPhotoTs = function (pUri) {
+                if (!pUri) return currDate + ' ' + currTime;
+                return photoTimestamps[pUri] || (currDate + ' ' + currTime);
+        };
+        var getPhotoCoord = function (pUri) {
+                if (!pUri) return popCoords;
+                return photoCoordinates[pUri] || popCoords;
+        };
 
         var safeStr = function (val) {
                 if (val === null || val === undefined) return '';
@@ -2058,8 +2080,8 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
                                 '<img src="' + item.uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 5px; line-height: 1.1; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Koordinat : ' + popCoords + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + getPhotoTs(item.uri) + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Koordinat : ' + getPhotoCoord(item.uri) + '</div>' +
                                 '<div style="color: #ffffff; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
                                 '</div>' +
@@ -3218,8 +3240,8 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                         '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                         '</div>' +
                                         '</div></div>';
@@ -3320,8 +3342,8 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                        '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                         '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                         '</div>' +
                                         '</div></div>';
@@ -3417,8 +3439,8 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
                                 '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
-                                '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + currDate + ' ' + currTime + '</div>' +
-                                '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + popCoords + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
+                                '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                 '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
                                 '</div></div></td>';

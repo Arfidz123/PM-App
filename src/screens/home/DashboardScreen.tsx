@@ -13,7 +13,6 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
-  Alert,
   Image,
   Easing,
 } from 'react-native';
@@ -36,6 +35,7 @@ import {
 } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
+import { showAlert } from '../../components/common';
 import database from '../../database';
 import { Asset } from '../../database/models';
 import { useAppStore } from '../../store/appStore';
@@ -313,10 +313,11 @@ export const DashboardScreen: React.FC = () => {
 
   const handleMenuPress = (itemId: string) => {
     if (!activePopId && itemId !== 'dokumentasi' && itemId !== 'pop') {
-      Alert.alert(
-        'Belum Memulai',
-        'Silakan ambil foto dokumentasi terlebih dahulu, atau pilih POP secara manual di menu POP.',
-      );
+      showAlert({
+        type: 'warning',
+        title: 'Belum Memulai',
+        message: 'Silakan ambil foto dokumentasi terlebih dahulu, atau pilih POP secara manual di menu POP.',
+      });
       return;
     }
 

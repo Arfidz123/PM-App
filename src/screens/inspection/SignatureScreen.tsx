@@ -9,13 +9,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   PanResponder,
 } from 'react-native';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Button} from '../../components/common';
+import {Header, Button, showAlert} from '../../components/common';
 import {useInspectionStore, ChecklistEntry} from '../../store/inspectionStore';
 import {useAppStore} from '../../store/appStore';
 import database from '../../database';
@@ -53,7 +52,7 @@ export const SignatureScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!signed) {
-      Alert.alert('Perhatian', 'Silakan tanda tangan terlebih dahulu');
+      showAlert({type: 'warning', title: 'Perhatian', message: 'Silakan tanda tangan terlebih dahulu'});
       return;
     }
 
@@ -149,10 +148,11 @@ export const SignatureScreen: React.FC = () => {
         console.warn('Background sync failed:', err);
       });
 
-      Alert.alert(
-        '✅ PM Selesai!',
-        'Data PM berhasil disimpan dan laporan PDF telah dibuat.',
-        [
+      showAlert({
+        type: 'success',
+        title: '✅ PM Selesai!',
+        message: 'Data PM berhasil disimpan dan laporan PDF telah dibuat.',
+        buttons: [
           {
             text: 'Lihat Detail',
             onPress: () =>
@@ -163,10 +163,10 @@ export const SignatureScreen: React.FC = () => {
             onPress: () => navigation.navigate('MainTabs'),
           },
         ],
-      );
+      });
     } catch (error) {
       console.error('Error submitting inspection:', error);
-      Alert.alert('Error', 'Gagal menyimpan data. Silakan coba lagi.');
+      showAlert({type: 'error', title: 'Error', message: 'Gagal menyimpan data. Silakan coba lagi.'});
     } finally {
       setSubmitting(false);
     }
