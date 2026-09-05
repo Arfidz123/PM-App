@@ -20,7 +20,6 @@ import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {
-  User,
   FileText,
   Inbox,
   Clock,
@@ -41,7 +40,7 @@ import {StatusBadge} from '../../components/common';
 import database from '../../database';
 import {Inspection, Asset} from '../../database/models';
 import {restoreInspectionsFromSupabase, syncInspectionsToSupabase} from '../../services/syncService';
-import {formatDate, getRelativeTime, cleanPopId, cleanPopName, cleanInspectorName} from '../../utils/helpers';
+import {formatDate, getRelativeTime, cleanPopId, cleanPopName} from '../../utils/helpers';
 import type {RootStackParamList} from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -161,10 +160,6 @@ const InspectionCard: React.FC<{
               <Calendar size={12} color={Colors.textMuted} style={{marginRight: 4}} />
               <Text style={inspectionCardStyles.metaChipText}>{formatDate(item.inspectionDate)}</Text>
             </View>
-            <View style={inspectionCardStyles.metaChip}>
-              <User size={12} color={Colors.textSecondary} style={{marginRight: 4}} />
-              <Text style={inspectionCardStyles.metaChipText}>{cleanInspectorName(item.inspectorName)}</Text>
-            </View>
             {item.isSynced ? (
               <View style={inspectionCardStyles.syncCloudChip}>
                 <Cloud size={11} color="#059669" style={{marginRight: 3}} />
@@ -185,12 +180,9 @@ const InspectionCard: React.FC<{
           </View>
           <View style={inspectionCardStyles.typeRow}>
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-              <View style={inspectionCardStyles.typeTag}>
-                <Text style={inspectionCardStyles.typeTagText}>{item.typeLabel}</Text>
-              </View>
               {item.updatedAt && item.createdAt && (new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime() > 60000) ? (
                 <View style={inspectionCardStyles.editedTag}>
-                  <Text style={inspectionCardStyles.editedTagText}>✏️ Diedit</Text>
+                  <Text style={inspectionCardStyles.editedTagText}>Diedit</Text>
                 </View>
               ) : null}
             </View>

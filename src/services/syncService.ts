@@ -5,7 +5,138 @@ import Asset from '../database/models/Asset';
 import { Q } from '@nozbe/watermelondb';
 import { POP_SEED_DATA } from '../database/popSeedData';
 import { bulkSeedAssetsToSupabase, fetchInspectionsFromSupabase, SupabaseAsset } from './supabaseDb';
-import { uploadFileToSupabase } from './uploadService';
+import { uploadFileToSupabase, uploadFilesInBatch } from './uploadService';
+
+/**
+ * Recursively extracts all unique local file URIs from an arbitrary object/array
+ */
+export const extractLocalUris = (obj: any, collected: Set<string> = new Set()): Set<string> => {
+  if (!obj) return collected;
+
+  if (typeof obj === 'string') {
+    if (
+      obj.startsWith('file://') ||
+      obj.startsWith('content://') ||
+      (obj.startsWith('/data/') && (obj.endsWith('.jpg') || obj.endsWith('.jpeg') || obj.endsWith('.png') || obj.endsWith('.webp') || obj.endsWith('.pdf')))
+    ) {
+      collected.add(obj);
+    }
+    return collected;
+  }
+
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      extractLocalUris(item, collected);
+    }
+    return collected;
+  }
+
+  if (typeof obj === 'object') {
+    for (const [key, val] of Object.entries(obj)) {
+      if (key === 'photoTimestamps' || key === 'photoCoordinates') {
+        for (const subKey of Object.keys(val || {})) {
+          if (subKey.startsWith('file://') || subKey.startsWith('content://') || subKey.startsWith('/data/')) {
+            collected.add(subKey);
+          }
+        }
+      }
+      extractLocalUris(val, collected);
+    }
+  }
+
+  return collected;
+};
+
+/**
+ * Recursively replaces local file URIs in an arbitrary object/array with their cloud URLs
+ */
+export const replaceLocalUris = (obj: any, urlMap: Record<string, string>): any => {
+  if (!obj) return obj;
+
+  if (typeof obj === 'string') {
+    return urlMap[obj] || obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => replaceLocalUris(item, urlMap));
+  }
+
+  if (typeof obj === 'object') {
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (key === 'photoTimestamps' || key === 'photoCoordinates') {
+        const newMap: Record<string, string> = {};
+        for (const [subKey, subVal] of Object.entries((val as Record<string, string>) || {})) {
+          const mappedKey = urlMap[subKey] || subKey;
+          newMap[mappedKey] = subVal;
+        }
+        result[key] = newMap;
+      } else {
+        result[key] = replaceLocalUris(val, urlMap);
+      }
+    }
+    return result;
+  }
+
+  return obj;
+};
+
+/**
+ * Uploads all local photos and PDF from inspection data and replaces local paths with Supabase Storage public URLs
+ */
+export const processAndUploadInspectionMedia = async (data: {
+  pdfPath?: string;
+  photos?: string[];
+  formData?: any;
+}): Promise<{
+  remotePdfPath: string;
+  remotePhotos: string[];
+  remoteFormData: any;
+}> => {
+  // 1. Upload PDF if local
+  let remotePdfPath = data.pdfPath || '';
+  if (remotePdfPath && (remotePdfPath.startsWith('file://') || remotePdfPath.startsWith('/') || remotePdfPath.startsWith('content://'))) {
+    try {
+      const uploadedPdf = await uploadFileToSupabase(remotePdfPath, 'inspections_media', 'pdfs');
+      if (uploadedPdf) remotePdfPath = uploadedPdf;
+    } catch (pdfErr) {
+      console.warn('PDF upload warning:', pdfErr);
+    }
+  }
+
+  // 2. Collect all local photo URIs from photos array and formData
+  const localPhotoSet = new Set<string>();
+  if (Array.isArray(data.photos)) {
+    for (const p of data.photos) {
+      if (p && (p.startsWith('file://') || p.startsWith('content://') || p.startsWith('/data/'))) {
+        localPhotoSet.add(p);
+      }
+    }
+  }
+  if (data.formData) {
+    extractLocalUris(data.formData, localPhotoSet);
+  }
+
+  const uniqueLocalUris = Array.from(localPhotoSet);
+  if (uniqueLocalUris.length > 0) {
+    console.log(`[SyncService] Uploading ${uniqueLocalUris.length} local photos to Supabase Storage...`);
+  }
+
+  // 3. Batch upload photos
+  const urlMap = await uploadFilesInBatch(uniqueLocalUris, 'inspections_media', 'photos', 3);
+
+  // 4. Map top-level photos array
+  const remotePhotos = (data.photos || []).map((p) => urlMap[p] || p);
+
+  // 5. Map formData
+  const remoteFormData = data.formData ? replaceLocalUris(data.formData, urlMap) : data.formData;
+
+  return {
+    remotePdfPath,
+    remotePhotos,
+    remoteFormData,
+  };
+};
 
 /**
  * Sync unsynced local inspections from WatermelonDB to Supabase Cloud
@@ -17,7 +148,11 @@ export const syncInspectionsToSupabase = async () => {
       .query(
         Q.or(
           Q.where('is_synced', false),
-          Q.where('is_synced', null)
+          Q.where('is_synced', null),
+          Q.where('photos', Q.like('%file:%')),
+          Q.where('form_data', Q.like('%file:%')),
+          Q.where('pdf_path', Q.like('%file:%')),
+          Q.where('pdf_path', Q.like('/%'))
         )
       )
       .fetch();
@@ -27,7 +162,7 @@ export const syncInspectionsToSupabase = async () => {
       return { syncedCount: 0 };
     }
 
-    console.log(`Found ${unsyncedInspections.length} inspections to sync`);
+    console.log(`Found ${unsyncedInspections.length} inspections to sync/update media`);
     let syncedCount = 0;
 
     for (const inspection of unsyncedInspections) {
@@ -42,26 +177,24 @@ export const syncInspectionsToSupabase = async () => {
         }
       }
 
-      let remotePdfPath = inspection.pdfPath;
-      if (remotePdfPath && (remotePdfPath.startsWith('file://') || remotePdfPath.startsWith('/'))) {
-        const uploadedUrl = await uploadFileToSupabase(remotePdfPath, 'inspections_media', 'pdfs');
-        if (uploadedUrl) remotePdfPath = uploadedUrl;
+      let parsedPhotos: string[] = [];
+      if (inspection.photos) {
+        try {
+          const res = typeof inspection.photos === 'string'
+            ? JSON.parse(inspection.photos)
+            : inspection.photos;
+          parsedPhotos = Array.isArray(res) ? res : [];
+        } catch (e) {
+          parsedPhotos = [];
+        }
       }
 
-      let remotePhotos: string[] = [];
-      try {
-        const localPhotos = typeof inspection.photos === 'string' ? JSON.parse(inspection.photos) : (inspection.photos || []);
-        for (const photoUri of localPhotos) {
-          if (photoUri && (photoUri.startsWith('file://') || photoUri.startsWith('/'))) {
-            const uploadedUrl = await uploadFileToSupabase(photoUri, 'inspections_media', 'photos');
-            remotePhotos.push(uploadedUrl || photoUri);
-          } else if (photoUri) {
-            remotePhotos.push(photoUri);
-          }
-        }
-      } catch (e) {
-        console.error('Error parsing/uploading photos:', e);
-      }
+      // Process and upload all media to Supabase Storage
+      const { remotePdfPath, remotePhotos, remoteFormData } = await processAndUploadInspectionMedia({
+        pdfPath: inspection.pdfPath,
+        photos: parsedPhotos,
+        formData: parsedFormData,
+      });
 
       // Ensure referenced asset exists in Supabase public.assets to prevent Foreign Key Violation (23503)
       if (inspection.assetId) {
@@ -87,7 +220,7 @@ export const syncInspectionsToSupabase = async () => {
         type: inspection.type || 'PM',
         status: inspection.status || 'completed',
         notes: inspection.notes || '',
-        form_data: parsedFormData,
+        form_data: remoteFormData,
         pdf_path: remotePdfPath || '',
         photos: remotePhotos,
         is_synced: true,
@@ -105,10 +238,13 @@ export const syncInspectionsToSupabase = async () => {
         await database.write(async () => {
           await inspection.update((i) => {
             i.isSynced = true;
+            if (remotePdfPath) i.pdfPath = remotePdfPath;
+            if (remotePhotos && remotePhotos.length > 0) i.photos = JSON.stringify(remotePhotos);
+            if (remoteFormData) i.formData = JSON.stringify(remoteFormData);
           });
         });
         syncedCount++;
-        console.log(`Successfully synced inspection ${inspection.id}`);
+        console.log(`Successfully synced inspection ${inspection.id} with cloud media`);
       }
     }
 
@@ -234,29 +370,12 @@ export const saveInspectionDirectlyToSupabase = async (inspectionData: {
   notes?: string;
 }) => {
   try {
-    let remotePdfPath = inspectionData.pdfPath || '';
-    if (remotePdfPath) {
-      try {
-        const uploadedUrl = await uploadFileToSupabase(remotePdfPath, 'inspections_media', 'pdfs');
-        if (uploadedUrl) remotePdfPath = uploadedUrl;
-      } catch (pdfErr) {
-        console.warn('PDF Upload to storage skipped:', pdfErr);
-      }
-    }
-
-    let remotePhotos: string[] = [];
-    if (inspectionData.photos && Array.isArray(inspectionData.photos)) {
-      for (const photoUri of inspectionData.photos) {
-        if (photoUri) {
-          try {
-            const uploadedUrl = await uploadFileToSupabase(photoUri, 'inspections_media', 'photos');
-            remotePhotos.push(uploadedUrl || photoUri);
-          } catch (photoErr) {
-            remotePhotos.push(photoUri);
-          }
-        }
-      }
-    }
+    // Process and upload all media to Supabase Storage
+    const { remotePdfPath, remotePhotos, remoteFormData } = await processAndUploadInspectionMedia({
+      pdfPath: inspectionData.pdfPath,
+      photos: inspectionData.photos,
+      formData: inspectionData.formData,
+    });
 
     // Ensure referenced asset exists in Supabase public.assets to prevent Foreign Key Violation (23503)
     if (inspectionData.assetId) {
@@ -282,7 +401,7 @@ export const saveInspectionDirectlyToSupabase = async (inspectionData: {
       type: inspectionData.type || 'PM',
       status: inspectionData.status || 'completed',
       notes: inspectionData.notes || '',
-      form_data: inspectionData.formData || {},
+      form_data: remoteFormData || {},
       pdf_path: remotePdfPath,
       photos: remotePhotos,
       is_synced: true,
@@ -299,10 +418,16 @@ export const saveInspectionDirectlyToSupabase = async (inspectionData: {
       throw error;
     }
 
-    console.log(`Successfully saved inspection ${inspectionData.id} directly to Supabase Cloud!`);
-    return data;
+    console.log(`Successfully saved inspection ${inspectionData.id} directly to Supabase Cloud with media!`);
+    return {
+      data,
+      remotePdfPath,
+      remotePhotos,
+      remoteFormData,
+    };
   } catch (err) {
     console.error('saveInspectionDirectlyToSupabase failed:', err);
     throw err;
   }
 };
+

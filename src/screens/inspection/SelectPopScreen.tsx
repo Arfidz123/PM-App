@@ -7,13 +7,26 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
+  Modal,
+  Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Search, MapPin, CheckCircle2, XCircle, Building2 } from 'lucide-react-native';
+import {
+  Search,
+  MapPin,
+  CheckCircle2,
+  XCircle,
+  Building2,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  RefreshCw,
+  Check,
+} from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header } from '../../components/common';
+import { Header, showAlert } from '../../components/common';
 import LinearGradient from 'react-native-linear-gradient';
 import database from '../../database';
 import { Asset } from '../../database/models';
@@ -21,6 +34,7 @@ import { useInspectionStore } from '../../store/inspectionStore';
 import { cleanPopId, cleanPopName } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 import { POP_SEED_DATA } from '../../database/popSeedData';
+import { fetchAssetsFromSupabase } from '../../services/supabaseDb';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -32,18 +46,110 @@ export const SelectPopScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
+  // 2-Step Verification & CAPTCHA states for deleting POP
+  const [popToDelete, setPopToDelete] = useState<Asset | null>(null);
+  const [captchaCode, setCaptchaCode] = useState('');
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [isAcknowledged, setIsAcknowledged] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const { activePopId, setActivePop, setAsset } = useInspectionStore();
 
-  useEffect(() => {
-    loadPops();
-  }, []);
+  // Generator CAPTCHA 5 karakter acak unik
+  const generateCaptcha = () => {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleOpenDeleteModal = (pop: Asset) => {
+    setPopToDelete(pop);
+    setCaptchaCode(generateCaptcha());
+    setCaptchaInput('');
+    setIsAcknowledged(false);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!popToDelete) return;
+
+    if (captchaInput.trim().toUpperCase() !== captchaCode) {
+      showAlert({
+        type: 'error',
+        title: 'Kode CAPTCHA Salah',
+        message: 'Kode yang Anda ketikkan tidak cocok. Silakan coba lagi.',
+      });
+      return;
+    }
+
+    if (!isAcknowledged) {
+      showAlert({
+        type: 'warning',
+        title: 'Konfirmasi Diperlukan',
+        message: 'Harap centang kotak persetujuan sebelum menghapus POP.',
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const assetCode = popToDelete.assetCode;
+      const popName = popToDelete.name;
+
+      // 1. Delete from WatermelonDB locally (all data from device)
+      await database.write(async () => {
+        await popToDelete.destroyPermanently();
+      });
+
+      // 2. Delete from Supabase if online
+      try {
+        const { supabase } = require('../../services/supabase');
+        await supabase.from('assets').delete().eq('asset_code', assetCode);
+      } catch (cloudErr) {
+        console.log('Deleted locally, cloud sync error or offline:', cloudErr);
+      }
+
+      // 3. Reset active POP if it was the one deleted
+      if (activePopId === assetCode) {
+        setActivePop('', '', '');
+      }
+
+      // 4. Close modal and refresh list
+      setPopToDelete(null);
+      setCaptchaInput('');
+      await loadPops();
+
+      showAlert({
+        type: 'success',
+        title: 'POP Berhasil Dihapus',
+        message: `POP ${popName} (${assetCode}) telah berhasil dihapus dari perangkat.`,
+      });
+    } catch (err) {
+      console.error('Error deleting POP:', err);
+      showAlert({
+        type: 'error',
+        title: 'Gagal Menghapus POP',
+        message: 'Terjadi kesalahan saat menghapus data POP dari perangkat.',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPops();
+    }, [])
+  );
 
   useEffect(() => {
     let result = pops;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        (pop) =>
+        (pop: Asset) =>
           pop.name.toLowerCase().includes(query) ||
           pop.assetCode.toLowerCase().includes(query) ||
           pop.location.toLowerCase().includes(query)
@@ -64,10 +170,10 @@ export const SelectPopScreen: React.FC = () => {
     try {
       const assets = await database.get<Asset>('assets').query().fetch();
       const assetsCollection = database.get<Asset>('assets');
-      
+
       const existingAssetsMap = new Map<string, Asset>(assets.map(a => [a.assetCode, a]));
       const batchOps: any[] = [];
-      
+
       POP_SEED_DATA.forEach(pop => {
         const existing = existingAssetsMap.get(pop.asset_code);
         const newLat = (pop as any).latitude ?? null;
@@ -77,27 +183,7 @@ export const SelectPopScreen: React.FC = () => {
         const newSpecs = pop.specifications || '';
         const newName = pop.name;
 
-        if (existing) {
-          if (
-            existing.latitude !== newLat || 
-            existing.longitude !== newLng ||
-            existing.category !== newCat ||
-            existing.location !== newLoc ||
-            existing.specifications !== newSpecs ||
-            existing.name !== newName
-          ) {
-            batchOps.push(
-              existing.prepareUpdate(a => {
-                a.latitude = newLat;
-                a.longitude = newLng;
-                a.category = newCat;
-                a.location = newLoc;
-                a.specifications = newSpecs;
-                a.name = newName;
-              })
-            );
-          }
-        } else {
+        if (!existing) {
           batchOps.push(
             assetsCollection.prepareCreate(asset => {
               asset.assetCode = pop.asset_code;
@@ -119,7 +205,7 @@ export const SelectPopScreen: React.FC = () => {
           );
         }
       });
-      
+
       if (batchOps.length > 0) {
         console.log(`Syncing ${batchOps.length} POPs to database...`);
         await database.write(async () => {
@@ -134,9 +220,57 @@ export const SelectPopScreen: React.FC = () => {
           uniqueAssetsMap.set(asset.assetCode, asset);
         }
       });
-      
+
       setPops(Array.from(uniqueAssetsMap.values()));
-      
+
+      // Background Fetch from Supabase for remote added POPs
+      try {
+        const remoteAssets = await fetchAssetsFromSupabase();
+        if (Array.isArray(remoteAssets) && remoteAssets.length > 0) {
+          const remoteBatch: any[] = [];
+          const currentMap = new Map<string, Asset>(updatedAssets.map(a => [a.assetCode, a]));
+
+          remoteAssets.forEach(r => {
+            if (r.asset_code && !currentMap.has(r.asset_code)) {
+              remoteBatch.push(
+                assetsCollection.prepareCreate(asset => {
+                  asset.assetCode = r.asset_code;
+                  asset.name = r.name || r.asset_code;
+                  asset.category = (r.category as any) || 'other';
+                  asset.location = r.location || '';
+                  asset.latitude = r.latitude || undefined;
+                  asset.longitude = r.longitude || undefined;
+                  asset.manufacturer = r.manufacturer || '';
+                  asset.assetModel = r.model || '';
+                  asset.serialNumber = r.serial_number || '';
+                  asset.installDate = r.install_date ? new Date(r.install_date).getTime() : Date.now();
+                  asset.qrCode = r.qr_code || '';
+                  asset.photoPath = r.photo_path || '';
+                  asset.specifications = typeof r.specifications === 'string' ? r.specifications : JSON.stringify(r.specifications || {});
+                  asset.checklistTemplateId = r.checklist_template_id || '';
+                  asset.status = (r.status as any) || 'active';
+                })
+              );
+            }
+          });
+
+          if (remoteBatch.length > 0) {
+            console.log(`Downloaded ${remoteBatch.length} new POPs from Supabase!`);
+            await database.write(async () => {
+              await database.batch(...remoteBatch);
+            });
+            const refreshed = await database.get<Asset>('assets').query().fetch();
+            const refreshedMap = new Map<string, Asset>();
+            refreshed.forEach(a => {
+              if (!refreshedMap.has(a.assetCode)) refreshedMap.set(a.assetCode, a);
+            });
+            setPops(Array.from(refreshedMap.values()));
+          }
+        }
+      } catch (cloudErr) {
+        // Safe to ignore when offline
+      }
+
     } catch (error) {
       console.error('Error loading POPs:', error);
     } finally {
@@ -158,41 +292,53 @@ export const SelectPopScreen: React.FC = () => {
     const isActive = activePopId === item.assetCode;
 
     return (
-      <TouchableOpacity
-        style={[styles.popItem, isActive && styles.popItemActive]}
-        onPress={() => handleSelectPop(item)}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.popItemIcon, isActive && styles.popItemIconActive]}>
-          <Building2 color={isActive ? Colors.primary : Colors.textMuted} size={22} />
-        </View>
-        <View style={styles.popItemContent}>
-          <Text style={[styles.popItemName, isActive && styles.popItemNameActive]}>
-            {cleanPopName(item.name)}
-          </Text>
-          <View style={styles.popItemMetaRow}>
-            <Text style={styles.popItemCode}>{cleanPopId(item.assetCode)}</Text>
-            {item.category ? (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>{item.category}</Text>
+      <View style={[styles.popItem, isActive && styles.popItemActive]}>
+        <TouchableOpacity
+          style={styles.popItemMainTouchable}
+          onPress={() => handleSelectPop(item)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.popItemIcon, isActive && styles.popItemIconActive]}>
+            <Building2 color={isActive ? Colors.primary : Colors.textMuted} size={22} />
+          </View>
+          <View style={styles.popItemContent}>
+            <Text style={[styles.popItemName, isActive && styles.popItemNameActive]}>
+              {cleanPopName(item.name)}
+            </Text>
+            <View style={styles.popItemMetaRow}>
+              <Text style={styles.popItemCode}>{cleanPopId(item.assetCode)}</Text>
+              {item.category ? (
+                <View style={styles.categoryBadge}>
+                  <Text style={styles.categoryBadgeText}>{item.category}</Text>
+                </View>
+              ) : null}
+            </View>
+            {item.location ? (
+              <View style={styles.locationRow}>
+                <MapPin size={12} color={Colors.textMuted} style={{ marginRight: 4 }} />
+                <Text style={styles.popItemLocation} numberOfLines={1}>
+                  {item.location}
+                </Text>
               </View>
             ) : null}
           </View>
-          {item.location ? (
-            <View style={styles.locationRow}>
-              <MapPin size={12} color={Colors.textMuted} style={{ marginRight: 4 }} />
-              <Text style={styles.popItemLocation} numberOfLines={1}>
-                {item.location}
-              </Text>
+          {isActive && (
+            <View style={styles.popItemCheck}>
+              <CheckCircle2 color={Colors.primary} size={22} />
             </View>
-          ) : null}
-        </View>
-        {isActive && (
-          <View style={styles.popItemCheck}>
-            <CheckCircle2 color={Colors.primary} size={22} />
-          </View>
-        )}
-      </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+
+        {/* Tombol Hapus POP (Ikon Tempat Sampah) */}
+        <TouchableOpacity
+          style={styles.popItemDeleteBtn}
+          onPress={() => handleOpenDeleteModal(item)}
+          activeOpacity={0.65}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Trash2 size={18} color="#F87171" />
+        </TouchableOpacity>
+      </View>
     );
   };
 
@@ -203,6 +349,17 @@ export const SelectPopScreen: React.FC = () => {
         title="Pilih POP"
         subtitle={`${filteredPops.length} POP tersedia`}
         onBack={() => navigation.goBack()}
+        rightAction={
+          <TouchableOpacity
+            style={styles.headerAddPopBtn}
+            onPress={() => navigation.navigate('AddPop')}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Plus size={14} color="#ffffff" style={{ marginRight: 4 }} />
+            <Text style={styles.headerAddPopBtnText}>Tambah POP</Text>
+          </TouchableOpacity>
+        }
       >
         <View
           style={[
@@ -242,11 +399,14 @@ export const SelectPopScreen: React.FC = () => {
       ) : filteredPops.length === 0 ? (
         <View style={styles.centerContainer}>
           <Text style={styles.emptyText}>Tidak ada POP yang ditemukan</Text>
-          {pops.length === 0 && (
-            <Text style={styles.emptySubText}>
-              Anda belum melakukan Sync Master Data POP di menu Home.
-            </Text>
-          )}
+          <TouchableOpacity
+            style={styles.emptyAddBtn}
+            onPress={() => navigation.navigate('AddPop')}
+            activeOpacity={0.75}
+          >
+            <Plus size={16} color="#ffffff" style={{ marginRight: 6 }} />
+            <Text style={styles.emptyAddBtnText}>Tambah POP Sekarang</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -258,6 +418,139 @@ export const SelectPopScreen: React.FC = () => {
           initialNumToRender={15}
         />
       )}
+
+      {/* Modal Verifikasi 2 Langkah & CAPTCHA Penghapusan POP */}
+      <Modal
+        visible={!!popToDelete}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isDeleting) setPopToDelete(null);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.deleteModalCard}>
+            {/* Warning Icon & Header Row */}
+            <View style={styles.deleteHeaderRow}>
+              <View style={styles.alertIconCircle}>
+                <AlertTriangle size={22} color={Colors.danger} />
+              </View>
+              <Text style={styles.deleteModalTitle}>Konfirmasi Hapus POP</Text>
+            </View>
+
+            {/* Detail POP Info Box (Kotak Merah: Nama POP & Teks Peringatan) */}
+            {popToDelete && (
+              <View style={styles.popDetailBox}>
+                <Text style={styles.popDetailName}>{cleanPopName(popToDelete.name)}</Text>
+                <Text style={styles.popDetailWarningText}>
+                  <Text style={{ fontWeight: 'bold', color: '#FCA5A5' }}>Peringatan : </Text>
+                  Tindakan ini tidak dapat dibatalkan, seluruh data dan riwayat akan dihapus seketika.
+                </Text>
+              </View>
+            )}
+
+            {/* CAPTCHA Section */}
+            <View style={styles.captchaSection}>
+              <Text style={styles.captchaLabel}>
+                Verifikasi Keamanan CAPTCHA
+              </Text>
+              <Text style={styles.captchaSubLabel}>
+                Ketik kode 5-karakter di bawah ini untuk konfirmasi:
+              </Text>
+
+              {/* Visual CAPTCHA Box */}
+              <View style={styles.captchaBox}>
+                <View style={styles.captchaPattern}>
+                  <Text style={styles.captchaText}>
+                    {captchaCode.split('').join('  ')}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.captchaRefreshBtn}
+                  onPress={() => {
+                    setCaptchaCode(generateCaptcha());
+                    setCaptchaInput('');
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <RefreshCw size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Input CAPTCHA */}
+              <TextInput
+                style={[
+                  styles.captchaInput,
+                  captchaInput.trim().toUpperCase() === captchaCode &&
+                  styles.captchaInputMatch,
+                ]}
+                placeholder="Ketik kode CAPTCHA di sini"
+                placeholderTextColor={Colors.textMuted}
+                value={captchaInput}
+                onChangeText={setCaptchaInput}
+                autoCapitalize="characters"
+                maxLength={8}
+              />
+
+              {/* Kotak Centang Persetujuan Bahaya */}
+              <TouchableOpacity
+                style={styles.checkboxContainer}
+                onPress={() => setIsAcknowledged(!isAcknowledged)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.checkboxBox,
+                    isAcknowledged && styles.checkboxBoxChecked,
+                  ]}
+                >
+                  {isAcknowledged && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  Saya memahami risiko dan menyetujui penghapusan seluruh data POP ini.
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Buttons */}
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setPopToDelete(null)}
+                disabled={isDeleting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelBtnText}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.confirmDeleteBtn,
+                  (!isAcknowledged ||
+                    captchaInput.trim().toUpperCase() !== captchaCode) &&
+                  styles.confirmDeleteBtnDisabled,
+                ]}
+                onPress={handleConfirmDelete}
+                disabled={
+                  isDeleting ||
+                  !isAcknowledged ||
+                  captchaInput.trim().toUpperCase() !== captchaCode
+                }
+                activeOpacity={0.8}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Trash2 size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.confirmDeleteBtnText}>Hapus Semua Data</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -405,5 +698,242 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textMuted,
     textAlign: 'center',
+  },
+  headerAddPopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm + 4,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    ...Shadow.sm,
+  },
+  headerAddPopBtnText: {
+    ...Typography.caption,
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  emptyAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+    ...Shadow.md,
+  },
+  emptyAddBtnText: {
+    ...Typography.body,
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  popItemMainTouchable: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  popItemDeleteBtn: {
+    padding: Spacing.xs + 2,
+    marginLeft: Spacing.sm,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  deleteModalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    ...Shadow.lg,
+  },
+  deleteHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  alertIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm + 2,
+  },
+  deleteModalTitle: {
+    ...Typography.h3,
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: Colors.text,
+    flex: 1,
+  },
+  popDetailBox: {
+    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
+  },
+  popDetailName: {
+    ...Typography.body,
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 6,
+  },
+  popDetailWarningText: {
+    ...Typography.caption,
+    fontSize: 11.5,
+    color: '#FECACA',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: Spacing.md,
+    paddingHorizontal: 2,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: Colors.textMuted,
+    backgroundColor: Colors.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  checkboxBoxChecked: {
+    backgroundColor: Colors.danger,
+    borderColor: Colors.danger,
+  },
+  checkboxLabel: {
+    ...Typography.caption,
+    fontSize: 11.5,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 16,
+  },
+  captchaSection: {
+    marginBottom: Spacing.lg,
+  },
+  captchaLabel: {
+    ...Typography.body,
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  captchaSubLabel: {
+    ...Typography.caption,
+    fontSize: 10.5,
+    color: Colors.textMuted,
+    marginBottom: Spacing.xs + 2,
+  },
+  captchaBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: 'rgba(59, 130, 246, 0.4)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  captchaPattern: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captchaText: {
+    fontSize: 22,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: Colors.primaryLight,
+    letterSpacing: 6,
+    textDecorationLine: 'line-through',
+  },
+  captchaRefreshBtn: {
+    padding: Spacing.xs,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderRadius: BorderRadius.sm,
+  },
+  captchaInput: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    borderColor: Colors.glassBorder,
+    color: Colors.text,
+    fontSize: 14,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+    textAlign: 'center',
+    letterSpacing: 2,
+    fontWeight: 'bold',
+  },
+  captchaInputMatch: {
+    borderColor: Colors.success,
+    backgroundColor: 'rgba(46, 204, 113, 0.08)',
+  },
+  modalButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    ...Typography.body,
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: Colors.textSecondary,
+  },
+  confirmDeleteBtn: {
+    flex: 1.5,
+    flexDirection: 'row',
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
+  },
+  confirmDeleteBtnDisabled: {
+    backgroundColor: 'rgba(231, 76, 60, 0.3)',
+  },
+  confirmDeleteBtnText: {
+    ...Typography.body,
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
 });

@@ -135,24 +135,22 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
       Animated.parallel([
         Animated.timing(overlayAnim, {
           toValue: 1,
-          duration: 250,
+          duration: 200,
           useNativeDriver: true,
         }),
         Animated.spring(scaleAnim, {
           toValue: 1,
-          friction: 6,
-          tension: 100,
+          friction: 7,
+          tension: 120,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        // Icon bounce after card appears
         Animated.spring(iconBounceAnim, {
           toValue: 1,
-          friction: 4,
-          tension: 150,
+          friction: 5,
+          tension: 140,
           useNativeDriver: true,
-        }).start();
-      });
+        }),
+      ]).start();
     }
   }, [visible]);
 
@@ -265,6 +263,7 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                   {buttons.map((btn, idx) => {
                     const isCancel = btn.style === 'cancel';
                     const isDestructive = btn.style === 'destructive';
+                    const isSingle = buttons.length === 1;
 
                     if (isCancel) {
                       return (
@@ -273,7 +272,7 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                           style={[
                             styles.button,
                             styles.cancelButton,
-                            buttons.length > 1 && {flex: 1},
+                            isSingle ? styles.singleButton : {flex: 1},
                           ]}
                           activeOpacity={0.7}
                           onPress={() => dismiss(btn.onPress)}>
@@ -293,7 +292,7 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                         key={idx}
                         style={[
                           styles.button,
-                          buttons.length > 1 && {flex: 1},
+                          isSingle ? styles.singleButton : {flex: 1},
                         ]}
                         activeOpacity={0.8}
                         onPress={() => dismiss(btn.onPress)}>
@@ -394,22 +393,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     gap: 10,
+    marginTop: 4,
   },
   buttonRowSingle: {
     justifyContent: 'center',
+    alignItems: 'center',
   },
   button: {
     borderRadius: BorderRadius.xl,
     overflow: 'hidden',
-    minHeight: 48,
+    height: 48,
+  },
+  singleButton: {
+    minWidth: 140,
+    maxWidth: 160,
   },
   cancelButton: {
+    height: 48,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.xl,
+    paddingHorizontal: 16,
   },
   cancelButtonText: {
     ...Typography.button,
@@ -419,9 +426,10 @@ const styles = StyleSheet.create({
   },
   gradientButton: {
     flex: 1,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 13,
+    paddingHorizontal: 16,
     borderRadius: BorderRadius.xl,
   },
   gradientButtonText: {

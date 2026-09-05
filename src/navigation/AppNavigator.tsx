@@ -19,6 +19,7 @@ import { ChecklistScreen } from '../screens/inspection/ChecklistScreen';
 import { ReviewScreen } from '../screens/inspection/ReviewScreen';
 import { SignatureScreen } from '../screens/inspection/SignatureScreen';
 import { SelectPopScreen } from '../screens/inspection/SelectPopScreen';
+import { AddPopScreen } from '../screens/inspection/AddPopScreen';
 import { InfoPopScreen } from '../screens/inspection/InfoPopScreen';
 import { HistoryScreen } from '../screens/history/HistoryScreen';
 import { InspectionDetailScreen } from '../screens/history/InspectionDetailScreen';
@@ -26,12 +27,18 @@ import { HistoryReviewPdfScreen } from '../screens/history/HistoryReviewPdfScree
 
 import { CategoryFormScreen } from '../screens/inspection/CategoryFormScreen';
 import { KwhMeterScreen } from '../screens/inspection/KwhMeterScreen';
+import { AcpdbScreen } from '../screens/inspection/AcpdbScreen';
+import { DcpdbScreen } from '../screens/inspection/DcpdbScreen';
 import { RectifierScreen } from '../screens/inspection/RectifierScreen';
 import { PowerSystemScreen } from '../screens/inspection/PowerSystemScreen';
+import { GensetScreen } from '../screens/inspection/GensetScreen';
 import { BatteryScreen } from '../screens/inspection/BatteryScreen';
 import { MechanicalElectScreen } from '../screens/inspection/MechanicalElectScreen';
 import { DokumentasiScreen } from '../screens/inspection/DokumentasiScreen';
 import { ReviewPdfScreen } from '../screens/inspection/ReviewPdfScreen';
+import { ExternalAlarmScreen } from '../screens/inspection/ExternalAlarmScreen';
+import { FotIpScreen } from '../screens/inspection/FotIpScreen';
+import { FotDwdmScreen } from '../screens/inspection/FotDwdmScreen';
 
 import type { RootStackParamList, MainTabParamList } from '../types';
 
@@ -190,13 +197,20 @@ export function AppNavigator() {
         <Stack.Screen name="Signature" component={SignatureScreen} />
         <Stack.Screen name="CategoryForm" component={CategoryFormScreen} />
         <Stack.Screen name="KwhMeter" component={KwhMeterScreen} />
+        <Stack.Screen name="Acpdb" component={AcpdbScreen} />
+        <Stack.Screen name="Dcpdb" component={DcpdbScreen} />
         <Stack.Screen name="Rectifier" component={RectifierScreen} />
         <Stack.Screen name="PowerSystem" component={PowerSystemScreen} />
+        <Stack.Screen name="Genset" component={GensetScreen} />
         <Stack.Screen name="Battery" component={BatteryScreen} />
         <Stack.Screen name="MechanicalElect" component={MechanicalElectScreen} />
         <Stack.Screen name="Dokumentasi" component={DokumentasiScreen} />
+        <Stack.Screen name="ExternalAlarm" component={ExternalAlarmScreen} />
+        <Stack.Screen name="FotIp" component={FotIpScreen} />
+        <Stack.Screen name="FotDwdm" component={FotDwdmScreen} />
         <Stack.Screen name="ReviewPdf" component={ReviewPdfScreen} />
         <Stack.Screen name="SelectPop" component={SelectPopScreen} />
+        <Stack.Screen name="AddPop" component={AddPopScreen} />
         <Stack.Screen name="InfoPop" component={InfoPopScreen} />
         <Stack.Screen
           name="InspectionDetail"

@@ -13,7 +13,7 @@ import {
   Modal,
   FlatList,
 } from 'react-native';
-import {showAlert} from '../../components/common';
+import { showAlert } from '../../components/common';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Geolocation from '@react-native-community/geolocation';
@@ -146,7 +146,7 @@ export const StartInspectionScreen: React.FC = () => {
 
       try {
         const assets = await database.get<Asset>('assets').query().fetch();
-        
+
         const matchedPops: NearbyPopItem[] = [];
         for (const asset of assets) {
           if (asset.latitude && asset.longitude) {
@@ -207,7 +207,7 @@ export const StartInspectionScreen: React.FC = () => {
     showAlert({
       type: 'warning',
       title: 'Lokasi Tidak Cocok',
-      message: 'Lokasi GPS Anda tidak berada dalam radius 100 meter dari POP manapun. Silakan pilih POP target secara manual.',
+      message: 'Lokasi GPS Anda tidak berada dalam radius 100 meter dari POP manapun. Silakan pilih POP secara manual.',
       buttons: [
         {
           text: 'Batal',

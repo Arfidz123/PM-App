@@ -9,15 +9,36 @@ import {
   Platform,
   Animated,
   Easing,
+  BackHandler,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, Camera, Trash2, Plus, Image as ImageIcon, Clock, MapPin } from 'lucide-react-native';
+import { ChevronUp, ChevronDown, Camera, Trash2, Plus, Image as ImageIcon, Clock, MapPin, Building2 } from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
+import { Header, showAlert, CategorizedPhotoSection, PhotoCategoryConfig } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
+
+const DOKUMENTASI_PHOTO_CATEGORIES: PhotoCategoryConfig[] = [
+  { key: 'popLuar', label: 'POP Bagian Luar' },
+  { key: 'popDalam', label: 'POP Bagian Dalam' },
+  { key: 'genset', label: 'Foto Genset' },
+  { key: 'odf', label: 'Foto ODF' },
+  { key: 'acpdb', label: 'Foto ACPDB' },
+  { key: 'dcpdb', label: 'Foto DCPDB' },
+  { key: 'ats', label: 'Foto ATS' },
+  { key: 'powerSupply', label: 'Foto Power Supply' },
+  { key: 'exhaustFan', label: 'Foto Exhaust Fan' },
+  { key: 'kwhLuar', label: 'Foto Bagian Luar KWH' },
+  { key: 'kwhDalam', label: 'Foto Bagian Dalam KWH' },
+  { key: 'rectifierKeseluruhan', label: 'Foto Keseluruhan Rectifier' },
+  { key: 'rectifierLcd', label: 'Foto LCD Rectifier' },
+  { key: 'batteryKeseluruhan', label: 'Foto Keseluruhan Battery' },
+  { key: 'batteryJauh', label: 'Foto Bagian Jauh Battery' },
+  { key: 'batteryDekat', label: 'Foto Bagian Dekat Battery' },
+  { key: 'lainnya', label: 'Foto Lainnya' },
+];
 import { requestCameraPermission, fetchCurrentLocation, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
@@ -26,6 +47,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const DokumentasiScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const {
+    activePopId,
     photos,
     addPhoto,
     removePhoto,
@@ -39,6 +61,40 @@ export const DokumentasiScreen: React.FC = () => {
   } = useInspectionStore();
   const [fotoExpanded, setFotoExpanded] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  // Folder navigation state
+  const [selectedFolderKey, setSelectedFolderKey] = useState<string | null>(null);
+  const [activeFolderInfo, setActiveFolderInfo] = useState<{
+    key: string | null;
+    label: string | null;
+    count: number;
+  }>({
+    key: null,
+    label: null,
+    count: 0,
+  });
+
+  // Handle back button: if inside a folder, return to folder list!
+  const handleHeaderBack = () => {
+    if (selectedFolderKey !== null) {
+      setSelectedFolderKey(null);
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (selectedFolderKey !== null) {
+        setSelectedFolderKey(null);
+        return true; // handled, don't exit screen
+      }
+      return false; // let default navigation handle it
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [selectedFolderKey]);
 
   // Entrance animations
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -92,8 +148,6 @@ export const DokumentasiScreen: React.FC = () => {
     { key: 'kwhMeter', label: 'Foto KWH Meter' },
     { key: 'rectifier', label: 'Foto Rectifier' },
     { key: 'battery', label: 'Foto Battery' },
-    { key: 'mechanicalElect', label: 'Foto ME' },
-    { key: 'powerSystem', label: 'Foto Power System' },
   ];
 
   sectionList.forEach((sec) => {
@@ -116,7 +170,7 @@ export const DokumentasiScreen: React.FC = () => {
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
+      showAlert({ type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.' });
       return;
     }
 
@@ -133,7 +187,7 @@ export const DokumentasiScreen: React.FC = () => {
       async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Tidak dapat membuka kamera pada perangkat ini'});
+          showAlert({ type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Tidak dapat membuka kamera pada perangkat ini' });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -173,12 +227,40 @@ export const DokumentasiScreen: React.FC = () => {
 
 
 
+  if (!activePopId) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title="Dokumentasi"
+          subtitle="Foto Hasil Inspeksi POP"
+          onBack={() => navigation.goBack()}
+        />
+        <View style={styles.emptyLockContainer}>
+          <View style={styles.lockIconCircle}>
+            <Building2 size={44} color={Colors.primary} />
+          </View>
+          <Text style={styles.emptyLockTitle}>Pilih POP Terlebih Dahulu</Text>
+          <Text style={styles.emptyLockDesc}>
+            Halaman dokumentasi foto hanya dapat digunakan setelah Anda memilih lokasi POP inspeksi.
+          </Text>
+          <TouchableOpacity
+            style={styles.selectPopLockBtn}
+            onPress={() => navigation.navigate('SelectPop')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.selectPopLockBtnText}>Pilih POP Sekarang</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Header
         title="Dokumentasi"
         subtitle="Foto Hasil Inspeksi POP"
-        onBack={() => navigation.goBack()}
+        onBack={handleHeaderBack}
       />
 
       <ScrollView
@@ -186,68 +268,64 @@ export const DokumentasiScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
-          <TouchableOpacity
-            style={styles.cardHeader}
-            onPress={() => setFotoExpanded(!fotoExpanded)}
-            activeOpacity={0.7}
-          >
+          <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
               <Camera color={Colors.primary} size={20} style={{ marginRight: Spacing.sm }} />
-              <Text style={styles.cardTitle}>Foto Dokumentasi ({allPhotoItems.length})</Text>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {activeFolderInfo.key
+                  ? `${activeFolderInfo.label} (${activeFolderInfo.count})`
+                  : `Foto Dokumentasi POP (${(formData.dokumentasi?.photos || []).length})`}
+              </Text>
             </View>
-            {fotoExpanded ? (
-              <ChevronUp color={Colors.textMuted} size={20} />
+
+            {/* Tulisan Minimal 2 saat berada di dalam folder */}
+            {activeFolderInfo.key ? (
+              <View
+                style={[
+                  styles.minRequirementBadge,
+                  activeFolderInfo.count >= 2
+                    ? styles.minRequirementBadgeSuccess
+                    : styles.minRequirementBadgeWarning,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.minRequirementBadgeText,
+                    activeFolderInfo.count >= 2
+                      ? styles.minRequirementBadgeTextSuccess
+                      : styles.minRequirementBadgeTextWarning,
+                  ]}
+                >
+                  {activeFolderInfo.count >= 2 ? 'Minimal 2 ✓' : 'Minimal 2'}
+                </Text>
+              </View>
             ) : (
-              <ChevronDown color={Colors.textMuted} size={20} />
+              <TouchableOpacity
+                onPress={() => setFotoExpanded(!fotoExpanded)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {fotoExpanded ? (
+                  <ChevronUp color={Colors.textMuted} size={20} />
+                ) : (
+                  <ChevronDown color={Colors.textMuted} size={20} />
+                )}
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
+          </View>
 
           {fotoExpanded && (
             <View style={styles.cardBody}>
-              <View style={styles.photoGrid}>
-                {allPhotoItems.map((item, index) => (
-                  <DynamicPhotoCard
-                    key={index}
-                    uri={item.uri}
-                    onPress={() => setSelectedPhoto(item.uri)}
-                    onDelete={() => {
-                      if (item.sectionKey && item.indexInSection !== undefined) {
-                        removePhotoBySection(item.sectionKey, item.indexInSection);
-                      } else {
-                        const globalIdx = photos.indexOf(item.uri);
-                        if (globalIdx !== -1) removePhoto(globalIdx);
-                      }
-                    }}
-                    dateStr={getPhotoTimestamp(item.uri)}
-                    coordsStr={getPhotoCoordinates(item.uri) || coordsStr}
-                    addressStr={addressStr}
-                    label={item.label}
-                  />
-                ))}
-
-                {/* Add Photo options */}
-                <TouchableOpacity
-                  style={styles.photoUploadBoxWrapper}
-                  onPress={handleTakePhoto}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.photoUploadBoxAdd}>
-                    <Camera color={Colors.primary} size={28} style={{ marginBottom: 6 }} />
-                    <Text style={styles.photoUploadText}>Kamera</Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.photoUploadBoxWrapper}
-                  onPress={handlePickGallery}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.photoUploadBoxAdd}>
-                    <ImageIcon color={Colors.textMuted} size={28} style={{ marginBottom: 6 }} />
-                    <Text style={styles.photoUploadText}>Galeri</Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
+              <CategorizedPhotoSection
+                sectionKey="dokumentasi"
+                categories={DOKUMENTASI_PHOTO_CATEGORIES}
+                title="Dokumentasi POP"
+                addressStr={addressStr}
+                coordsStr={coordsStr}
+                selectedFolderKey={selectedFolderKey}
+                onSelectFolder={setSelectedFolderKey}
+                onFolderInfoChange={setActiveFolderInfo}
+              />
             </View>
           )}
         </View>
@@ -255,22 +333,17 @@ export const DokumentasiScreen: React.FC = () => {
         <Animated.View style={{ transform: [{ scale: saveButtonAnim }] }}>
           <TouchableOpacity
             style={styles.saveButton}
-            onPress={() => navigation.goBack()}
+            onPress={handleHeaderBack}
             onPressIn={handleSavePressIn}
             onPressOut={handleSavePressOut}
             activeOpacity={1}
           >
-            <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
+            <Text style={styles.saveButtonText}>
+              {selectedFolderKey !== null ? 'Selesai & Kembali ke Folder' : 'Simpan & Kembali'}
+            </Text>
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
-
-      {/* Fullscreen Photo Viewer Modal */}
-      <ImagePreviewModal
-        visible={!!selectedPhoto}
-        imageUri={selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
-      />
     </View>
   );
 };
@@ -301,12 +374,38 @@ const styles = StyleSheet.create({
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: Spacing.sm,
   },
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
+  },
+  minRequirementBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  minRequirementBadgeSuccess: {
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    borderColor: 'rgba(34, 197, 94, 0.35)',
+  },
+  minRequirementBadgeWarning: {
+    backgroundColor: 'rgba(243, 156, 18, 0.15)',
+    borderColor: 'rgba(243, 156, 18, 0.35)',
+  },
+  minRequirementBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  minRequirementBadgeTextSuccess: {
+    color: Colors.success,
+  },
+  minRequirementBadgeTextWarning: {
+    color: Colors.warning,
   },
   cardBody: {
     marginTop: Spacing.md,
@@ -413,5 +512,52 @@ const styles = StyleSheet.create({
     textShadowColor: '#000000',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
+  },
+  emptyLockContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  lockIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  emptyLockTitle: {
+    ...Typography.h3,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: Spacing.xs + 2,
+    textAlign: 'center',
+  },
+  emptyLockDesc: {
+    ...Typography.body,
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: Spacing.lg,
+    maxWidth: 280,
+  },
+  selectPopLockBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.md,
+    ...Shadow.md,
+  },
+  selectPopLockBtnText: {
+    ...Typography.body,
+    fontSize: 13.5,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
 });

@@ -63,7 +63,7 @@ export const ChecklistScreen: React.FC = () => {
             onChange={(val) => {
               updateChecklistEntry(index, {
                 value: val,
-                status: val === 'true' ? 'ok' : 'critical',
+                status: !val ? 'na' : (val === 'true' ? 'ok' : 'critical'),
               });
             }}
           />
@@ -199,7 +199,7 @@ const PassFailInput: React.FC<{
         styles.passFailButton,
         value === 'true' && styles.passButton,
       ]}
-      onPress={() => onChange('true')}>
+      onPress={() => onChange(value === 'true' ? '' : 'true')}>
       <Text
         style={[
           styles.passFailText,
@@ -213,7 +213,7 @@ const PassFailInput: React.FC<{
         styles.passFailButton,
         value === 'false' && styles.failButton,
       ]}
-      onPress={() => onChange('false')}>
+      onPress={() => onChange(value === 'false' ? '' : 'false')}>
       <Text
         style={[
           styles.passFailText,
@@ -265,7 +265,7 @@ const SelectInput: React.FC<{
           styles.selectOption,
           value === option && styles.selectOptionActive,
         ]}
-        onPress={() => onChange(option)}>
+        onPress={() => onChange(value === option ? '' : option)}>
         <Text
           style={[
             styles.selectOptionText,

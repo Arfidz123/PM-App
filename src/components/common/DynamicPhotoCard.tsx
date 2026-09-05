@@ -50,6 +50,13 @@ export const DynamicPhotoCard: React.FC<DynamicPhotoCardProps> = ({
         activeOpacity={0.85}
       >
         <Image source={{ uri }} style={styles.uploadedImage} />
+        {label ? (
+          <View style={styles.topLabelOverlay}>
+            <Text style={styles.topLabelText} numberOfLines={1}>
+              {label}
+            </Text>
+          </View>
+        ) : null}
         {(displayDateStr || coordsStr || addressStr) && (
           <View style={styles.timestampBadgeOverlay}>
             {displayDateStr ? <Text style={styles.timestampOverlayText}>Tgl/Jam: {displayDateStr}</Text> : null}
@@ -66,11 +73,6 @@ export const DynamicPhotoCard: React.FC<DynamicPhotoCardProps> = ({
           </View>
         )}
       </TouchableOpacity>
-      {label && (
-        <Text style={styles.labelBadge} numberOfLines={1}>
-          {label}
-        </Text>
-      )}
       {onDelete && (
         <TouchableOpacity style={styles.deletePhotoBtn} onPress={onDelete}>
           <Trash2 color={Colors.danger} size={16} />
@@ -129,12 +131,25 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
   },
-  labelBadge: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
+  topLabelOverlay: {
+    position: 'absolute',
+    top: 4,
+    left: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    maxWidth: '85%',
+    zIndex: 5,
+  },
+  topLabelText: {
+    color: '#ffffff',
+    fontSize: 9.5,
+    fontWeight: 'bold',
+    fontFamily: Platform.OS === 'android' ? 'monospace' : 'Courier',
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 0.5, height: 0.5 },
+    textShadowRadius: 1,
   },
   deletePhotoBtn: {
     position: 'absolute',

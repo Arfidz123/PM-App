@@ -19,7 +19,6 @@ import LinearGradient from 'react-native-linear-gradient';
 import {
   MapPin,
   Calendar,
-  User,
   FileText,
   Share2,
   ChevronLeft,
@@ -27,7 +26,6 @@ import {
   AlertTriangle,
   XCircle,
   Minus,
-  ClipboardList,
   Eye,
   Edit3,
   Cloud,
@@ -39,7 +37,7 @@ import {Button, StatusBadge, showAlert} from '../../components/common';
 import database from '../../database';
 import {Inspection, InspectionItem, Asset} from '../../database/models';
 import {useInspectionStore} from '../../store/inspectionStore';
-import {formatDate, cleanPopId, cleanPopName, cleanInspectorName, sharePdfFile} from '../../utils/helpers';
+import {formatDate, cleanPopId, cleanPopName, sharePdfFile} from '../../utils/helpers';
 import type {RootStackParamList} from '../../types';
 import {TouchableOpacity} from 'react-native';
 
@@ -153,7 +151,7 @@ export const InspectionDetailScreen: React.FC = () => {
           text: 'Edit Sekarang',
           onPress: () => {
             useInspectionStore.getState().loadExistingInspection(inspection, asset);
-            navigation.navigate('InfoPop');
+            navigation.navigate('MainTabs');
           },
         },
       ],
@@ -242,14 +240,10 @@ export const InspectionDetailScreen: React.FC = () => {
             {isEdited ? (
               <View style={[styles.chip, styles.chipEdited]}>
                 <Text style={styles.chipEditedText}>
-                  ✏️ Revisi {formatDate(new Date(inspection.updatedAt).getTime())}
+                  Diedit {formatDate(new Date(inspection.updatedAt).getTime())}
                 </Text>
               </View>
             ) : null}
-            <View style={styles.chip}>
-              <User size={12} color={Colors.white} style={{marginRight: 4}} />
-              <Text style={styles.chipText}>{cleanInspectorName(inspection.inspectorName)}</Text>
-            </View>
             <StatusBadge status={inspection.status} size="sm" />
           </View>
         </Animated.View>
@@ -264,13 +258,6 @@ export const InspectionDetailScreen: React.FC = () => {
             transform: [{translateY: contentAnim.interpolate({inputRange: [0, 1], outputRange: [30, 0]})}],
           }}>
 
-          {/* Type Tag */}
-          <View style={styles.typeSection}>
-            <View style={styles.typeChip}>
-              <ClipboardList size={14} color={Colors.primary} style={{marginRight: 6}} />
-              <Text style={styles.typeText}>{inspection.typeLabel}</Text>
-            </View>
-          </View>
 
           {/* Checklist Results */}
           {items.length > 0 && (

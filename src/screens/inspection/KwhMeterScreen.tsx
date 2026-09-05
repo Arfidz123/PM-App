@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Clock, Zap, Camera, FileText, Trash2, Image as ImageIcon } from 'lucide-react-native';
+import { ChevronUp, ChevronDown, ChevronLeft, Clock, Zap, Camera, FileText, Trash2, Image as ImageIcon, Lock } from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
+import { Header, showAlert, DropdownModalPicker } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
@@ -28,11 +28,26 @@ export const KwhMeterScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
+  // Modal Picker state
+  const [modalPicker, setModalPicker] = useState<{
+    visible: boolean;
+    title: string;
+    options: string[];
+    selectedValue: string;
+    onSelect: (val: string) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedValue: '',
+    onSelect: () => {},
+  });
+
   // Accordion state
   const [panelExpanded, setPanelExpanded] = useState(true);
   const [cosExpanded, setCosExpanded] = useState(true);
   const [kabelExpanded, setKabelExpanded] = useState(true);
-  const [fotoExpanded, setFotoExpanded] = useState(true);
+  const [standExpanded, setStandExpanded] = useState(true);
 
   // Entrance animations
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -57,7 +72,6 @@ export const KwhMeterScreen: React.FC = () => {
 
   const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
   const kwhData = formData.kwhMeter || {};
-  const sectionPhotos: string[] = kwhData.photos || [];
 
   const infoPop = formData.infoPop || {};
   const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
@@ -136,6 +150,9 @@ export const KwhMeterScreen: React.FC = () => {
     updateFormData('powerSystem', { [psField]: value });
   };
 
+  const phasaDropdownOpen = kwhData.phasaDropdownOpen ?? false;
+  const setPhasaDropdownOpen = (v: boolean) => updateField('phasaDropdownOpen', v);
+
   const cosDropdownOpen = kwhData.cosDropdownOpen ?? false;
   const setCosDropdownOpen = (v: boolean) => updateField('cosDropdownOpen', v);
 
@@ -151,7 +168,7 @@ export const KwhMeterScreen: React.FC = () => {
   const idCustomer = powerSystemData.idPelanggan ?? kwhData.idCustomer ?? '';
   const setIdCustomer = (v: string) => syncWithPowerSystem('idCustomer', 'idPelanggan', v);
 
-  const phasa = (powerSystemData.phasaCatuan ?? kwhData.phasa ?? '').replace(/(phase|phasa)\s*/i, '');
+  const phasa = (powerSystemData.phasaCatuan ?? kwhData.phasa ?? '1').replace(/(phase|phasa)\s*/i, '').trim() || '1';
   const setPhasa = (v: string) => syncWithPowerSystem('phasa', 'phasaCatuan', v);
 
   const daya = powerSystemData.dayaListrik ?? kwhData.daya ?? '';
@@ -187,6 +204,24 @@ export const KwhMeterScreen: React.FC = () => {
 
   const ngVoltage = powerSystemData.teganganG_N ?? kwhData.ngVoltage ?? '';
   const setNgVoltage = (v: string) => syncWithPowerSystem('ngVoltage', 'teganganG_N', v);
+
+  const renderLockedField = (label: string, value: string, unit?: string, placeholder = '—', hasUnitSpacer = false) => (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={[styles.lockedContainer, { flex: 1 }]}>
+          <Text style={[styles.lockedText, !value && styles.lockedPlaceholder]}>
+            {value || placeholder}
+          </Text>
+        </View>
+        {unit ? (
+          <Text style={styles.measurementUnit}>{unit}</Text>
+        ) : hasUnitSpacer ? (
+          <View style={styles.measurementUnit} />
+        ) : null}
+      </View>
+    </View>
+  );
 
   // Form state - Kabel Output
   const warnaR = kwhData.warnaR ?? '';
@@ -279,43 +314,14 @@ export const KwhMeterScreen: React.FC = () => {
             </TouchableOpacity>
 
             {panelExpanded && (
-              <View style={styles.cardBody}>
+              <View style={[styles.cardBody, { zIndex: 10 }]}>
+
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>ID Customer</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={idCustomer}
-                      onChangeText={setIdCustomer}
-                      placeholder="-"
-                      placeholderTextColor={Colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  {renderLockedField('ID Customer', idCustomer)}
                 </View>
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Phasa</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={phasa}
-                      onChangeText={setPhasa}
-                      placeholder="-"
-                      placeholderTextColor={Colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Daya (VA)</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={daya}
-                      onChangeText={setDaya}
-                      placeholder="-"
-                      placeholderTextColor={Colors.textMuted}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                  {renderLockedField('Phasa', phasa || '1', undefined, '—', true)}
+                  {renderLockedField('Daya', daya, 'VA')}
                 </View>
 
                 <View style={styles.divider} />
@@ -323,18 +329,9 @@ export const KwhMeterScreen: React.FC = () => {
                 <Text style={styles.subHeading}>KAPASITAS MCB</Text>
 
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>R (Ampere)</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={mcbR} onChangeText={setMcbR} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>S (Ampere)</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={mcbS} onChangeText={setMcbS} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>T (Ampere)</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={mcbT} onChangeText={setMcbT} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
+                  {renderLockedField('R', mcbR, 'A')}
+                  {renderLockedField('S', mcbS, 'A')}
+                  {renderLockedField('T', mcbT, 'A')}
                 </View>
 
                 <View style={styles.divider} />
@@ -342,43 +339,22 @@ export const KwhMeterScreen: React.FC = () => {
                 <Text style={styles.subHeading}>PENGUKURAN</Text>
 
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>R-N Voltage</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={rn} onChangeText={setRn} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>R Ampere</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={rAmpere} onChangeText={setRAmpere} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
+                  {renderLockedField('Tegangan R-N', rn, 'V')}
+                  {renderLockedField('R', rAmpere, 'A')}
                 </View>
 
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>S-N Voltage</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={sn} onChangeText={setSn} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>S Ampere</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={sAmpere} onChangeText={setSAmpere} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
+                  {renderLockedField('Tegangan S-N', sn, 'V')}
+                  {renderLockedField('S', sAmpere, 'A')}
                 </View>
 
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>T-N Voltage</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={tn} onChangeText={setTn} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>T Ampere</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={tAmpere} onChangeText={setTAmpere} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
+                  {renderLockedField('Tegangan T-N', tn, 'V')}
+                  {renderLockedField('T', tAmpere, 'A')}
                 </View>
 
                 <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>N-G Voltage</Text>
-                    <TextInput style={styles.inputBox} keyboardType="numeric" value={ngVoltage} onChangeText={setNgVoltage} placeholder="—" placeholderTextColor={Colors.textMuted} />
-                  </View>
+                  {renderLockedField('Tegangan N-G', ngVoltage, 'V')}
                   <View style={styles.inputGroup} />
                 </View>
               </View>
@@ -386,7 +362,7 @@ export const KwhMeterScreen: React.FC = () => {
           </View>
 
           {/* Card 2: COS & Arester */}
-          <View style={[styles.card, { zIndex: 100 }]}>
+          <View style={[styles.card, { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 }]}>
             <TouchableOpacity
               style={styles.cardHeader}
               onPress={() => setCosExpanded(!cosExpanded)}
@@ -402,87 +378,49 @@ export const KwhMeterScreen: React.FC = () => {
             </TouchableOpacity>
 
             {cosExpanded && (
-              <View style={[styles.cardBody, { zIndex: 100 }]}>
+              <View style={[styles.cardBody, { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 }]}>
                 <View style={[styles.row, { zIndex: 100 }]}>
-                  <View style={[styles.inputGroup, { zIndex: cosDropdownOpen ? 1000 : 1 }]}>
+                  <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>COS</Text>
-                    <View>
-                      <TouchableOpacity
-                        style={[styles.selectBox, cosDropdownOpen && styles.selectBoxActive]}
-                        onPress={() => {
-                          setCosDropdownOpen(!cosDropdownOpen);
-                          if (!cosDropdownOpen) setAresterDropdownOpen(false);
-                        }}
-                        activeOpacity={1}
-                      >
-                        <Text style={styles.selectText}>{cosValue}</Text>
-                        <ChevronDown color={Colors.textMuted} size={16} />
-                      </TouchableOpacity>
-                      {cosDropdownOpen && (
-                        <View style={styles.dropdownMenu}>
-                          {['Ada', 'Tidak Ada'].map((opt) => (
-                            <TouchableOpacity
-                              key={opt}
-                              style={[
-                                styles.dropdownItem,
-                                cosValue === opt && styles.dropdownItemActive
-                              ]}
-                              onPress={() => {
-                                setCosValue(opt);
-                                setCosDropdownOpen(false);
-                              }}
-                            >
-                              <Text style={[
-                                styles.dropdownItemText,
-                                cosValue === opt && styles.dropdownItemTextActive
-                              ]}>
-                                {opt}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
+                    <TouchableOpacity
+                      style={styles.selectBox}
+                      onPress={() => {
+                        setModalPicker({
+                          visible: true,
+                          title: 'Pilih Status COS',
+                          options: ['Ada', 'Tidak Ada'],
+                          selectedValue: cosValue,
+                          onSelect: (val) => setCosValue(val),
+                        });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.selectText, !cosValue && styles.selectTextPlaceholder]}>
+                        {cosValue || 'Pilih'}
+                      </Text>
+                      <ChevronDown color={Colors.textMuted} size={16} />
+                    </TouchableOpacity>
                   </View>
-                  <View style={[styles.inputGroup, { zIndex: aresterDropdownOpen ? 1000 : 1 }]}>
+                  <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>ARESTER</Text>
-                    <View>
-                      <TouchableOpacity
-                        style={[styles.selectBox, aresterDropdownOpen && styles.selectBoxActive]}
-                        onPress={() => {
-                          setAresterDropdownOpen(!aresterDropdownOpen);
-                          if (!aresterDropdownOpen) setCosDropdownOpen(false);
-                        }}
-                        activeOpacity={1}
-                      >
-                        <Text style={styles.selectText}>{aresterValue}</Text>
-                        <ChevronDown color={Colors.textMuted} size={16} />
-                      </TouchableOpacity>
-                      {aresterDropdownOpen && (
-                        <View style={styles.dropdownMenu}>
-                          {['Ada', 'Tidak Ada'].map((opt) => (
-                            <TouchableOpacity
-                              key={opt}
-                              style={[
-                                styles.dropdownItem,
-                                aresterValue === opt && styles.dropdownItemActive
-                              ]}
-                              onPress={() => {
-                                setAresterValue(opt);
-                                setAresterDropdownOpen(false);
-                              }}
-                            >
-                              <Text style={[
-                                styles.dropdownItemText,
-                                aresterValue === opt && styles.dropdownItemTextActive
-                              ]}>
-                                {opt}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
+                    <TouchableOpacity
+                      style={styles.selectBox}
+                      onPress={() => {
+                        setModalPicker({
+                          visible: true,
+                          title: 'Pilih Status ARESTER',
+                          options: ['Ada', 'Tidak Ada'],
+                          selectedValue: aresterValue,
+                          onSelect: (val) => setAresterValue(val),
+                        });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.selectText, !aresterValue && styles.selectTextPlaceholder]}>
+                        {aresterValue || 'Pilih'}
+                      </Text>
+                      <ChevronDown color={Colors.textMuted} size={16} />
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -513,12 +451,18 @@ export const KwhMeterScreen: React.FC = () => {
                     <TextInput style={styles.inputBox} value={warnaR} onChangeText={setWarnaR} />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS (MM)</Text>
-                    <TextInput style={styles.inputBox} value={luasR} onChangeText={setLuasR} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>LUAS</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasR} onChangeText={setLuasR} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>mm²</Text>
+                    </View>
                   </View>
                   <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU (°C)</Text>
-                    <TextInput style={styles.inputBox} value={suhuR} onChangeText={setSuhuR} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>SUHU</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuR} onChangeText={setSuhuR} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>°C</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -528,12 +472,18 @@ export const KwhMeterScreen: React.FC = () => {
                     <TextInput style={styles.inputBox} value={warnaS} onChangeText={setWarnaS} />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS (MM)</Text>
-                    <TextInput style={styles.inputBox} value={luasS} onChangeText={setLuasS} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>LUAS</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasS} onChangeText={setLuasS} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>mm²</Text>
+                    </View>
                   </View>
                   <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU (°C)</Text>
-                    <TextInput style={styles.inputBox} value={suhuS} onChangeText={setSuhuS} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>SUHU</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuS} onChangeText={setSuhuS} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>°C</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -543,12 +493,18 @@ export const KwhMeterScreen: React.FC = () => {
                     <TextInput style={styles.inputBox} value={warnaT} onChangeText={setWarnaT} />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS (MM)</Text>
-                    <TextInput style={styles.inputBox} value={luasT} onChangeText={setLuasT} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>LUAS</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasT} onChangeText={setLuasT} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>mm²</Text>
+                    </View>
                   </View>
                   <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU (°C)</Text>
-                    <TextInput style={styles.inputBox} value={suhuT} onChangeText={setSuhuT} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>SUHU</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuT} onChangeText={setSuhuT} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>°C</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -558,12 +514,18 @@ export const KwhMeterScreen: React.FC = () => {
                     <TextInput style={styles.inputBox} value={warnaN} onChangeText={setWarnaN} />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS (MM)</Text>
-                    <TextInput style={styles.inputBox} value={luasN} onChangeText={setLuasN} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>LUAS</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasN} onChangeText={setLuasN} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>mm²</Text>
+                    </View>
                   </View>
                   <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU (°C)</Text>
-                    <TextInput style={styles.inputBox} value={suhuN} onChangeText={setSuhuN} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>SUHU</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuN} onChangeText={setSuhuN} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>°C</Text>
+                    </View>
                   </View>
                 </View>
 
@@ -573,73 +535,19 @@ export const KwhMeterScreen: React.FC = () => {
                     <TextInput style={styles.inputBox} value={warnaG} onChangeText={setWarnaG} />
                   </View>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS (MM)</Text>
-                    <TextInput style={styles.inputBox} value={luasG} onChangeText={setLuasG} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>LUAS</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasG} onChangeText={setLuasG} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>mm²</Text>
+                    </View>
                   </View>
                   <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU (°C)</Text>
-                    <TextInput style={styles.inputBox} value={suhuG} onChangeText={setSuhuG} keyboardType="numeric" />
+                    <Text style={styles.inputLabel}>SUHU</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuG} onChangeText={setSuhuG} keyboardType="numeric" />
+                      <Text style={styles.measurementUnit}>°C</Text>
+                    </View>
                   </View>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Card 4: Foto */}
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setFotoExpanded(!fotoExpanded)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardTitleRow}>
-                <Camera color={Colors.primary} size={20} style={{ marginRight: 8 }} />
-                <Text style={styles.cardTitle}>Foto ({sectionPhotos.length})</Text>
-              </View>
-              {fotoExpanded ? (
-                <ChevronUp color={Colors.textMuted} size={20} />
-              ) : (
-                <ChevronDown color={Colors.textMuted} size={20} />
-              )}
-            </TouchableOpacity>
-
-            {fotoExpanded && (
-              <View style={styles.cardBody}>
-                <View style={styles.photoGrid}>
-                  {sectionPhotos.map((fotoUri, index) => (
-                    <DynamicPhotoCard
-                      key={index}
-                      uri={fotoUri}
-                      onPress={() => setSelectedPhoto(fotoUri)}
-                      onDelete={() => removePhotoBySection('kwhMeter', index)}
-                      dateStr={getPhotoTimestamp(fotoUri)}
-                      coordsStr={getPhotoCoordinates(fotoUri) || coordsStr}
-                      addressStr={addressStr}
-                      label={`KWH Meter #${index + 1}`}
-                    />
-                  ))}
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handleTakePhoto}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <Camera color={Colors.primary} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Kamera</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handlePickGallery}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <ImageIcon color={Colors.textMuted} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Galeri</Text>
-                    </View>
-                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -676,11 +584,13 @@ export const KwhMeterScreen: React.FC = () => {
         </Animated.ScrollView>
       </View>
 
-      {/* Image Preview Modal */}
-      <ImagePreviewModal
-        visible={!!selectedPhoto}
-        imageUri={selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
+      <DropdownModalPicker
+        visible={modalPicker.visible}
+        title={modalPicker.title}
+        options={modalPicker.options}
+        selectedValue={modalPicker.selectedValue}
+        onSelect={modalPicker.onSelect}
+        onClose={() => setModalPicker((prev) => ({ ...prev, visible: false }))}
       />
     </View>
   );
@@ -832,10 +742,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: BorderRadius.sm,
-    padding: Spacing.sm,
-    backgroundColor: Colors.surface,
-    height: 40,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.background,
+    height: 44,
   },
   selectBoxActive: {
     borderColor: '#3B82F6',
@@ -844,18 +755,18 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: 40, // Height of the selectBox
+    top: 44, // Height of the selectBox
     left: 0,
     right: 0,
     backgroundColor: Colors.surface,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: '#3B82F6',
     borderTopWidth: 0,
-    borderBottomLeftRadius: BorderRadius.sm,
-    borderBottomRightRadius: BorderRadius.sm,
-    ...Shadow.sm,
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    ...Shadow.md,
     zIndex: 9999,
-    elevation: 5,
+    elevation: 8,
   },
   dropdownItem: {
     paddingVertical: 10,
@@ -875,6 +786,9 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.text,
   },
+  selectTextPlaceholder: {
+    color: Colors.textMuted,
+  },
   inputBox: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -883,6 +797,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: Colors.background,
     color: Colors.text,
+    height: 44,
     ...Typography.body,
   },
   commentContainer: {
@@ -980,6 +895,50 @@ const styles = StyleSheet.create({
     textShadowColor: '#000000',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
+  },
+  syncNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: Spacing.md,
+  },
+  syncNoticeText: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  lockedContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 44,
+  },
+  lockedText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  lockedPlaceholder: {
+    color: Colors.textMuted,
+    fontWeight: 'normal',
+  },
+  measurementUnit: {
+    ...Typography.body,
+    color: Colors.textMuted,
+    fontWeight: 'bold',
+    marginLeft: Spacing.sm,
   },
   divider: {
     height: 1,

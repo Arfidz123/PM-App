@@ -382,26 +382,6 @@ export const POP_SEED_DATA = [
   },
   {
     "id": "39",
-    "asset_code": "OLT Almira",
-    "name": "OLT Almira",
-    "category": "POP-A",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323201812196\",\"daya\":\"4.400\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"Huawei\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "40",
-    "asset_code": "OLT Samaturu Kolaka",
-    "name": "OLT Samaturu Kolaka",
-    "category": "POP-A",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323800559214\",\"daya\":\"1.300\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"- -\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "41",
     "asset_code": "OLT Puuwatu",
     "name": "OLT Puuwatu",
     "category": "POP-A",
@@ -411,37 +391,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.487
   },
   {
-    "id": "42",
-    "asset_code": "OLT Damkar Kota",
-    "name": "OLT Damkar Kota",
-    "category": "POP-A",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"\",\"daya\":\"4.400\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"Huawei\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "43",
-    "asset_code": "OLT Kampung Morosi",
-    "name": "OLT Kampung Morosi",
-    "category": "POP-A",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323201787488\",\"daya\":\"1.300\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"- -\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "44",
-    "asset_code": "OLT Ranomeeto",
-    "name": "OLT Ranomeeto",
-    "category": "POP-A",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323201829374\",\"daya\":\"1.300\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"- -\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "45",
+    "id": "40",
     "asset_code": "POP_1KDI001_KENDARI AREA PLN",
     "name": "POP_1KDI001_KENDARI AREA PLN",
     "category": "POP-D",
@@ -451,7 +401,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.499
   },
   {
-    "id": "46",
+    "id": "41",
     "asset_code": "POP_1KDI10000_KENDARI GI SHELTER PLN",
     "name": "POP_1KDI10000_KENDARI GI SHELTER PLN",
     "category": "POP-D",
@@ -461,7 +411,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.466
   },
   {
-    "id": "47",
+    "id": "42",
     "asset_code": "POP_1KKA10000_KOLAKA GI SHELTER PLN",
     "name": "POP_1KKA10000_KOLAKA GI SHELTER PLN",
     "category": "POP-B",
@@ -471,7 +421,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.637
   },
   {
-    "id": "48",
+    "id": "43",
     "asset_code": "POP_1LSS10000_LASUSUA GI SHELTER PLN",
     "name": "POP_1LSS10000_LASUSUA GI SHELTER PLN",
     "category": "POP-B",
@@ -481,7 +431,7 @@ export const POP_SEED_DATA = [
     "longitude": 120.918
   },
   {
-    "id": "49",
+    "id": "44",
     "asset_code": "POP_1UNH10000_UNAAHA GI SHELTER PLN",
     "name": "POP_1UNH10000_UNAAHA GI SHELTER PLN",
     "category": "POP-B",
@@ -491,97 +441,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.074
   },
   {
-    "id": "50",
-    "asset_code": "Mini PoP PLTD Lambuya",
-    "name": "Mini PoP PLTD Lambuya",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323600508467\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"ENETEK\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "51",
-    "asset_code": "Mini PoP KP Rate-Rate",
-    "name": "Mini PoP KP Rate-Rate",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323600508881\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"ENETEK\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "52",
-    "asset_code": "ODC PLTD Lambuya",
-    "name": "ODC PLTD Lambuya",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323600524155\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "53",
-    "asset_code": "ODC PoP KP WOLO",
-    "name": "ODC PoP KP WOLO",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323800562346\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "54",
-    "asset_code": "ODC PoP UP3 Kendari",
-    "name": "ODC PoP UP3 Kendari",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323201902449\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "55",
-    "asset_code": "ODC PoP PLTD Kolaka",
-    "name": "ODC PoP PLTD Kolaka",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323800562338\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "56",
-    "asset_code": "ODC PoP KP Rate-Rate",
-    "name": "ODC PoP KP Rate-Rate",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323600524148\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "57",
-    "asset_code": "Mini PoP ULP Unaaha",
-    "name": "Mini PoP ULP Unaaha",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323600508314\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"ENETEK\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "58",
-    "asset_code": "Mini PoP ULP Wua-Wua",
-    "name": "Mini PoP ULP Wua-Wua",
-    "category": "POP-B",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323800562338\",\"daya\":\"5.500\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"ENETEK\"}",
-    "latitude": null,
-    "longitude": null
-  },
-  {
-    "id": "59",
+    "id": "45",
     "asset_code": "POP_1ADL10000_ANDOOLO GI PLN",
     "name": "POP_1ADL10000_ANDOOLO GI PLN",
     "category": "POP-D",
@@ -591,7 +451,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.245
   },
   {
-    "id": "60",
+    "id": "46",
     "asset_code": "POP_1BAU10000_BAUBAU PLTD PLC PLN",
     "name": "POP_1BAU10000_BAUBAU PLTD PLC PLN",
     "category": "POP-D",
@@ -601,7 +461,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.598
   },
   {
-    "id": "61",
+    "id": "47",
     "asset_code": "POP_1BGK10000_BAHODOPI MINI POP",
     "name": "POP_1BGK10000_BAHODOPI MINI POP",
     "category": "POP-D",
@@ -611,7 +471,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.122
   },
   {
-    "id": "62",
+    "id": "48",
     "asset_code": "POP_1KDI002_KENDARI AREA MINI POP",
     "name": "POP_1KDI002_KENDARI AREA MINI POP",
     "category": "POP-D",
@@ -621,7 +481,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.5
   },
   {
-    "id": "63",
+    "id": "49",
     "asset_code": "POP_1KDI10003_BENU BENUA ULP MINI POP PLN",
     "name": "POP_1KDI10003_BENU BENUA ULP MINI POP PLN",
     "category": "POP-D",
@@ -631,7 +491,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.562
   },
   {
-    "id": "64",
+    "id": "50",
     "asset_code": "POP_1KDI10014_PUUWATU GI SHELTER PLN",
     "name": "POP_1KDI10014_PUUWATU GI SHELTER PLN",
     "category": "POP-D",
@@ -641,7 +501,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.506
   },
   {
-    "id": "65",
+    "id": "51",
     "asset_code": "POP_1KDI10020_ALMIRA MINI POP",
     "name": "POP_1KDI10020_ALMIRA MINI POP",
     "category": "POP-D",
@@ -651,7 +511,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.503
   },
   {
-    "id": "66",
+    "id": "52",
     "asset_code": "POP_1KDI10021_DAMKAR MINI POP",
     "name": "POP_1KDI10021_DAMKAR MINI POP",
     "category": "POP-D",
@@ -661,7 +521,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.508
   },
   {
-    "id": "67",
+    "id": "53",
     "asset_code": "POP_1KDI10023_LAPULU KP MINI POP PLN",
     "name": "POP_1KDI10023_LAPULU KP MINI POP PLN",
     "category": "POP-D",
@@ -671,7 +531,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.581
   },
   {
-    "id": "68",
+    "id": "54",
     "asset_code": "POP_1KKA001_WOLO KP MINI POP PLN",
     "name": "POP_1KKA001_WOLO KP MINI POP PLN",
     "category": "POP-D",
@@ -681,7 +541,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.268
   },
   {
-    "id": "69",
+    "id": "55",
     "asset_code": "POP_1KKA002_KOLAKA PLTD MINI POP PLN",
     "name": "POP_1KKA002_KOLAKA PLTD MINI POP PLN",
     "category": "POP-D",
@@ -691,7 +551,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.621
   },
   {
-    "id": "70",
+    "id": "56",
     "asset_code": "POP_1KKA003_RATE-RATE KP MIKRO POP PLN",
     "name": "POP_1KKA003_RATE-RATE KP MIKRO POP PLN",
     "category": "POP-D",
@@ -701,7 +561,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.89
   },
   {
-    "id": "71",
+    "id": "57",
     "asset_code": "POP_1LSS001_OLO-OLOHO KP MINI POP PLN",
     "name": "POP_1LSS001_OLO-OLOHO KP MINI POP PLN",
     "category": "POP-D",
@@ -711,7 +571,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.049
   },
   {
-    "id": "72",
+    "id": "58",
     "asset_code": "POP_1LSS002_KOLAKA UTARA ULP MINI POP PLN",
     "name": "POP_1LSS002_KOLAKA UTARA ULP MINI POP PLN",
     "category": "POP-D",
@@ -721,7 +581,7 @@ export const POP_SEED_DATA = [
     "longitude": 120.912
   },
   {
-    "id": "73",
+    "id": "59",
     "asset_code": "POP_1LSS003_RANTEANGIN KP MINI POP PLN",
     "name": "POP_1LSS003_RANTEANGIN KP MINI POP PLN",
     "category": "POP-D",
@@ -731,7 +591,7 @@ export const POP_SEED_DATA = [
     "longitude": 121.022
   },
   {
-    "id": "74",
+    "id": "60",
     "asset_code": "POP_1PSW10000_PASARWAJO ULP MINI POP PLN",
     "name": "POP_1PSW10000_PASARWAJO ULP MINI POP PLN",
     "category": "POP-D",
@@ -741,7 +601,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.843
   },
   {
-    "id": "75",
+    "id": "61",
     "asset_code": "POP_1RAH10000_RAHA KP PLC PLN",
     "name": "POP_1RAH10000_RAHA KP PLC PLN",
     "category": "POP-D",
@@ -751,7 +611,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.721
   },
   {
-    "id": "76",
+    "id": "62",
     "asset_code": "POP_1RMB10000_KASIPUTE GI PLC PLN",
     "name": "POP_1RMB10000_KASIPUTE GI PLC PLN",
     "category": "POP-D",
@@ -761,7 +621,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.025
   },
   {
-    "id": "77",
+    "id": "63",
     "asset_code": "POP_1UNH001_LAMBUYA PLTD MIKRO POP PLN",
     "name": "POP_1UNH001_LAMBUYA PLTD MIKRO POP PLN",
     "category": "POP-D",
@@ -771,7 +631,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.067
   },
   {
-    "id": "78",
+    "id": "64",
     "asset_code": "POP_1UNH002_UNAAHA ULP MIKRO POP PLN",
     "name": "POP_1UNH002_UNAAHA ULP MIKRO POP PLN",
     "category": "POP-D",
@@ -781,7 +641,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.046
   },
   {
-    "id": "79",
+    "id": "65",
     "asset_code": "POP_1WGD10000_ASERA KP MINI POP PLN",
     "name": "POP_1WGD10000_ASERA KP MINI POP PLN",
     "category": "POP-D",
@@ -791,7 +651,7 @@ export const POP_SEED_DATA = [
     "longitude": 122.105
   },
   {
-    "id": "80",
+    "id": "66",
     "asset_code": "POP_1WGD10001_TETEWATOE MIKRO POP",
     "name": "POP_1WGD10001_TETEWATOE MIKRO POP",
     "category": "POP-D",
@@ -800,15 +660,4 @@ export const POP_SEED_DATA = [
     "latitude": -3.16291,
     "longitude": 122.115
   },
-  {
-    "id": "81",
-    "asset_code": "Mini PoP Langgikima",
-    "name": "Mini PoP Langgikima",
-    "category": "POP-D",
-    "location": "KENDARI",
-    "specifications": "{\"id_pln\":\"323300845256\",\"daya\":\"4.400\",\"phasa\":\"1 Phasa\",\"rectifier_brand\":\"SMART PACK 10\"}",
-    "latitude": null,
-    "longitude": null
-  },
-
 ];

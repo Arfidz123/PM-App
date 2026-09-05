@@ -17,7 +17,7 @@ var BASE_STYLES = "\n    body { font-family: 'Arial', sans-serif; font-size: 11p
 var generatePdfHtml = function (activePopId, activePopName, activePopLocation, formData) {
         var _a;
         var kwh = formData.kwhMeter || {};
-        var power = formData.powerSystem || {};
+        var power = Object.assign({}, formData.powerSystem || {}, formData.genset || {});
         var rect = formData.rectifier || {};
         var rectifiers = rect.rectifierList || rect.rectifiers || formData.rectifierList || [];
         var battery = formData.battery || {};
@@ -271,49 +271,160 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
 
         /* --- Dokumentasi Helper --- */
         var getDokumentasiHtml = function () {
-                var list = [];
                 var seenUris = {};
 
-                var addUniquePhoto = function (p, labelText) {
-                        var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
-                        if (uri && !seenUris[uri]) {
-                                seenUris[uri] = true;
-                                list.push({ uri: uri, label: labelText });
-                        }
-                };
-
-                var sections = [
-                        { key: 'kwhMeter', label: 'Foto KWH Meter' },
-                        { key: 'rectifier', label: 'Foto Rectifier' },
-                        { key: 'battery', label: 'Foto Battery' },
-                        { key: 'mechanicalElect', label: 'Foto ME' },
-                        { key: 'powerSystem', label: 'Foto Power System' },
+                // Ordered categories: POP Bagian Luar first, followed in order, with Lainnya at the very end
+                var orderedCategories = [
+                        { key: 'popLuar', label: 'POP Bagian Luar', matchPatterns: ['pop luar', 'pop bagian luar'] },
+                        { key: 'popDalam', label: 'POP Bagian Dalam', matchPatterns: ['pop dalam', 'pop bagian dalam'] },
+                        { key: 'genset', label: 'Foto Genset', matchPatterns: ['genset'] },
+                        { key: 'odf', label: 'Foto ODF', matchPatterns: ['odf'] },
+                        { key: 'acpdb', label: 'Foto ACPDB', matchPatterns: ['acpdb'] },
+                        { key: 'dcpdb', label: 'Foto DCPDB', matchPatterns: ['dcpdb'] },
+                        { key: 'ats', label: 'Foto ATS', matchPatterns: ['ats'] },
+                        { key: 'powerSupply', label: 'Foto Power Supply', matchPatterns: ['power supply', 'powersupply'] },
+                        { key: 'exhaustFan', label: 'Foto Exhaust Fan', matchPatterns: ['exhaust fan', 'exhaust', 'fan'] },
+                        { key: 'lainnya', label: 'Foto Lainnya', matchPatterns: ['lainnya', 'other'] },
                 ];
 
-                sections.forEach(function (sec) {
-                        var secData = formData[sec.key] || {};
+                var dok = formData.dokumentasi || {};
+                var dokPhotos = dok.photos || dok.fotos || [];
+                var dokCatList = dok.categorizedPhotos || [];
+
+                var collectedItems = [];
+
+                var getCategoryInfo = function (uri, fallbackLabel, explicitCatKey) {
+                        var storeCats = formData.photoCategories || {};
+                        var dokCats = dok.photoCategories || {};
+                        var foundCat = explicitCatKey || '';
+                        var label = storeCats[uri] || dokCats[uri] || fallbackLabel || '';
+
+                        if (!foundCat && dokCatList.length > 0) {
+                                var cItem = dokCatList.find(function (c) { return c && c.uri === uri; });
+                                if (cItem) {
+                                        foundCat = cItem.category || '';
+                                        if (cItem.categoryLabel) label = cItem.categoryLabel;
+                                }
+                        }
+
+                        var matchedKey = 'lainnya';
+                        if (foundCat) {
+                                var matchByKey = orderedCategories.find(function (oc) {
+                                        return oc.key.toLowerCase() === foundCat.toLowerCase();
+                                });
+                                if (matchByKey) matchedKey = matchByKey.key;
+                        } else if (label) {
+                                var lowerLabel = label.toLowerCase();
+                                for (var i = 0; i < orderedCategories.length; i++) {
+                                        var oc = orderedCategories[i];
+                                        if (oc.label.toLowerCase() === lowerLabel || oc.key.toLowerCase() === lowerLabel) {
+                                                matchedKey = oc.key;
+                                                break;
+                                        }
+                                        var hasPattern = oc.matchPatterns.some(function (p) {
+                                                return lowerLabel.indexOf(p) !== -1;
+                                        });
+                                        if (hasPattern) {
+                                                matchedKey = oc.key;
+                                                break;
+                                        }
+                                }
+                        }
+
+                        var catConfig = orderedCategories.find(function (oc) { return oc.key === matchedKey; });
+                        var finalLabel = label || (catConfig ? catConfig.label : 'Foto Dokumentasi');
+                        return { key: matchedKey, label: finalLabel };
+                };
+
+                // 1. Add photos taken in Dokumentasi, BUT EXCLUDE specific KWH, Rectifier, Battery photos
+                // User requirement: "yang foto kwh,recti dan batre tidak masuk di bagian dokumentasi pdf mereka tetap pada halaman khusunya sendiri"
+                var excludedFromDokPdf = ['kwhluar', 'kwhdalam', 'rectifierkeseluruhan', 'rectifierlcd', 'batterykeseluruhan', 'batteryjauh', 'batterydekat'];
+                if (Array.isArray(dokPhotos)) {
+                        dokPhotos.forEach(function (p) {
+                                var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                if (!uri || seenUris[uri]) return;
+
+                                var cItem = dokCatList.find(function (c) { return c && c.uri === uri; });
+                                var rawCat = (cItem && cItem.category) || '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (cItem && cItem.categoryLabel) || '';
+                                
+                                // Check if this photo belongs to KWH, Rectifier, or Battery specific categories
+                                var isSpecificHardwarePhoto = false;
+                                if (rawCat && excludedFromDokPdf.indexOf(rawCat.toLowerCase()) !== -1) {
+                                        isSpecificHardwarePhoto = true;
+                                }
+                                var lowerLabel = catLabel.toLowerCase();
+                                if ((lowerLabel.indexOf('kwh') !== -1 || lowerLabel.indexOf('rectifier') !== -1 || lowerLabel.indexOf('battery') !== -1) && lowerLabel.indexOf('lainnya') === -1) {
+                                        isSpecificHardwarePhoto = true;
+                                }
+
+                                // Skip if it belongs to specific KWH/Recti/Battery pages
+                                if (isSpecificHardwarePhoto) return;
+
+                                seenUris[uri] = true;
+                                var info = getCategoryInfo(uri, 'Foto Dokumentasi');
+                                collectedItems.push({ uri: uri, key: info.key, label: info.label });
+                        });
+                }
+
+                // 2. Connect ONLY "Foto Lainnya" from other sections (rectifier, kwhMeter, battery, mechanicalElect, powerSystem)
+                // Specific photos like LCD, Bagian Keseluruhan, Bagian Luar/Dalam, Bagian Jauh/Dekat MUST NOT be included!
+                var otherSections = ['rectifier', 'kwhMeter', 'battery', 'mechanicalElect', 'powerSystem'];
+                otherSections.forEach(function (sec) {
+                        var secData = formData[sec] || {};
                         var secPhotos = secData.photos || secData.fotos || [];
+                        var secCatPhotos = secData.categorizedPhotos || [];
                         if (Array.isArray(secPhotos)) {
-                                secPhotos.forEach(function (p) { addUniquePhoto(p, sec.label); });
+                                secPhotos.forEach(function (p) {
+                                        var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                        if (!uri || seenUris[uri]) return;
+                                        var catItem = secCatPhotos.find(function (c) { return c && c.uri === uri; });
+                                        var rawCat = (catItem && (catItem.categoryLabel || catItem.category)) || (formData.photoCategories && formData.photoCategories[uri]) || (secData.photoCategories && secData.photoCategories[uri]) || '';
+                                        var isLainnya = rawCat.toLowerCase() === 'lainnya' || rawCat.toLowerCase().indexOf('foto lainnya') !== -1 || rawCat.toLowerCase() === 'other';
+
+                                        // Strictly ONLY include if it's "Foto Lainnya"
+                                        if (isLainnya) {
+                                                seenUris[uri] = true;
+                                                collectedItems.push({ uri: uri, key: 'lainnya', label: 'Foto Lainnya' });
+                                        }
+                                });
                         }
                 });
 
-                if (Array.isArray(formData.photos)) {
-                        formData.photos.forEach(function (p) { addUniquePhoto(p, 'Foto Dokumentasi'); });
-                }
-                var dok = formData.dokumentasi || {};
-                var dokArr = dok.fotos || dok.photos || [];
-                if (Array.isArray(dokArr)) {
-                        dokArr.forEach(function (p) { addUniquePhoto(p, 'Foto Dokumentasi'); });
+                // Fallback for legacy inspections where only formData.photos was used
+                if (collectedItems.length === 0 && Array.isArray(formData.photos)) {
+                        var kwhList = (formData.kwhMeter && (formData.kwhMeter.photos || formData.kwhMeter.fotos)) || [];
+                        var rectList = (formData.rectifier && (formData.rectifier.photos || formData.rectifier.fotos)) || [];
+                        var batList = (formData.battery && (formData.battery.photos || formData.battery.fotos)) || [];
+                        formData.photos.forEach(function (p) {
+                                var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                if (!uri || seenUris[uri] || kwhList.includes(uri) || rectList.includes(uri) || batList.includes(uri)) return;
+                                seenUris[uri] = true;
+                                var info = getCategoryInfo(uri, 'Foto Dokumentasi');
+                                collectedItems.push({ uri: uri, key: info.key, label: info.label });
+                        });
                 }
 
-                if (list.length === 0) {
+                if (collectedItems.length === 0) {
                         return '<div style="padding: 30px; text-align: center; color: #666; font-style: italic; font-size: 13px;">Belum ada foto dokumentasi.</div>';
                 }
 
-                var cardsHtml = list.map(function (item, index) {
+                // SORT strictly by the defined order (POP Bagian Luar first, Lainnya at the very end)
+                var orderIndexMap = {};
+                orderedCategories.forEach(function (oc, idx) {
+                        orderIndexMap[oc.key] = idx;
+                });
+
+                collectedItems.sort(function (a, b) {
+                        var orderA = orderIndexMap[a.key] !== undefined ? orderIndexMap[a.key] : 999;
+                        var orderB = orderIndexMap[b.key] !== undefined ? orderIndexMap[b.key] : 999;
+                        return orderA - orderB;
+                });
+
+                var cardsHtml = collectedItems.map(function (item, index) {
                         return '<div style="position: relative; display: inline-block; vertical-align: top; width: 23.5%; margin: 6px 0.75%; box-sizing: border-box; text-align: left; border: 1px solid #000; background: #fff; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.15);">' +
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
+                                '<div style="position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1px 4px; border-radius: 2px; font-size: 6px; font-weight: bold; font-family: monospace, sans-serif; text-shadow: 0.5px 0.5px 1px #000; text-align: left; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + item.label + '</div>' +
                                 '<img src="' + item.uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 5px; line-height: 1.1; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                 '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + getPhotoTs(item.uri) + '</div>' +
@@ -340,7 +451,7 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaSArus || mcb.sArus || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaTBeban || mcb.tBeban || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaTArus || mcb.tArus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.labelMcb || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.labelMcb || mcb.phasa || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.peruntukan || '') + "</td>" +
                         "</tr>\n";
         }
@@ -349,17 +460,33 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
         var mcbRectiList = power.rectifierBeban || power.bebanRectifier || Array.from({ length: 15 });
         for (var i = 0; i < 15; i++) {
                 var mcb = mcbRectiList[i] || {};
+                var isR1 = mcb.rectifier === 'Rectifier 1' || mcb.rectifier === '1';
+                var isR2 = mcb.rectifier === 'Rectifier 2' || mcb.rectifier === '2';
+                var isR3 = mcb.rectifier === 'Rectifier 3' || mcb.rectifier === '3';
+
+                var r1Kap = mcb.rect1KapMcb || mcb.r1Kap || (isR1 ? mcb.kapasitas : '') || '';
+                var r1Arus = mcb.rect1Arus || mcb.r1Arus || (isR1 ? mcb.arus : '') || '';
+                var r1Nama = mcb.rect1NamaNe || mcb.r1Nama || (isR1 ? (mcb.namaNe || '') : '') || '';
+
+                var r2Kap = mcb.rect2KapMcb || mcb.r2Kap || (isR2 ? mcb.kapasitas : '') || '';
+                var r2Arus = mcb.rect2Arus || mcb.r2Arus || (isR2 ? mcb.arus : '') || '';
+                var r2Nama = mcb.rect2NamaNe || mcb.r2Nama || (isR2 ? (mcb.namaNe || '') : '') || '';
+
+                var r3Kap = mcb.rect3KapMcb || mcb.r3Kap || (isR3 ? mcb.kapasitas : '') || '';
+                var r3Arus = mcb.rect3Arus || mcb.r3Arus || (isR3 ? mcb.arus : '') || '';
+                var r3Nama = mcb.rect3NamaNe || mcb.r3Nama || (isR3 ? (mcb.namaNe || '') : '') || '';
+
                 bebanRectifierRows += "<tr style=\"text-align: center;\">" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (i + 1) + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1KapMcb || mcb.r1Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1Arus || mcb.r1Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1NamaNe || mcb.r1Nama || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2KapMcb || mcb.r2Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2Arus || mcb.r2Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2NamaNe || mcb.r2Nama || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3KapMcb || mcb.r3Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3Arus || mcb.r3Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3NamaNe || mcb.r3Nama || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Nama + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Nama + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Nama + "</td>" +
                         "</tr>\n";
         }
 
@@ -367,19 +494,37 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
         var mcbDcpdbList = power.dcpdbBeban || power.bebanDcpdb || Array.from({ length: 15 });
         for (var i = 0; i < 15; i++) {
                 var mcb = mcbDcpdbList[i] || {};
+                var isD1 = mcb.dcpdb === 'DCPDB 1' || mcb.dcpdb === '1';
+                var isD2 = mcb.dcpdb === 'DCPDB 2' || mcb.dcpdb === '2';
+                var isD3 = mcb.dcpdb === 'DCPDB 3' || mcb.dcpdb === '3';
+                var isD4 = mcb.dcpdb === 'DCPDB 4' || mcb.dcpdb === '4';
+                var isD5 = mcb.dcpdb === 'DCPDB 5' || mcb.dcpdb === '5';
+
+                var dcpKap = mcb.kapasitas || '';
+                var d1B = mcb.dcpdb1Beban || mcb.d1Beban || (isD1 ? mcb.beban : '') || '';
+                var d1A = mcb.dcpdb1Arus || mcb.d1Arus || (isD1 ? mcb.arus : '') || '';
+                var d2B = mcb.dcpdb2Beban || mcb.d2Beban || (isD2 ? mcb.beban : '') || '';
+                var d2A = mcb.dcpdb2Arus || mcb.d2Arus || (isD2 ? mcb.arus : '') || '';
+                var d3B = mcb.dcpdb3Beban || mcb.d3Beban || (isD3 ? mcb.beban : '') || '';
+                var d3A = mcb.dcpdb3Arus || mcb.d3Arus || (isD3 ? mcb.arus : '') || '';
+                var d4B = mcb.dcpdb4Beban || mcb.d4Beban || (isD4 ? mcb.beban : '') || '';
+                var d4A = mcb.dcpdb4Arus || mcb.d4Arus || (isD4 ? mcb.arus : '') || '';
+                var d5B = mcb.dcpdb5Beban || mcb.d5Beban || (isD5 ? mcb.beban : '') || '';
+                var d5A = mcb.dcpdb5Arus || mcb.d5Arus || (isD5 ? mcb.arus : '') || '';
+
                 bebanDcpdbRows += "<tr style=\"text-align: center;\">" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (i + 1) + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.kapasitas || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb1Beban || mcb.d1Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb1Arus || mcb.d1Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb2Beban || mcb.d2Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb2Arus || mcb.d2Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb3Beban || mcb.d3Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb3Arus || mcb.d3Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb4Beban || mcb.d4Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb4Arus || mcb.d4Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb5Beban || mcb.d5Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb5Arus || mcb.d5Arus || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + dcpKap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d1B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d1A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d2B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d2A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d3B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d3A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d4B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d4A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d5B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d5A + "</td>" +
                         "</tr>\n";
         }
 
@@ -1468,13 +1613,50 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                 "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
                 "            <td style=\"padding: 10px; vertical-align: middle; text-align: left;\">\n" +
                 "              " + (function () {
-                        var kwhPhotos = kwh.photos || kwh.fotos || [];
+                        var kwhPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = kwh.photos || kwh.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (kwh.photoCategories && kwh.photoCategories[uri]) || 'Foto KWH Meter';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'kwhLuar' || c.category === 'kwhDalam' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('kwh') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto KWH Meter');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('kwh') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
                         if (!Array.isArray(kwhPhotos) || kwhPhotos.length === 0) return '<div style="height: 120px;"></div>';
                         return kwhPhotos.map(function (f) {
                                 var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
                                 if (!uri) return '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (kwh.photoCategories && kwh.photoCategories[uri]) || 'Foto KWH Meter';
                                 return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
+                                        '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                         '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
@@ -1567,7 +1749,42 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                                 "          " + ((r.mcbs || []).slice(1).map(function (mcb, i) { return "\n          <tr>\n            <td width=\"20%\" style=\"padding: 5px; border: 1px solid #000; text-align: center; vertical-align: middle;\">MCB " + (i + 2) + "</td>\n            <td style=\"padding: 0; border: 1px solid #000;\">\n              <table style=\"width: 100%; border-collapse: collapse; border: none; margin: 0;\">\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Merk</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + ((mcb.kapasitas || mcb.peruntukan) ? (mcb.merk || '') : '') + "</td></tr>\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Kapasitas (A)</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + (mcb.kapasitas || '') + "</td></tr>\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Peruntukan</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + (mcb.peruntukan || '') + "</td></tr>\n              </table>\n            </td>\n          </tr>\n          "; }).join('')) + "\n        </table>";
                 }).join('');
 
-                var rectPhotos = rect.photos || rect.fotos || [];
+                var rectPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = rect.photos || rect.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (rect.photoCategories && rect.photoCategories[uri]) || 'Foto Rectifier';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'rectifierKeseluruhan' || c.category === 'rectifierLcd' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('rectifier') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto Rectifier');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('rectifier') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
                 rectContent += "<table style=\"border: 2px solid #000; border-collapse: collapse; width: 100%; margin-bottom: 20px;\">\n" +
                         "          <tr>\n" +
                         "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
@@ -1575,8 +1792,10 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                         (rectPhotos.length === 0 ? '<div style="height: 120px;"></div>' : rectPhotos.map(function (f) {
                                 var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
                                 if (!uri) return '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (rect.photoCategories && rect.photoCategories[uri]) || 'Foto Rectifier';
                                 return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
+                                        '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                         '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
@@ -1659,31 +1878,60 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                 return "<td colspan=\"2\"></td>";
         }).join('') + "</tr>";
 
-        var photosHeader = Array.from({ length: numBanks }).map(function (_, i) {
-                var b = battery.banks ? battery.banks[i] : null;
-                return b ? "<td class=\"bold text-center\" width=\"" + bankWidth + "%\">Bank#" + (i + 1) + "</td>" : "<td width=\"" + bankWidth + "%\"></td>";
-        }).join('');
-
-        var batPhotos = battery.photos || battery.fotos || [];
-        var photosRow = Array.from({ length: numBanks }).map(function (_, i) {
-                var b = battery.banks ? battery.banks[i] : null;
-                if (!b) return "<td style=\"height: 150px;\"></td>";
-                var f = batPhotos[i] || (battery.fotos ? battery.fotos[i] : null);
-                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
-                if (uri) {
-                        return '<td class="text-center" style="vertical-align: top; padding: 4px;">' +
-                                '<div style="position: relative; display: inline-block; width: 200px; border: 1px solid #000; overflow: hidden; border-radius: 4px; background: #fff; text-align: left;">' +
+        var batPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = battery.photos || battery.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (battery.photoCategories && battery.photoCategories[uri]) || 'Foto Battery';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'batteryKeseluruhan' || c.category === 'batteryJauh' || c.category === 'batteryDekat' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('battery') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto Battery');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('battery') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
+        var batPhotosHtml = (function () {
+                if (!Array.isArray(batPhotos) || batPhotos.length === 0) return '<div style="height: 120px;"></div>';
+                return batPhotos.map(function (f) {
+                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                        if (!uri) return '';
+                        var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (battery.photoCategories && battery.photoCategories[uri]) || 'Foto Battery';
+                        return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
+                                '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                 '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                 '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
                                 '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                 '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
-                                '</div></div></td>';
-                }
-                return "<td class=\"text-center\" style=\"height: 150px; vertical-align: middle;\"></td>";
-        }).join('');
+                                '</div></div>';
+                }).join('');
+        })();
 
         htmlParts.push(
                 "        <!-- PAGE 6: BATTERY -->\n" +
@@ -1701,11 +1949,10 @@ var generatePdfHtml = function (activePopId, activePopName, activePopLocation, f
                 "        <br/>\n\n" +
                 "        <table style=\"border: 2px solid #000; margin-bottom: 20px;\">\n" +
                 "          <tr>\n" +
-                "            <td class=\"bold text-center\" rowspan=\"2\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
-                photosHeader +
-                "          </tr>\n" +
-                "          <tr>\n" +
-                photosRow +
+                "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
+                "            <td style=\"padding: 10px; vertical-align: middle; text-align: left;\">\n" +
+                batPhotosHtml + "\n" +
+                "            </td>\n" +
                 "          </tr>\n" +
                 "        </table>\n\n" +
                 "        <br/>\n\n" +
@@ -1781,7 +2028,7 @@ exports.generatePdfSections = generatePdfSections;
 var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLocation, formData) {
         var _a;
         var kwh = formData.kwhMeter || {};
-        var power = formData.powerSystem || {};
+        var power = Object.assign({}, formData.powerSystem || {}, formData.genset || {});
         var rect = formData.rectifier || {};
         var rectifiers = rect.rectifierList || rect.rectifiers || formData.rectifierList || [];
         var battery = formData.battery || {};
@@ -2035,49 +2282,160 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
 
         /* --- Dokumentasi Helper --- */
         var getDokumentasiHtml = function () {
-                var list = [];
                 var seenUris = {};
 
-                var addUniquePhoto = function (p, labelText) {
-                        var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
-                        if (uri && !seenUris[uri]) {
-                                seenUris[uri] = true;
-                                list.push({ uri: uri, label: labelText });
-                        }
-                };
-
-                var sections = [
-                        { key: 'kwhMeter', label: 'Foto KWH Meter' },
-                        { key: 'rectifier', label: 'Foto Rectifier' },
-                        { key: 'battery', label: 'Foto Battery' },
-                        { key: 'mechanicalElect', label: 'Foto ME' },
-                        { key: 'powerSystem', label: 'Foto Power System' },
+                // Ordered categories: POP Bagian Luar first, followed in order, with Lainnya at the very end
+                var orderedCategories = [
+                        { key: 'popLuar', label: 'POP Bagian Luar', matchPatterns: ['pop luar', 'pop bagian luar'] },
+                        { key: 'popDalam', label: 'POP Bagian Dalam', matchPatterns: ['pop dalam', 'pop bagian dalam'] },
+                        { key: 'genset', label: 'Foto Genset', matchPatterns: ['genset'] },
+                        { key: 'odf', label: 'Foto ODF', matchPatterns: ['odf'] },
+                        { key: 'acpdb', label: 'Foto ACPDB', matchPatterns: ['acpdb'] },
+                        { key: 'dcpdb', label: 'Foto DCPDB', matchPatterns: ['dcpdb'] },
+                        { key: 'ats', label: 'Foto ATS', matchPatterns: ['ats'] },
+                        { key: 'powerSupply', label: 'Foto Power Supply', matchPatterns: ['power supply', 'powersupply'] },
+                        { key: 'exhaustFan', label: 'Foto Exhaust Fan', matchPatterns: ['exhaust fan', 'exhaust', 'fan'] },
+                        { key: 'lainnya', label: 'Foto Lainnya', matchPatterns: ['lainnya', 'other'] },
                 ];
 
-                sections.forEach(function (sec) {
-                        var secData = formData[sec.key] || {};
+                var dok = formData.dokumentasi || {};
+                var dokPhotos = dok.photos || dok.fotos || [];
+                var dokCatList = dok.categorizedPhotos || [];
+
+                var collectedItems = [];
+
+                var getCategoryInfo = function (uri, fallbackLabel, explicitCatKey) {
+                        var storeCats = formData.photoCategories || {};
+                        var dokCats = dok.photoCategories || {};
+                        var foundCat = explicitCatKey || '';
+                        var label = storeCats[uri] || dokCats[uri] || fallbackLabel || '';
+
+                        if (!foundCat && dokCatList.length > 0) {
+                                var cItem = dokCatList.find(function (c) { return c && c.uri === uri; });
+                                if (cItem) {
+                                        foundCat = cItem.category || '';
+                                        if (cItem.categoryLabel) label = cItem.categoryLabel;
+                                }
+                        }
+
+                        var matchedKey = 'lainnya';
+                        if (foundCat) {
+                                var matchByKey = orderedCategories.find(function (oc) {
+                                        return oc.key.toLowerCase() === foundCat.toLowerCase();
+                                });
+                                if (matchByKey) matchedKey = matchByKey.key;
+                        } else if (label) {
+                                var lowerLabel = label.toLowerCase();
+                                for (var i = 0; i < orderedCategories.length; i++) {
+                                        var oc = orderedCategories[i];
+                                        if (oc.label.toLowerCase() === lowerLabel || oc.key.toLowerCase() === lowerLabel) {
+                                                matchedKey = oc.key;
+                                                break;
+                                        }
+                                        var hasPattern = oc.matchPatterns.some(function (p) {
+                                                return lowerLabel.indexOf(p) !== -1;
+                                        });
+                                        if (hasPattern) {
+                                                matchedKey = oc.key;
+                                                break;
+                                        }
+                                }
+                        }
+
+                        var catConfig = orderedCategories.find(function (oc) { return oc.key === matchedKey; });
+                        var finalLabel = label || (catConfig ? catConfig.label : 'Foto Dokumentasi');
+                        return { key: matchedKey, label: finalLabel };
+                };
+
+                // 1. Add photos taken in Dokumentasi, BUT EXCLUDE specific KWH, Rectifier, Battery photos
+                // User requirement: "yang foto kwh,recti dan batre tidak masuk di bagian dokumentasi pdf mereka tetap pada halaman khusunya sendiri"
+                var excludedFromDokPdf = ['kwhluar', 'kwhdalam', 'rectifierkeseluruhan', 'rectifierlcd', 'batterykeseluruhan', 'batteryjauh', 'batterydekat'];
+                if (Array.isArray(dokPhotos)) {
+                        dokPhotos.forEach(function (p) {
+                                var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                if (!uri || seenUris[uri]) return;
+
+                                var cItem = dokCatList.find(function (c) { return c && c.uri === uri; });
+                                var rawCat = (cItem && cItem.category) || '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (cItem && cItem.categoryLabel) || '';
+                                
+                                // Check if this photo belongs to KWH, Rectifier, or Battery specific categories
+                                var isSpecificHardwarePhoto = false;
+                                if (rawCat && excludedFromDokPdf.indexOf(rawCat.toLowerCase()) !== -1) {
+                                        isSpecificHardwarePhoto = true;
+                                }
+                                var lowerLabel = catLabel.toLowerCase();
+                                if ((lowerLabel.indexOf('kwh') !== -1 || lowerLabel.indexOf('rectifier') !== -1 || lowerLabel.indexOf('battery') !== -1) && lowerLabel.indexOf('lainnya') === -1) {
+                                        isSpecificHardwarePhoto = true;
+                                }
+
+                                // Skip if it belongs to specific KWH/Recti/Battery pages
+                                if (isSpecificHardwarePhoto) return;
+
+                                seenUris[uri] = true;
+                                var info = getCategoryInfo(uri, 'Foto Dokumentasi');
+                                collectedItems.push({ uri: uri, key: info.key, label: info.label });
+                        });
+                }
+
+                // 2. Connect ONLY "Foto Lainnya" from other sections (rectifier, kwhMeter, battery, mechanicalElect, powerSystem)
+                // Specific photos like LCD, Bagian Keseluruhan, Bagian Luar/Dalam, Bagian Jauh/Dekat MUST NOT be included!
+                var otherSections = ['rectifier', 'kwhMeter', 'battery', 'mechanicalElect', 'powerSystem'];
+                otherSections.forEach(function (sec) {
+                        var secData = formData[sec] || {};
                         var secPhotos = secData.photos || secData.fotos || [];
+                        var secCatPhotos = secData.categorizedPhotos || [];
                         if (Array.isArray(secPhotos)) {
-                                secPhotos.forEach(function (p) { addUniquePhoto(p, sec.label); });
+                                secPhotos.forEach(function (p) {
+                                        var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                        if (!uri || seenUris[uri]) return;
+                                        var catItem = secCatPhotos.find(function (c) { return c && c.uri === uri; });
+                                        var rawCat = (catItem && (catItem.categoryLabel || catItem.category)) || (formData.photoCategories && formData.photoCategories[uri]) || (secData.photoCategories && secData.photoCategories[uri]) || '';
+                                        var isLainnya = rawCat.toLowerCase() === 'lainnya' || rawCat.toLowerCase().indexOf('foto lainnya') !== -1 || rawCat.toLowerCase() === 'other';
+
+                                        // Strictly ONLY include if it's "Foto Lainnya"
+                                        if (isLainnya) {
+                                                seenUris[uri] = true;
+                                                collectedItems.push({ uri: uri, key: 'lainnya', label: 'Foto Lainnya' });
+                                        }
+                                });
                         }
                 });
 
-                if (Array.isArray(formData.photos)) {
-                        formData.photos.forEach(function (p) { addUniquePhoto(p, 'Foto Dokumentasi'); });
-                }
-                var dok = formData.dokumentasi || {};
-                var dokArr = dok.fotos || dok.photos || [];
-                if (Array.isArray(dokArr)) {
-                        dokArr.forEach(function (p) { addUniquePhoto(p, 'Foto Dokumentasi'); });
+                // Fallback for legacy inspections where only formData.photos was used
+                if (collectedItems.length === 0 && Array.isArray(formData.photos)) {
+                        var kwhList = (formData.kwhMeter && (formData.kwhMeter.photos || formData.kwhMeter.fotos)) || [];
+                        var rectList = (formData.rectifier && (formData.rectifier.photos || formData.rectifier.fotos)) || [];
+                        var batList = (formData.battery && (formData.battery.photos || formData.battery.fotos)) || [];
+                        formData.photos.forEach(function (p) {
+                                var uri = typeof p === 'string' ? p : (p && p.uri ? p.uri : null);
+                                if (!uri || seenUris[uri] || kwhList.includes(uri) || rectList.includes(uri) || batList.includes(uri)) return;
+                                seenUris[uri] = true;
+                                var info = getCategoryInfo(uri, 'Foto Dokumentasi');
+                                collectedItems.push({ uri: uri, key: info.key, label: info.label });
+                        });
                 }
 
-                if (list.length === 0) {
+                if (collectedItems.length === 0) {
                         return '<div style="padding: 30px; text-align: center; color: #666; font-style: italic; font-size: 13px;">Belum ada foto dokumentasi.</div>';
                 }
 
-                var cardsHtml = list.map(function (item, index) {
+                // SORT strictly by the defined order (POP Bagian Luar first, Lainnya at the very end)
+                var orderIndexMap = {};
+                orderedCategories.forEach(function (oc, idx) {
+                        orderIndexMap[oc.key] = idx;
+                });
+
+                collectedItems.sort(function (a, b) {
+                        var orderA = orderIndexMap[a.key] !== undefined ? orderIndexMap[a.key] : 999;
+                        var orderB = orderIndexMap[b.key] !== undefined ? orderIndexMap[b.key] : 999;
+                        return orderA - orderB;
+                });
+
+                var cardsHtml = collectedItems.map(function (item, index) {
                         return '<div style="position: relative; display: inline-block; vertical-align: top; width: 23.5%; margin: 6px 0.75%; box-sizing: border-box; text-align: left; border: 1px solid #000; background: #fff; border-radius: 4px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.15);">' +
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
+                                '<div style="position: absolute; top: 2px; left: 2px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1px 4px; border-radius: 2px; font-size: 6px; font-weight: bold; font-family: monospace, sans-serif; text-shadow: 0.5px 0.5px 1px #000; text-align: left; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + item.label + '</div>' +
                                 '<img src="' + item.uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 5px; line-height: 1.1; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                 '<div style="color: #ffffff; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Tgl/Jam : ' + getPhotoTs(item.uri) + '</div>' +
@@ -2104,7 +2462,7 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaSArus || mcb.sArus || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaTBeban || mcb.tBeban || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.phasaTArus || mcb.tArus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.labelMcb || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.labelMcb || mcb.phasa || '') + "</td>" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.peruntukan || '') + "</td>" +
                         "</tr>\n";
         }
@@ -2113,17 +2471,33 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
         var mcbRectiList = power.rectifierBeban || power.bebanRectifier || Array.from({ length: 15 });
         for (var i = 0; i < 15; i++) {
                 var mcb = mcbRectiList[i] || {};
+                var isR1 = mcb.rectifier === 'Rectifier 1' || mcb.rectifier === '1';
+                var isR2 = mcb.rectifier === 'Rectifier 2' || mcb.rectifier === '2';
+                var isR3 = mcb.rectifier === 'Rectifier 3' || mcb.rectifier === '3';
+
+                var r1Kap = mcb.rect1KapMcb || mcb.r1Kap || (isR1 ? mcb.kapasitas : '') || '';
+                var r1Arus = mcb.rect1Arus || mcb.r1Arus || (isR1 ? mcb.arus : '') || '';
+                var r1Nama = mcb.rect1NamaNe || mcb.r1Nama || (isR1 ? (mcb.namaNe || '') : '') || '';
+
+                var r2Kap = mcb.rect2KapMcb || mcb.r2Kap || (isR2 ? mcb.kapasitas : '') || '';
+                var r2Arus = mcb.rect2Arus || mcb.r2Arus || (isR2 ? mcb.arus : '') || '';
+                var r2Nama = mcb.rect2NamaNe || mcb.r2Nama || (isR2 ? (mcb.namaNe || '') : '') || '';
+
+                var r3Kap = mcb.rect3KapMcb || mcb.r3Kap || (isR3 ? mcb.kapasitas : '') || '';
+                var r3Arus = mcb.rect3Arus || mcb.r3Arus || (isR3 ? mcb.arus : '') || '';
+                var r3Nama = mcb.rect3NamaNe || mcb.r3Nama || (isR3 ? (mcb.namaNe || '') : '') || '';
+
                 bebanRectifierRows += "<tr style=\"text-align: center;\">" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (i + 1) + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1KapMcb || mcb.r1Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1Arus || mcb.r1Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect1NamaNe || mcb.r1Nama || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2KapMcb || mcb.r2Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2Arus || mcb.r2Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect2NamaNe || mcb.r2Nama || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3KapMcb || mcb.r3Kap || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3Arus || mcb.r3Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.rect3NamaNe || mcb.r3Nama || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r1Nama + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r2Nama + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Kap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Arus + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + r3Nama + "</td>" +
                         "</tr>\n";
         }
 
@@ -2131,19 +2505,37 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
         var mcbDcpdbList = power.dcpdbBeban || power.bebanDcpdb || Array.from({ length: 15 });
         for (var i = 0; i < 15; i++) {
                 var mcb = mcbDcpdbList[i] || {};
+                var isD1 = mcb.dcpdb === 'DCPDB 1' || mcb.dcpdb === '1';
+                var isD2 = mcb.dcpdb === 'DCPDB 2' || mcb.dcpdb === '2';
+                var isD3 = mcb.dcpdb === 'DCPDB 3' || mcb.dcpdb === '3';
+                var isD4 = mcb.dcpdb === 'DCPDB 4' || mcb.dcpdb === '4';
+                var isD5 = mcb.dcpdb === 'DCPDB 5' || mcb.dcpdb === '5';
+
+                var dcpKap = mcb.kapasitas || '';
+                var d1B = mcb.dcpdb1Beban || mcb.d1Beban || (isD1 ? mcb.beban : '') || '';
+                var d1A = mcb.dcpdb1Arus || mcb.d1Arus || (isD1 ? mcb.arus : '') || '';
+                var d2B = mcb.dcpdb2Beban || mcb.d2Beban || (isD2 ? mcb.beban : '') || '';
+                var d2A = mcb.dcpdb2Arus || mcb.d2Arus || (isD2 ? mcb.arus : '') || '';
+                var d3B = mcb.dcpdb3Beban || mcb.d3Beban || (isD3 ? mcb.beban : '') || '';
+                var d3A = mcb.dcpdb3Arus || mcb.d3Arus || (isD3 ? mcb.arus : '') || '';
+                var d4B = mcb.dcpdb4Beban || mcb.d4Beban || (isD4 ? mcb.beban : '') || '';
+                var d4A = mcb.dcpdb4Arus || mcb.d4Arus || (isD4 ? mcb.arus : '') || '';
+                var d5B = mcb.dcpdb5Beban || mcb.d5Beban || (isD5 ? mcb.beban : '') || '';
+                var d5A = mcb.dcpdb5Arus || mcb.d5Arus || (isD5 ? mcb.arus : '') || '';
+
                 bebanDcpdbRows += "<tr style=\"text-align: center;\">" +
                         "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (i + 1) + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.kapasitas || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb1Beban || mcb.d1Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb1Arus || mcb.d1Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb2Beban || mcb.d2Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb2Arus || mcb.d2Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb3Beban || mcb.d3Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb3Arus || mcb.d3Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb4Beban || mcb.d4Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb4Arus || mcb.d4Arus || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb5Beban || mcb.d5Beban || '') + "</td>" +
-                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + (mcb.dcpdb5Arus || mcb.d5Arus || '') + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + dcpKap + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d1B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d1A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d2B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d2A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d3B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d3A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d4B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d4A + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d5B + "</td>" +
+                        "<td style=\"padding: 2px; border: 1.5px solid #000;\">" + d5A + "</td>" +
                         "</tr>\n";
         }
 
@@ -3231,13 +3623,50 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                 "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
                 "            <td style=\"padding: 10px; vertical-align: middle; text-align: left;\">\n" +
                 "              " + (function () {
-                        var kwhPhotos = kwh.photos || kwh.fotos || [];
+                        var kwhPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = kwh.photos || kwh.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (kwh.photoCategories && kwh.photoCategories[uri]) || 'Foto KWH Meter';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'kwhLuar' || c.category === 'kwhDalam' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('kwh') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto KWH Meter');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('kwh') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
                         if (!Array.isArray(kwhPhotos) || kwhPhotos.length === 0) return '<div style="height: 120px;"></div>';
                         return kwhPhotos.map(function (f) {
                                 var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
                                 if (!uri) return '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (kwh.photoCategories && kwh.photoCategories[uri]) || 'Foto KWH Meter';
                                 return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
+                                        '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                         '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
@@ -3330,7 +3759,42 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                                 "          " + ((r.mcbs || []).slice(1).map(function (mcb, i) { return "\n          <tr>\n            <td width=\"20%\" style=\"padding: 5px; border: 1px solid #000; text-align: center; vertical-align: middle;\">MCB " + (i + 2) + "</td>\n            <td style=\"padding: 0; border: 1px solid #000;\">\n              <table style=\"width: 100%; border-collapse: collapse; border: none; margin: 0;\">\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Merk</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + ((mcb.kapasitas || mcb.peruntukan) ? (mcb.merk || '') : '') + "</td></tr>\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Kapasitas (A)</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + (mcb.kapasitas || '') + "</td></tr>\n                <tr><td width=\"100px\" style=\"padding: 2px 5px; border: none;\">Peruntukan</td><td width=\"10px\" style=\"padding: 2px 5px; border: none;\">:</td><td style=\"padding: 2px 5px; border: none;\">" + (mcb.peruntukan || '') + "</td></tr>\n              </table>\n            </td>\n          </tr>\n          "; }).join('')) + "\n        </table>";
                 }).join('');
 
-                var rectPhotos = rect.photos || rect.fotos || [];
+                var rectPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = rect.photos || rect.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (rect.photoCategories && rect.photoCategories[uri]) || 'Foto Rectifier';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'rectifierKeseluruhan' || c.category === 'rectifierLcd' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('rectifier') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto Rectifier');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('rectifier') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
                 rectContent += "<table style=\"border: 2px solid #000; border-collapse: collapse; width: 100%; margin-bottom: 20px;\">\n" +
                         "          <tr>\n" +
                         "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
@@ -3338,8 +3802,10 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                         (rectPhotos.length === 0 ? '<div style="height: 120px;"></div>' : rectPhotos.map(function (f) {
                                 var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
                                 if (!uri) return '';
+                                var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (rect.photoCategories && rect.photoCategories[uri]) || 'Foto Rectifier';
                                 return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                         '<div style="position: relative; width: 100%; text-align: center;">' +
+                                        '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                         '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                         '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                         '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
@@ -3422,31 +3888,60 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                 return "<td colspan=\"2\"></td>";
         }).join('') + "</tr>";
 
-        var photosHeader = Array.from({ length: numBanks }).map(function (_, i) {
-                var b = battery.banks ? battery.banks[i] : null;
-                return b ? "<td class=\"bold text-center\" width=\"" + bankWidth + "%\">Bank#" + (i + 1) + "</td>" : "<td width=\"" + bankWidth + "%\"></td>";
-        }).join('');
-
-        var batPhotos = battery.photos || battery.fotos || [];
-        var photosRow = Array.from({ length: numBanks }).map(function (_, i) {
-                var b = battery.banks ? battery.banks[i] : null;
-                if (!b) return "<td style=\"height: 150px;\"></td>";
-                var f = batPhotos[i] || (battery.fotos ? battery.fotos[i] : null);
-                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
-                if (uri) {
-                        return '<td class="text-center" style="vertical-align: top; padding: 4px;">' +
-                                '<div style="position: relative; display: inline-block; width: 200px; border: 1px solid #000; overflow: hidden; border-radius: 4px; background: #fff; text-align: left;">' +
+        var batPhotos = (function () {
+                        var list = [];
+                        var seen = {};
+                        var add = function (uri, label) {
+                                if (uri && !seen[uri]) {
+                                        seen[uri] = true;
+                                        list.push({ uri: uri, label: label });
+                                }
+                        };
+                        var legacyPhotos = battery.photos || battery.fotos || [];
+                        if (Array.isArray(legacyPhotos)) {
+                                legacyPhotos.forEach(function (f) {
+                                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || (battery.photoCategories && battery.photoCategories[uri]) || 'Foto Battery';
+                                        add(uri, cat);
+                                });
+                        }
+                        var dok = formData.dokumentasi || {};
+                        var dokCatPhotos = dok.categorizedPhotos || [];
+                        var dokPhotos = dok.photos || dok.fotos || [];
+                        dokCatPhotos.forEach(function (c) {
+                                if (c && c.uri && (c.category === 'batteryKeseluruhan' || c.category === 'batteryJauh' || c.category === 'batteryDekat' || (c.categoryLabel && c.categoryLabel.toLowerCase().indexOf('battery') !== -1 && c.categoryLabel.toLowerCase().indexOf('lainnya') === -1))) {
+                                        add(c.uri, c.categoryLabel || 'Foto Battery');
+                                }
+                        });
+                        dokPhotos.forEach(function (f) {
+                                var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                                if (uri && !seen[uri]) {
+                                        var cat = (formData.photoCategories && formData.photoCategories[uri]) || '';
+                                        if (cat.toLowerCase().indexOf('battery') !== -1 && cat.toLowerCase().indexOf('lainnya') === -1) {
+                                                add(uri, cat);
+                                        }
+                                }
+                        });
+                        return list.map(function (item) { return item.uri; });
+                })();
+        var batPhotosHtml = (function () {
+                if (!Array.isArray(batPhotos) || batPhotos.length === 0) return '<div style="height: 120px;"></div>';
+                return batPhotos.map(function (f) {
+                        var uri = typeof f === 'string' ? f : (f && f.uri ? f.uri : null);
+                        if (!uri) return '';
+                        var catLabel = (formData.photoCategories && formData.photoCategories[uri]) || (battery.photoCategories && battery.photoCategories[uri]) || 'Foto Battery';
+                        return '<div style="position: relative; display: inline-block; vertical-align: top; width: 230px; border: 1px solid #000; overflow: hidden; border-radius: 4px; margin-right: 14px; background: #fff;">' +
                                 '<div style="position: relative; width: 100%; text-align: center;">' +
+                                '<div style="position: absolute; top: 3px; left: 3px; background: rgba(0,0,0,0.65); color: #ffffff; padding: 1.5px 5px; border-radius: 2px; font-size: 7.5px; font-weight: bold; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000; z-index: 2; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + catLabel + '</div>' +
                                 '<img src="' + uri + '" style="width: 100%; height: auto; display: block;" />' +
                                 '<div style="position: absolute; bottom: 2px; left: 2px; right: 2px; background: transparent; color: #ffffff; padding: 0; font-size: 6px; line-height: 1.15; font-family: monospace, sans-serif; text-align: left; text-shadow: 0.5px 0.5px 1px #000, -0.5px -0.5px 1px #000;">' +
                                 '<div style="color: #ffffff; font-weight: bold;">Tgl/Jam : ' + getPhotoTs(uri) + '</div>' +
                                 '<div style="color: #ffffff; font-weight: bold;">Koordinat : ' + getPhotoCoord(uri) + '</div>' +
                                 '<div style="color: #ffffff;">Alamat : ' + popAddress + '</div>' +
                                 '</div>' +
-                                '</div></div></td>';
-                }
-                return "<td class=\"text-center\" style=\"height: 150px; vertical-align: middle;\"></td>";
-        }).join('');
+                                '</div></div>';
+                }).join('');
+        })();
 
         htmlParts.push(
                 "        <!-- PAGE 6: BATTERY -->\n" +
@@ -3464,11 +3959,10 @@ var generateDownloadPdfHtml = function (activePopId, activePopName, activePopLoc
                 "        <br/>\n\n" +
                 "        <table style=\"border: 2px solid #000; margin-bottom: 20px;\">\n" +
                 "          <tr>\n" +
-                "            <td class=\"bold text-center\" rowspan=\"2\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
-                photosHeader +
-                "          </tr>\n" +
-                "          <tr>\n" +
-                photosRow +
+                "            <td class=\"bold text-center\" width=\"10%\" style=\"vertical-align: middle; border-right: 2px solid #000;\">Photos :</td>\n" +
+                "            <td style=\"padding: 10px; vertical-align: middle; text-align: left;\">\n" +
+                batPhotosHtml + "\n" +
+                "            </td>\n" +
                 "          </tr>\n" +
                 "        </table>\n\n" +
                 "        <br/>\n\n" +

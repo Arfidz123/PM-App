@@ -24,18 +24,21 @@ import {
   Building2,
   FileText,
   Zap,
-  Settings,
   Gauge,
-  PlugZap,
   Battery,
   ClipboardCheck,
-  RefreshCw,
   MapPin,
   CheckCircle2,
+  Bell,
+  Gpu,
+  EvCharger,
+  Wind,
+  ServerCog,
+  ServerCrash,
 } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { showAlert } from '../../components/common';
+import { showAlert, AcpdbIcon, DcpdbIcon } from '../../components/common';
 import database from '../../database';
 import { Asset } from '../../database/models';
 import { useAppStore } from '../../store/appStore';
@@ -62,9 +65,15 @@ const MENU_ITEMS = [
   { id: 'pop', label: 'POP', icon: Building2 },
   { id: 'info_pop', label: 'Info POP', icon: FileText },
   { id: 'power_system', label: 'Power System', icon: Zap },
-  { id: 'mechanical_electrical', label: 'Mechanical Electrical', icon: Settings },
-  { id: 'kwh_meter', label: 'KWH Meter', icon: Gauge },
-  { id: 'rectifier', label: 'Rectifier', icon: PlugZap },
+  { id: 'mechanical_electrical', label: 'Mechanical Electrical', icon: Wind },
+  { id: 'external_alarm', label: 'External Alarm', icon: Bell },
+  { id: 'genset', label: 'Genset', icon: EvCharger },
+  { id: 'fot_ip', label: 'FOT IP', icon: ServerCog },
+  { id: 'fot_dwdm', label: 'FOT DWDM', icon: ServerCrash },
+  { id: 'kwh_meter', label: 'KWH', icon: Gauge },
+  { id: 'acpdb', label: 'ACPDB', icon: AcpdbIcon },
+  { id: 'dcpdb', label: 'DCPDB', icon: DcpdbIcon },
+  { id: 'rectifier', label: 'Rectifier', icon: Gpu },
   { id: 'baterai', label: 'Baterai', icon: Battery },
   { id: 'review', label: 'Review', icon: ClipboardCheck },
 ];
@@ -312,11 +321,11 @@ export const DashboardScreen: React.FC = () => {
   };
 
   const handleMenuPress = (itemId: string) => {
-    if (!activePopId && itemId !== 'dokumentasi' && itemId !== 'pop') {
+    if (!activePopId && itemId !== 'pop') {
       showAlert({
         type: 'warning',
-        title: 'Belum Memulai',
-        message: 'Silakan ambil foto dokumentasi terlebih dahulu, atau pilih POP secara manual di menu POP.',
+        title: 'Pilih POP Terlebih Dahulu',
+        message: 'Silakan pilih POP terlebih dahulu di menu POP sebelum membuka menu ini.',
       });
       return;
     }
@@ -340,8 +349,20 @@ export const DashboardScreen: React.FC = () => {
       navigation.navigate('MechanicalElect');
     } else if (itemId === 'dokumentasi') {
       navigation.navigate('Dokumentasi');
+    } else if (itemId === 'external_alarm') {
+      navigation.navigate('ExternalAlarm');
+    } else if (itemId === 'acpdb') {
+      navigation.navigate('Acpdb');
+    } else if (itemId === 'dcpdb') {
+      navigation.navigate('Dcpdb');
     } else if (itemId === 'power_system') {
       navigation.navigate('PowerSystem');
+    } else if (itemId === 'genset') {
+      navigation.navigate('Genset');
+    } else if (itemId === 'fot_ip') {
+      navigation.navigate('FotIp');
+    } else if (itemId === 'fot_dwdm') {
+      navigation.navigate('FotDwdm');
     } else {
       const item = MENU_ITEMS.find((i) => i.id === itemId);
       navigation.navigate('CategoryForm', { categoryId: itemId, categoryLabel: item?.label || 'Form' });
@@ -493,7 +514,7 @@ export const DashboardScreen: React.FC = () => {
           ]}>
           <View style={styles.grid}>
             {MENU_ITEMS.map((item, index) => {
-              const isDisabled = !activePopId && item.id !== 'dokumentasi' && item.id !== 'pop';
+              const isDisabled = !activePopId && item.id !== 'pop';
               return (
                 <Animated.View
                   key={item.id}

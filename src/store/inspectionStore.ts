@@ -45,6 +45,7 @@ interface InspectionState {
   formData: Record<string, any>;
   photoTimestamps: Record<string, string>;
   photoCoordinates: Record<string, string>;
+  photoCategories: Record<string, string>;
 
   // Actions
   setAsset: (assetId: string) => void;
@@ -52,9 +53,11 @@ interface InspectionState {
   addPhoto: (path: string, customTs?: string, customCoords?: string) => void;
   removePhoto: (index: number) => void;
   addPhotoBySection: (section: string, path: string, customTs?: string, customCoords?: string) => void;
-  removePhotoBySection: (section: string, index: number) => void;
+  addCategorizedPhoto: (section: string, category: string, path: string, categoryLabel?: string, customTs?: string, customCoords?: string) => void;
+  removePhotoBySection: (section: string, indexOrUri: number | string) => void;
   getPhotoTimestamp: (path: string) => string;
   getPhotoCoordinates: (path: string) => string;
+  getPhotoCategory: (path: string) => string;
   setChecklistEntries: (entries: ChecklistEntry[]) => void;
   updateChecklistEntry: (index: number, updates: Partial<ChecklistEntry>) => void;
   setNotes: (notes: string) => void;
@@ -94,6 +97,7 @@ const initialState = {
   formData: {},
   photoTimestamps: {} as Record<string, string>,
   photoCoordinates: {} as Record<string, string>,
+  photoCategories: {} as Record<string, string>,
 };
 
 export const useInspectionStore = create<InspectionState>()((set, get) => ({
@@ -152,6 +156,57 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
       };
     }),
 
+  addCategorizedPhoto: (section, category, path, categoryLabel, customTs, customCoords) =>
+    set((state) => {
+      const sectionData = state.formData[section] || {};
+      const sectionPhotos: string[] = sectionData.photos || [];
+      const newSectionPhotos = sectionPhotos.includes(path) ? sectionPhotos : [...sectionPhotos, path];
+      const newPhotos = state.photos.includes(path) ? state.photos : [...state.photos, path];
+      const ts = customTs || state.photoTimestamps[path] || formatTimestamp();
+      const coords = customCoords || state.photoCoordinates[path] || (state.currentLocation ? `${state.currentLocation.lat.toFixed(5)}, ${state.currentLocation.lng.toFixed(5)}` : '');
+      const newTimestamps = { ...state.photoTimestamps, [path]: ts };
+      const newCoordinates = coords ? { ...state.photoCoordinates, [path]: coords } : state.photoCoordinates;
+
+      const label = categoryLabel || category;
+      const newPhotoCategories = {
+        ...state.photoCategories,
+        ...(state.formData.photoCategories || {}),
+        [path]: label,
+      };
+
+      const existingCategorized = Array.isArray(sectionData.categorizedPhotos) ? sectionData.categorizedPhotos : [];
+      const filteredCategorized = existingCategorized.filter((item: any) => item.uri !== path);
+      const newCategorizedPhotos = [
+        ...filteredCategorized,
+        {
+          uri: path,
+          category,
+          categoryLabel: label,
+          timestamp: ts,
+          coordinates: coords,
+        },
+      ];
+
+      return {
+        photos: newPhotos,
+        photoTimestamps: newTimestamps,
+        photoCoordinates: newCoordinates,
+        photoCategories: newPhotoCategories,
+        formData: {
+          ...state.formData,
+          photoTimestamps: newTimestamps,
+          photoCoordinates: newCoordinates,
+          photoCategories: newPhotoCategories,
+          [section]: {
+            ...sectionData,
+            photos: newSectionPhotos,
+            photoCategories: newPhotoCategories,
+            categorizedPhotos: newCategorizedPhotos,
+          },
+        },
+      };
+    }),
+
   getPhotoTimestamp: (path: string) => {
     if (!path) return '';
     const state = get();
@@ -190,28 +245,54 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
     return coords;
   },
 
-  removePhotoBySection: (section, index) =>
+  getPhotoCategory: (path: string) => {
+    if (!path) return '';
+    const state = get();
+    if (state.photoCategories && state.photoCategories[path]) {
+      return state.photoCategories[path];
+    }
+    const formCategories = state.formData?.photoCategories || {};
+    return formCategories[path] || '';
+  },
+
+  removePhotoBySection: (section, target) =>
     set((state) => {
       const sectionData = state.formData[section] || {};
       const sectionPhotos: string[] = sectionData.photos || [];
-      const targetUri = sectionPhotos[index];
-      const newSectionPhotos = sectionPhotos.filter((_, i) => i !== index);
+      let targetUri = '';
+      let newSectionPhotos = sectionPhotos;
+
+      if (typeof target === 'number') {
+        targetUri = sectionPhotos[target];
+        newSectionPhotos = sectionPhotos.filter((_, i) => i !== target);
+      } else {
+        targetUri = target;
+        newSectionPhotos = sectionPhotos.filter((u) => u !== target);
+      }
 
       let newGlobalPhotos = state.photos;
       if (targetUri) {
-        const globalIdx = newGlobalPhotos.indexOf(targetUri);
-        if (globalIdx !== -1) {
-          newGlobalPhotos = newGlobalPhotos.filter((_, i) => i !== globalIdx);
-        }
+        newGlobalPhotos = newGlobalPhotos.filter((u) => u !== targetUri);
+      }
+
+      const existingCategorized = Array.isArray(sectionData.categorizedPhotos) ? sectionData.categorizedPhotos : [];
+      const newCategorizedPhotos = existingCategorized.filter((item: any) => item.uri !== targetUri);
+
+      const newPhotoCategories = { ...state.photoCategories };
+      if (targetUri) {
+        delete newPhotoCategories[targetUri];
       }
 
       return {
         photos: newGlobalPhotos,
+        photoCategories: newPhotoCategories,
         formData: {
           ...state.formData,
+          photoCategories: newPhotoCategories,
           [section]: {
             ...sectionData,
             photos: newSectionPhotos,
+            categorizedPhotos: newCategorizedPhotos,
           },
         },
       };
@@ -260,6 +341,15 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
   prevStep: () => set((state) => ({currentStep: Math.max(0, state.currentStep - 1)})),
   
   setActivePop: (id, name, location, specifications) => {
+    // Guard: jangan reset formData jika sedang mode edit (data sudah di-load oleh loadExistingInspection)
+    if (get().editingInspectionId) {
+      set({
+        activePopId: id,
+        activePopName: name || null,
+        activePopLocation: location || null,
+      });
+      return;
+    }
     const inspectionStartTime = new Date().toISOString();
     let newFormData: any = {
       inspectionStartTime,
@@ -289,12 +379,14 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
                 jmlModul: '',
                 jmlSlot: '',
                 modules: [],
-                mcbs: Array.from({ length: 8 }, (_, i) => ({
-                  id: (i + 1).toString(),
-                  merk: 'SCHNEIDER',
-                  kapasitas: '',
-                  peruntukan: ''
-                })),
+                mcbs: [
+                  {
+                    id: '1',
+                    merk: '',
+                    kapasitas: '',
+                    peruntukan: ''
+                  }
+                ],
                 arusBeban: '',
                 tegInput: '',
                 tegFloating: '',
@@ -366,6 +458,7 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
 
     const pTimestamps = parsedForm.photoTimestamps || {};
     const pCoordinates = parsedForm.photoCoordinates || {};
+    const pCategories = parsedForm.photoCategories || {};
 
     const popId = (asset as any)?.assetCode || insp.assetId || parsedForm?.infoPop?.popId || '';
     const popName = (asset as any)?.name || parsedForm?.infoPop?.namaPop || '';
@@ -374,6 +467,7 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
     set({
       currentAssetId: (asset as any)?.id || insp.assetId || null,
       editingInspectionId: insp.id,
+      inspectionId: insp.id,
       originalInspectionDate: insp.inspectionDate || Date.now(),
       inspectionType: (insp.type as any) || 'preventive',
       photos: parsedPhotos.length > 0 ? parsedPhotos : (parsedForm.photos || []),
@@ -384,11 +478,13 @@ export const useInspectionStore = create<InspectionState>()((set, get) => ({
       currentLocation: parsedForm.currentLocation || null,
       photoTimestamps: pTimestamps,
       photoCoordinates: pCoordinates,
+      photoCategories: pCategories,
       formData: {
         ...parsedForm,
         inspectionStartTime: parsedForm.inspectionStartTime || (insp.inspectionDate ? new Date(insp.inspectionDate).toISOString() : new Date().toISOString()),
         photoTimestamps: pTimestamps,
         photoCoordinates: pCoordinates,
+        photoCategories: pCategories,
       },
     });
   },

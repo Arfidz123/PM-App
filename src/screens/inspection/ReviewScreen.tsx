@@ -24,8 +24,8 @@ import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const SectionDetail = ({ title, data }: { title: string, data: Record<string, string | number> }) => {
-  const entries = Object.entries(data).filter(([_, v]) => v !== undefined && v !== '');
+const SectionDetail = ({ title, data }: { title: string, data: Record<string, string | number | undefined | null> }) => {
+  const entries = Object.entries(data).filter(([_, v]) => v !== undefined && v !== null && v !== '');
   if (entries.length === 0) return null;
 
   return (
@@ -102,9 +102,9 @@ export const ReviewScreen: React.FC = () => {
           const ps = formData.powerSystem;
           return (
             <>
-              {/* Catuan Utama & Eksternal */}
+              {/* Catuan Utama */}
               <SectionDetail
-                title="POWER SYSTEM: CATUAN UTAMA & EKSTERNAL"
+                title="POWER SYSTEM: CATUAN UTAMA"
                 data={{
                   'PLN': ps.tipePln || 'Distribusi',
                   'ID Pelanggan': ps.idPelanggan,
@@ -112,15 +112,26 @@ export const ReviewScreen: React.FC = () => {
                   'Phasa': ps.phasaCatuan,
                   'Pengukuran KWH': ps.pengukuranKwh,
                   'Bulan Ini': ps.bulanIni,
-                  'Genset': ps.gensetAda || 'Tidak Ada',
-                  'Merk Genset': ps.gensetAda === 'Ada' ? ps.merkGenset : '',
-                  'Serial Number': ps.gensetAda === 'Ada' ? ps.snGenset : '',
-                  'Jenis Genset': ps.gensetAda === 'Ada' ? ps.jenisGenset : '',
-                  'Tipe Genset': ps.gensetAda === 'Ada' ? ps.tipeGenset : '',
-                  'Kapasitas Genset': ps.gensetAda === 'Ada' ? ps.kapasitasGenset : '',
-                  'Phasa Genset': ps.gensetAda === 'Ada' ? ps.phasaGenset : '',
                 }}
               />
+
+              {/* Genset */}
+              {(ps.gensetAda || (formData.genset && Object.values(formData.genset).some(Boolean))) ? (
+                <SectionDetail
+                  title="GENSET"
+                  data={{
+                    'Genset': formData.genset?.gensetAda || ps.gensetAda || 'Tidak Ada',
+                    'Merk Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.merkGenset : '') || (ps.gensetAda === 'Ada' ? ps.merkGenset : '') || '',
+                    'Serial Number': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.snGenset : '') || (ps.gensetAda === 'Ada' ? ps.snGenset : '') || '',
+                    'Jenis Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.jenisGenset : '') || (ps.gensetAda === 'Ada' ? ps.jenisGenset : '') || '',
+                    'Tipe Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.tipeGenset : '') || (ps.gensetAda === 'Ada' ? ps.tipeGenset : '') || '',
+                    'Kapasitas Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.kapasitasGenset : '') || (ps.gensetAda === 'Ada' ? ps.kapasitasGenset : '') || '',
+                    'Phasa Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.phasaGenset : '') || (ps.gensetAda === 'Ada' ? ps.phasaGenset : '') || '',
+                    'COS Genset': formData.genset?.cosGenset || ps.cosGenset || '',
+                    'Kondisi Genset': formData.genset?.kondisiGenset || '',
+                  }}
+                />
+              ) : null}
 
               {/* Tegangan & Tegangan Acuan (Tolak Ukur) */}
               <SectionDetail
@@ -200,7 +211,7 @@ export const ReviewScreen: React.FC = () => {
 
               {/* Beban ACPDB */}
               {(() => {
-                const list = ps.acpdbBeban || ps.bebanAcpdb;
+                const list = (formData.acpdb && (formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb)) || ps.acpdbBeban || ps.bebanAcpdb;
                 if (!list || list.length === 0) return null;
                 return (
                   <View style={styles.section}>
@@ -208,11 +219,11 @@ export const ReviewScreen: React.FC = () => {
                     {list.map((item: any, idx: number) => (
                       <Card key={idx} style={{ marginBottom: Spacing.sm }}>
                         <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                          MCB #{idx + 1} - Kapasitas: {item.kapasitas || '-'} | Label: {item.labelMcb || '-'}
+                          MCB #{idx + 1} - Kapasitas: {item.kapasitas ? item.kapasitas + ' A' : '-'}{item.merk ? ` | Merk: ${item.merk}` : ''} | Phasa: {item.phasa || item.labelMcb || '-'}
                         </Text>
                         {item.peruntukan ? <Text style={styles.resultValue}>Peruntukan: {item.peruntukan}</Text> : null}
                         <Text style={{ ...Typography.caption, marginTop: 4, color: Colors.primary }}>
-                          Phasa R: {item.phasaRBeban || item.rBeban || '-'} ({item.phasaRArus || item.rArus || '-'} A) | Phasa S: {item.phasaSBeban || item.sBeban || '-'} ({item.phasaSArus || item.sArus || '-'} A) | Phasa T: {item.phasaTBeban || item.tBeban || '-'} ({item.phasaTArus || item.tArus || '-'} A)
+                          Phasa {item.phasa || '-'} — Beban: {item.beban || '-'} | Arus: {item.arus || '-'}{item.suhuKabel ? ` | Suhu: ${item.suhuKabel}` : ''}
                         </Text>
                       </Card>
                     ))}
@@ -222,7 +233,7 @@ export const ReviewScreen: React.FC = () => {
 
               {/* Beban DCPDB */}
               {(() => {
-                const list = ps.dcpdbBeban || ps.bebanDcpdb;
+                const list = (formData.dcpdb && (formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb)) || ps.dcpdbBeban || ps.bebanDcpdb;
                 if (!list || list.length === 0) return null;
                 return (
                   <View style={styles.section}>
@@ -230,17 +241,12 @@ export const ReviewScreen: React.FC = () => {
                     {list.map((item: any, idx: number) => (
                       <Card key={idx} style={{ marginBottom: Spacing.sm }}>
                         <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                          MCB #{idx + 1} - Kapasitas: {item.kapasitas || '-'}
+                          MCB #{idx + 1} - Kapasitas: {item.kapasitas ? item.kapasitas + ' A' : '-'}{item.merk ? ` | Merk: ${item.merk}` : ''} | Phasa: {item.phasa || item.labelMcb || item.dcpdb || '-'}
                         </Text>
-                        {[1, 2, 3, 4, 5].map((n) => {
-                          const beban = item[`dcpdb${n}Beban`] || item[`d${n}Beban`];
-                          const arus = item[`dcpdb${n}Arus`] || item[`d${n}Arus`];
-                          return beban ? (
-                            <Text key={n} style={styles.resultValue}>
-                              DCPDB #{n}: {beban} ({arus || '-'} A)
-                            </Text>
-                          ) : null;
-                        })}
+                        {item.peruntukan ? <Text style={styles.resultValue}>Peruntukan: {item.peruntukan}</Text> : null}
+                        <Text style={{ ...Typography.caption, marginTop: 4, color: Colors.primary }}>
+                          Phasa {item.phasa || item.dcpdb || '-'} — Beban: {item.beban || item.dcpdb1Beban || '-'} | Arus: {item.arus || item.dcpdb1Arus || '-'}{item.suhuKabel ? ` | Suhu: ${item.suhuKabel}` : ''}
+                        </Text>
                       </Card>
                     ))}
                   </View>
@@ -286,8 +292,6 @@ export const ReviewScreen: React.FC = () => {
               <SectionDetail
                 title="POWER SYSTEM: GROUNDING SYSTEM"
                 data={{
-                  'Outdoor (Bak Kontrol)': ps.grOutdoor,
-                  'Indoor (Bak Kontrol)': ps.grIndoor,
                   'System Grounding': ps.systemGrounding,
                   'Catatan Grounding': ps.grCatatan,
                 }}
@@ -331,13 +335,167 @@ export const ReviewScreen: React.FC = () => {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
                   <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Merk</Text><Text style={styles.resultValue}>{bank.merk || '-'}</Text></View>
                   <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Tipe</Text><Text style={styles.resultValue}>{bank.tipe || '-'}</Text></View>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Kapasitas</Text><Text style={styles.resultValue}>{bank.kapasitas || '-'}</Text></View>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>V Total</Text><Text style={styles.resultValue}>{bank.vTotal || '-'}</Text></View>
+                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Kapasitas</Text><Text style={styles.resultValue}>{bank.kapasitas ? `${bank.kapasitas} AH` : '-'}</Text></View>
+                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>V Total</Text><Text style={styles.resultValue}>{bank.vTotal ? `${bank.vTotal} V` : '-'}</Text></View>
                   <View style={{ width: '100%', marginBottom: 4 }}><Text style={styles.resultLabel}>SN</Text><Text style={styles.resultValue}>{bank.sn || '-'}</Text></View>
                 </View>
               </Card>
             ))}
           </View>
+        )}
+
+        {/* External Alarm Summary */}
+        {(formData.external_alarm || formData.externalAlarm) && (() => {
+          const ea = formData.external_alarm || formData.externalAlarm || {};
+          return (
+            <SectionDetail
+              title="PREVENTIVE MAINTENANCE EXTERNAL ALARM"
+              data={{
+                '1. Uji Konfigurasi': ea.uji1_status,
+                '2. Uji Sensor PLN OFF': ea.uji2_status,
+                '3. Uji Sensor Battery Fail': ea.uji3_status,
+                '4. Uji Sensor Rectifier Fail': ea.uji4_status,
+                '5. Uji Sensor Modul Rectifier': ea.uji5_status,
+                '6. Uji Sensor Temperature High': ea.uji6_status ? `${ea.uji6_status}${ea.uji6_suhuLokasi ? ` (Suhu: ${ea.uji6_suhuLokasi})` : ''}` : undefined,
+                '7. Uji Sensor Smoke & Heat': ea.uji7_status,
+                '8. Uji Arrester / Grounding': ea.uji8_status,
+                '9. Uji Sensor Door Open': ea.uji9_status,
+                '10. Uji Sensor Genset Run': ea.uji10_status,
+                'Catatan Umum (NOTE)': ea.generalNote || ea.catatan,
+              }}
+            />
+          );
+        })()}
+
+        {/* Genset Summary (from CategoryForm if filled) */}
+        {formData.genset && (
+          <SectionDetail
+            title="GENSET (TAMBAHAN)"
+            data={{
+              'Ketersediaan': formData.genset.gensetAda,
+              'Merk': formData.genset.merkGenset,
+              'SN': formData.genset.snGenset,
+              'Jenis': formData.genset.jenisGenset,
+              'Tipe': formData.genset.tipeGenset,
+              'Kapasitas': formData.genset.kapasitasGenset ? `${formData.genset.kapasitasGenset} kVA` : undefined,
+              'Phasa': formData.genset.phasaGenset,
+              'Level BBM': formData.genset.levelBbm ? `${formData.genset.levelBbm} %` : undefined,
+              'Tegangan Aki': formData.genset.teganganAki ? `${formData.genset.teganganAki} V` : undefined,
+              'Kondisi Aki': formData.genset.kondisiAki,
+              'Level Oli': formData.genset.levelOli,
+              'Running Test': formData.genset.runningTest,
+              'Tegangan Output': formData.genset.teganganOutput ? `${formData.genset.teganganOutput} V` : undefined,
+              'Frekuensi': formData.genset.frekuensi ? `${formData.genset.frekuensi} Hz` : undefined,
+              'COS Genset': formData.genset.cosGenset,
+              'Catatan': formData.genset.catatan,
+            }}
+          />
+        )}
+
+        {/* FOT IP Summary */}
+        {formData.fot_ip && (
+          <SectionDetail
+            title="FOT IP"
+            data={{
+              'Lower Fan Tray - Prosedur 1.1': formData.fot_ip.procedures?.['1.1'] || formData.fot_ip.proc1_1,
+              'Lower Fan Tray - Prosedur 1.2': formData.fot_ip.procedures?.['1.2'] || formData.fot_ip.proc1_2,
+              'Lower Fan Tray - Prosedur 1.3': formData.fot_ip.procedures?.['1.3'] || formData.fot_ip.proc_1_3,
+              'Lower Fan Tray - Prosedur 1.4': formData.fot_ip.procedures?.['1.4'] || formData.fot_ip.proc_1_4,
+              'Lower Fan Tray - Prosedur 1.5': formData.fot_ip.procedures?.['1.5'] || formData.fot_ip.proc_1_5,
+              'Lower Fan Tray - Prosedur 1.6': formData.fot_ip.procedures?.['1.6'] || formData.fot_ip.proc_1_6,
+              'Lower Fan Tray - Prosedur 1.7': formData.fot_ip.procedures?.['1.7'] || formData.fot_ip.proc_1_7,
+              'Lower Fan Tray - Prosedur 1.8': formData.fot_ip.procedures?.['1.8'] || formData.fot_ip.proc_1_8,
+              'Lower Fan Tray - Prosedur 1.9': formData.fot_ip.procedures?.['1.9'] || formData.fot_ip.proc_1_9,
+              'Lower Fan Tray - Prosedur 1.10': formData.fot_ip.procedures?.['1.10'] || formData.fot_ip.proc_1_10,
+              'Chassis Air Filter - Prosedur 1.1': formData.fot_ip.procedures?.['caf_1.1'],
+              'Chassis Air Filter - Prosedur 1.2': formData.fot_ip.procedures?.['caf_1.2'],
+              'Chassis Air Filter - Prosedur 1.3': formData.fot_ip.procedures?.['caf_1.3'],
+              'Chassis Air Filter - Prosedur 1.4': formData.fot_ip.procedures?.['caf_1.4'],
+              'Chassis Air Filter - Prosedur 1.5': formData.fot_ip.procedures?.['caf_1.5'],
+              'Chassis Air Filter - Prosedur 1.6': formData.fot_ip.procedures?.['caf_1.6'],
+              'Chassis Air Filter - Prosedur 1.7': formData.fot_ip.procedures?.['caf_1.7'],
+              'Chassis Air Filter - Prosedur 1.8': formData.fot_ip.procedures?.['caf_1.8'],
+              'Chassis Air Filter - Prosedur 1.9': formData.fot_ip.procedures?.['caf_1.9'],
+              'Chassis Air Filter - Prosedur 1.10': formData.fot_ip.procedures?.['caf_1.10'],
+              'Chassis Air Filter - Prosedur 3.1': formData.fot_ip.procedures?.['caf_3.1'],
+              'Chassis Air Filter - Prosedur 3.2': formData.fot_ip.procedures?.['caf_3.2'],
+              'Chassis Air Filter - Prosedur 3.3': formData.fot_ip.procedures?.['caf_3.3'],
+            }}
+          />
+        )}
+
+        {/* FOT DWDM Summary */}
+        {formData.fot_dwdm && (
+          <SectionDetail
+            title="FOT DWDM"
+            data={
+              formData.fot_dwdm.procedures
+                ? {
+                    'Anti Dust Screen - Prosedur 1.1': formData.fot_dwdm.procedures?.['1.1'],
+                    'Anti Dust Screen - Prosedur 1.2': formData.fot_dwdm.procedures?.['1.2'],
+                    'Anti Dust Screen - Prosedur 1.3': formData.fot_dwdm.procedures?.['1.3'],
+                    'Anti Dust Screen - Prosedur 1.4': formData.fot_dwdm.procedures?.['1.4'],
+                    'Fan Unit - Prosedur 2.1': formData.fot_dwdm.procedures?.['2.1'],
+                    'Fan Unit - Prosedur 2.2': formData.fot_dwdm.procedures?.['2.2'],
+                    'Fan Unit - Prosedur 2.3': formData.fot_dwdm.procedures?.['2.3'],
+                    'Fan Unit - Prosedur 2.4': formData.fot_dwdm.procedures?.['2.4'],
+                    'Fan Unit - Prosedur 2.5': formData.fot_dwdm.procedures?.['2.5'],
+                    'Fan Unit - Prosedur 2.6': formData.fot_dwdm.procedures?.['2.6'],
+                    'Fan Unit - Prosedur 2.7': formData.fot_dwdm.procedures?.['2.7'],
+                    'Fan Unit - Prosedur 2.8': formData.fot_dwdm.procedures?.['2.8'],
+                    'Fan Unit - Prosedur 2.9': formData.fot_dwdm.procedures?.['2.9'],
+                    'Equipment Unit - Prosedur 3.1': formData.fot_dwdm.procedures?.['3.1'],
+                    'Equipment Unit - Prosedur 3.2': formData.fot_dwdm.procedures?.['3.2'],
+                    'Equipment Unit - Prosedur 3.3': formData.fot_dwdm.procedures?.['3.3'],
+                  }
+                : {
+                    'Site ID': formData.fot_dwdm.siteId,
+                    'Vendor': formData.fot_dwdm.vendor,
+                    'Model Chassis': formData.fot_dwdm.modelChassis,
+                    'SN': formData.fot_dwdm.sn,
+                    'Posisi Rack': formData.fot_dwdm.posisiRack,
+                    'Status Power': formData.fot_dwdm.statusPower,
+                    'Tegangan Input': formData.fot_dwdm.teganganInput ? `${formData.fot_dwdm.teganganInput} V` : undefined,
+                    'Lampu Alarm': formData.fot_dwdm.lampuAlarm,
+                    'Fan & Filter': formData.fot_dwdm.fanFilter,
+                    'Optical Power': formData.fot_dwdm.opticalPower,
+                    'Kerapian ODF': formData.fot_dwdm.kerapianOdf,
+                    'Catatan': formData.fot_dwdm.catatan,
+                  }
+            }
+          />
+        )}
+
+        {/* ACPDB Summary */}
+        {formData.acpdb && (
+          <SectionDetail
+            title="ACPDB"
+            data={{
+              'Total Beban MCB': (formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb)
+                ? `${(formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb).length} MCB`
+                : undefined,
+              'Status Arester': formData.acpdb.aresterAda,
+              'Tipe Arester': formData.acpdb.aresterTipe,
+              'Warna Indikator': formData.acpdb.aresterWarnaIndikator,
+              'Catatan': formData.acpdb.catatan,
+            }}
+          />
+        )}
+
+        {/* DCPDB Summary */}
+        {formData.dcpdb && (
+          <SectionDetail
+            title="DCPDB"
+            data={{
+              'Total Beban MCB': (formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb)
+                ? `${(formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb).length} MCB`
+                : undefined,
+              'Status Arester': formData.dcpdb.aresterAda,
+              'Tipe Arester': formData.dcpdb.aresterTipe,
+              'Warna Indikator': formData.dcpdb.aresterWarnaIndikator,
+              'Catatan': formData.dcpdb.catatan,
+            }}
+          />
         )}
 
         {/* Checklist Summary */}

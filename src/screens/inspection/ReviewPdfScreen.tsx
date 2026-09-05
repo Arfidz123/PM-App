@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, Share2, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Download, Share2, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
 import WebView from 'react-native-webview';
 import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
 import LinearGradient from 'react-native-linear-gradient';
@@ -102,9 +102,9 @@ export const ReviewPdfScreen: React.FC = () => {
     const inspectionId = editingInspectionId || `insp_${timestamp}`;
     const effectiveInspectionDate = originalInspectionDate || timestamp;
     let isCloudSaved = false;
-
+    let cloudSaveResult: any = null;
     try {
-      await saveInspectionDirectlyToSupabase({
+      cloudSaveResult = await saveInspectionDirectlyToSupabase({
         id: inspectionId,
         assetId: activePopId || 'unknown',
         inspectorName: 'Teknisi',
@@ -123,6 +123,10 @@ export const ReviewPdfScreen: React.FC = () => {
       isCloudSaved = false;
     }
 
+    const effectivePdfPath = cloudSaveResult?.remotePdfPath || pdfPath;
+    const effectiveFormData = cloudSaveResult?.remoteFormData || mergedFormData;
+    const effectivePhotos = cloudSaveResult?.remotePhotos || photos || [];
+
     try {
       let existingRecord: any = null;
       if (editingInspectionId) {
@@ -135,9 +139,9 @@ export const ReviewPdfScreen: React.FC = () => {
         if (existingRecord) {
           await existingRecord.update((insp: any) => {
             insp.assetId = activePopId || 'unknown';
-            insp.pdfPath = pdfPath;
-            insp.formData = JSON.stringify(mergedFormData);
-            insp.photos = JSON.stringify(photos || []);
+            insp.pdfPath = effectivePdfPath;
+            insp.formData = JSON.stringify(effectiveFormData);
+            insp.photos = JSON.stringify(effectivePhotos);
             insp.notes = (mergedFormData as any)?.infoPop?.catatan || '';
             insp.isSynced = isCloudSaved;
           });
@@ -149,9 +153,9 @@ export const ReviewPdfScreen: React.FC = () => {
             inspection.inspectionDate = timestamp;
             inspection.type = 'PM';
             inspection.status = 'completed';
-            inspection.pdfPath = pdfPath;
-            inspection.formData = JSON.stringify(mergedFormData);
-            inspection.photos = JSON.stringify(photos || []);
+            inspection.pdfPath = effectivePdfPath;
+            inspection.formData = JSON.stringify(effectiveFormData);
+            inspection.photos = JSON.stringify(effectivePhotos);
             inspection.notes = (mergedFormData as any)?.infoPop?.catatan || '';
             inspection.isSynced = isCloudSaved;
           });
@@ -189,15 +193,18 @@ export const ReviewPdfScreen: React.FC = () => {
 
       showAlert({
         type: 'success',
-        title: 'Sukses',
+        title: 'Unduhan Berhasil',
         message: isEditing
-          ? 'Perubahan laporan & file PDF berhasil diperbarui!'
-          : 'Data inspeksi & file PDF berhasil disimpan ke folder Downloads HP!',
+          ? 'Perubahan laporan berhasil disimpan dan file PDF telah diunduh!'
+          : 'Laporan PDF berhasil diunduh dan disimpan ke folder Download perangkat Anda.',
         buttons: [
           {
             text: 'OK',
             onPress: () => {
-              navigation.navigate('MainTabs' as any);
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs' as any }],
+              });
             },
           },
         ],
@@ -205,9 +212,23 @@ export const ReviewPdfScreen: React.FC = () => {
     } catch (error) {
       console.error('Error in handleDownloadPdf:', error);
       setSaving(false);
-      showAlert({type: 'success', title: 'Sukses', message: 'Data inspeksi berhasil disimpan!'});
+      showAlert({
+        type: 'success',
+        title: 'Sukses',
+        message: 'Data inspeksi berhasil disimpan!',
+        buttons: [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs' as any }],
+              });
+            },
+          },
+        ],
+      });
       resetInspection();
-      navigation.navigate('MainTabs' as any);
     }
   };
 

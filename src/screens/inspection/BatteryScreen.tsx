@@ -17,7 +17,7 @@ import { ChevronUp, ChevronDown, ChevronLeft, Camera, Plus, Check, Trash2, Image
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
+import { Header, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
@@ -43,11 +43,8 @@ interface BatteryData {
 
 export const BatteryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const [fotoExpanded, setFotoExpanded] = useState(true);
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
-  const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
+  const { formData, updateFormData, currentLocation, activePopLocation } = useInspectionStore();
   const batteryData = formData.battery || {};
-  const sectionPhotos: string[] = batteryData.photos || [];
 
   const infoPop = formData.infoPop || {};
   const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
@@ -78,67 +75,6 @@ export const BatteryScreen: React.FC = () => {
 
   const catatan = batteryData.catatan || '';
   const setCatatan = (val: string) => updateFormData('battery', { ...batteryData, catatan: val });
-
-  const handleTakePhoto = async () => {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) {
-      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
-      return;
-    }
-    launchCamera(
-      {
-        mediaType: 'photo',
-        cameraType: 'back',
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.7,
-        saveToPhotos: false,
-        includeBase64: false,
-      },
-      async (response) => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini'});
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            const liveCoords = await getLiveCoordinatesString();
-            const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('battery', uri, photoTs, liveCoords || undefined);
-          }
-        }
-      }
-    );
-  };
-
-  const handlePickGallery = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.7,
-        includeBase64: false,
-      },
-      async (response) => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          showAlert({type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri'});
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            const liveCoords = await getLiveCoordinatesString();
-            const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('battery', uri, photoTs, liveCoords || undefined);
-          }
-        }
-      }
-    );
-  };
 
   const banks: BatteryData[] = batteryData.banks || [
     {
@@ -184,10 +120,29 @@ export const BatteryScreen: React.FC = () => {
         kondisi: '',
       }
     ]);
+    showAlert({
+      type: 'success',
+      title: 'Berhasil Ditambahkan',
+      message: `Bank Baterai #${newId} berhasil ditambahkan.`,
+    });
   };
 
   const deleteBank = (bankId: string) => {
-    setBanks(banks.filter((b: BatteryData) => b.id !== bankId));
+    showAlert({
+      type: 'confirm',
+      title: 'Hapus Bank Baterai',
+      message: `Apakah Anda yakin ingin menghapus Bank #${bankId}?`,
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: () => {
+            setBanks(banks.filter((b: BatteryData) => b.id !== bankId));
+          }
+        }
+      ]
+    });
   };
 
   const updateBank = (id: string, field: keyof BatteryData, value: any) => {
@@ -210,9 +165,14 @@ export const BatteryScreen: React.FC = () => {
               key={opt}
               style={[
                 styles.segmentBtn,
-                value === opt && (opt === 'OK' ? styles.segmentBtnActiveOk : styles.segmentBtnActiveNok)
+                value === opt &&
+                  (opt === 'OK'
+                    ? styles.segmentBtnActiveOk
+                    : opt === 'NOK'
+                    ? styles.segmentBtnActiveNok
+                    : styles.segmentBtnActiveNa),
               ]}
-              onPress={() => onChange(opt)}
+              onPress={() => onChange(value === opt ? '' : opt)}
             >
               {value === opt && opt === 'OK' && (
                 <Check size={14} color={Colors.white} style={{ marginRight: 4 }} />
@@ -293,12 +253,14 @@ export const BatteryScreen: React.FC = () => {
                     <ChevronDown color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} />
                   }
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => deleteBank(bank.id)}
-                  style={styles.deleteBtn}
-                >
-                  <Trash2 color={Colors.danger} size={18} />
-                </TouchableOpacity>
+                {parseInt(bank.id, 10) > 1 && (
+                  <TouchableOpacity
+                    onPress={() => deleteBank(bank.id)}
+                    style={styles.deleteBtn}
+                  >
+                    <Trash2 color={Colors.danger} size={18} />
+                  </TouchableOpacity>
+                )}
               </View>
 
               {bank.isExpanded && (
@@ -322,26 +284,32 @@ export const BatteryScreen: React.FC = () => {
                   <View style={styles.row}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>TIPE</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={bank.tipe}
-                        onChangeText={(val) => updateBank(bank.id, 'tipe', val)}
-                      />
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TextInput
+                          style={[styles.inputBox, { flex: 1 }]}
+                          value={bank.tipe}
+                          onChangeText={(val) => updateBank(bank.id, 'tipe', val)}
+                        />
+                        <View style={styles.measurementUnit} />
+                      </View>
                     </View>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>KAPASITAS (AH)</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={bank.kapasitas}
-                        onChangeText={(val) => updateBank(bank.id, 'kapasitas', val)}
-                        keyboardType="numeric"
-                      />
+                      <Text style={styles.inputLabel}>KAPASITAS</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <TextInput
+                          style={[styles.inputBox, { flex: 1 }]}
+                          value={bank.kapasitas}
+                          onChangeText={(val) => updateBank(bank.id, 'kapasitas', val)}
+                          keyboardType="numeric"
+                        />
+                        <Text style={styles.measurementUnit}>AH</Text>
+                      </View>
                     </View>
                   </View>
 
                   {/* SN */}
                   <View style={styles.inputGroupFull}>
-                    <Text style={styles.inputLabel}>SN</Text>
+                    <Text style={styles.inputLabel}>SERIAL NUMBER</Text>
                     <TextInput
                       style={styles.inputBox}
                       value={bank.sn}
@@ -377,69 +345,10 @@ export const BatteryScreen: React.FC = () => {
             onPress={addBank}
             activeOpacity={0.7}
           >
-            <Plus color={Colors.white} size={20} style={{ marginRight: Spacing.sm }} />
+            <Plus size={18} color={Colors.primary} style={{ marginRight: 8 }} />
             <Text style={styles.addButtonText}>Tambah Bank</Text>
           </TouchableOpacity>
 
-          {/* Card: Foto */}
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setFotoExpanded(!fotoExpanded)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardTitleRow}>
-                <Camera color={Colors.primary} size={20} style={{ marginRight: Spacing.sm }} />
-                <Text style={styles.cardTitle}>Foto ({sectionPhotos.length})</Text>
-              </View>
-              {fotoExpanded ? (
-                <ChevronUp color={Colors.textMuted} size={20} />
-              ) : (
-                <ChevronDown color={Colors.textMuted} size={20} />
-              )}
-            </TouchableOpacity>
-
-            {fotoExpanded && (
-              <View style={styles.cardBody}>
-                <View style={styles.photoGrid}>
-                  {sectionPhotos.map((fotoUri, index) => (
-                    <DynamicPhotoCard
-                      key={index}
-                      uri={fotoUri}
-                      onPress={() => setSelectedPhoto(fotoUri)}
-                      onDelete={() => removePhotoBySection('battery', index)}
-                      dateStr={getPhotoTimestamp(fotoUri)}
-                      coordsStr={getPhotoCoordinates(fotoUri) || coordsStr}
-                      addressStr={addressStr}
-                      label={`Battery #${index + 1}`}
-                    />
-                  ))}
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handleTakePhoto}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <Camera color={Colors.primary} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Kamera</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handlePickGallery}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <ImageIcon color={Colors.textMuted} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Galeri</Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
 
           {/* Card: Catatan */}
           <View style={styles.card}>
@@ -471,13 +380,6 @@ export const BatteryScreen: React.FC = () => {
 
         </Animated.ScrollView>
       </View>
-
-      {/* Image Preview Modal */}
-      <ImagePreviewModal
-        visible={!!selectedPhoto}
-        imageUri={selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
-      />
     </View>
   );
 };
@@ -709,8 +611,12 @@ const styles = StyleSheet.create({
     borderColor: '#10B981',
   },
   segmentBtnActiveNok: {
-    backgroundColor: Colors.textMuted, // Gray for others
-    borderColor: Colors.textMuted,
+    backgroundColor: '#EF4444', // Red for NOK
+    borderColor: '#EF4444',
+  },
+  segmentBtnActiveNa: {
+    backgroundColor: '#F59E0B', // Amber for N/A
+    borderColor: '#F59E0B',
   },
   segmentText: {
     color: Colors.textMuted,
@@ -726,17 +632,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
     borderStyle: 'dashed',
-    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    marginTop: Spacing.md,
     marginBottom: Spacing.lg,
   },
   addButtonText: {
     ...Typography.body,
-    color: Colors.white,
+    color: Colors.primary,
     fontWeight: 'bold',
   },
   photoGrid: {

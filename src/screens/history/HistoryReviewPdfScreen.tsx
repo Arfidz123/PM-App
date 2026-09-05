@@ -219,7 +219,7 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           text: 'Edit Sekarang',
           onPress: () => {
             useInspectionStore.getState().loadExistingInspection(inspection, asset);
-            navigation.navigate('InfoPop');
+            navigation.navigate('MainTabs');
           },
         },
       ],

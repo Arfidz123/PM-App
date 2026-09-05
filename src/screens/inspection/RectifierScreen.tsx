@@ -13,11 +13,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Camera, Plus, Check, Trash2, Image as ImageIcon } from 'lucide-react-native';
+import { ChevronUp, ChevronDown, ChevronLeft, Camera, Check, Trash2, Image as ImageIcon, Lock } from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, ImagePreviewModal, DynamicPhotoCard, showAlert } from '../../components/common';
+import { Header, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
@@ -60,7 +60,6 @@ export const RectifierScreen: React.FC = () => {
 
   const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
   const rectData = formData.rectifier || {};
-  const sectionPhotos: string[] = rectData.photos || [];
 
   const infoPop = formData.infoPop || {};
   const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
@@ -89,14 +88,13 @@ export const RectifierScreen: React.FC = () => {
     Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
   };
 
-  const [fotoExpanded, setFotoExpanded] = useState(true);
   const catatan = rectData.catatan || '';
   const setCatatan = (val: string) => updateFormData('rectifier', { ...rectData, catatan: val });
 
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
+      showAlert({ type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.' });
       return;
     }
     launchCamera(
@@ -112,7 +110,7 @@ export const RectifierScreen: React.FC = () => {
       async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini'});
+          showAlert({ type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini' });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -139,7 +137,7 @@ export const RectifierScreen: React.FC = () => {
       async (response) => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri'});
+          showAlert({ type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri' });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -159,54 +157,81 @@ export const RectifierScreen: React.FC = () => {
   const rawRectifiers: RectifierData[] = rectData.rectifiers && rectData.rectifiers.length > 0
     ? rectData.rectifiers
     : [
-        {
-          id: '1',
-          isExpanded: true,
-          merk: ps.rect1Merk || '',
-          tipe: ps.rect1Tipe || '',
-          sn: ps.rect1SN || '',
-          tipeModul: ps.rect1TipeModul || '',
-          jmlModul: ps.rect1ModulJml || '',
-          jmlSlot: ps.rect1KapasitasSlot || '',
-          modules: [],
-          mcbs: Array.from({ length: 8 }, (_, i) => ({
-            id: (i + 1).toString(),
+      {
+        id: '1',
+        isExpanded: true,
+        merk: ps.rect1Merk || '',
+        tipe: ps.rect1Tipe || '',
+        sn: ps.rect1SN || '',
+        tipeModul: ps.rect1TipeModul || '',
+        jmlModul: ps.rect1ModulJml || '',
+        jmlSlot: ps.rect1KapasitasSlot || '',
+        modules: [],
+        mcbs: [
+          {
+            id: '1',
             merk: '',
             kapasitas: '',
             peruntukan: ''
-          })),
-          arusBeban: ps.rect1ArusBeban || '',
-          tegInput: ps.rect1TegInput || '',
-          tegFloating: ps.rect1TegFloating || '',
-        }
-      ];
+          }
+        ],
+        arusBeban: ps.rect1ArusBeban || '',
+        tegInput: ps.rect1TegInput || '',
+        tegFloating: ps.rect1TegFloating || '',
+      }
+    ];
 
   const rectifiers: RectifierData[] = rawRectifiers.map((r: RectifierData, idx: number) => {
     const num = idx + 1;
+    const jmlModul = ps[`rect${num}ModulJml`] || r.jmlModul || '';
+    const numModules = Math.min(parseInt(jmlModul) || 0, 20);
+    let modules = [...(r.modules || [])];
+    if (numModules > modules.length) {
+      for (let i = modules.length; i < numModules; i++) {
+        modules.push({ id: (i + 1).toString(), sn: '', kapasitas: ps[`rect${num}KapasitasModul`] || '', beban: '' });
+      }
+    } else if (numModules > 0 && numModules < modules.length) {
+      modules = modules.slice(0, numModules);
+    }
+
+    let mcbs = r.mcbs || [{ id: '1', merk: '', kapasitas: '', peruntukan: '' }];
+    if (mcbs.length === 8 && mcbs.every((m) => (!m.kapasitas && !m.peruntukan && (m.merk === 'SCHNEIDER' || m.merk === '')))) {
+      mcbs = [{ id: '1', merk: '', kapasitas: '', peruntukan: '' }];
+    } else {
+      mcbs = mcbs.map(m => (m.merk === 'SCHNEIDER' && !m.kapasitas && !m.peruntukan ? { ...m, merk: '' } : m));
+    }
+
     return {
       ...r,
-      merk: r.merk || ps[`rect${num}Merk`] || '',
-      tipe: r.tipe || ps[`rect${num}Tipe`] || '',
-      sn: r.sn || ps[`rect${num}SN`] || '',
-      tipeModul: r.tipeModul || ps[`rect${num}TipeModul`] || '',
-      jmlModul: r.jmlModul || ps[`rect${num}ModulJml`] || '',
-      jmlSlot: r.jmlSlot || ps[`rect${num}KapasitasSlot`] || '',
-      arusBeban: r.arusBeban || ps[`rect${num}ArusBeban`] || '',
-      tegInput: r.tegInput || ps[`rect${num}TegInput`] || '',
-      tegFloating: r.tegFloating || ps[`rect${num}TegFloating`] || '',
+      merk: ps[`rect${num}Merk`] || r.merk || '',
+      tipe: ps[`rect${num}Tipe`] || r.tipe || '',
+      sn: ps[`rect${num}SN`] || r.sn || '',
+      tipeModul: ps[`rect${num}TipeModul`] || r.tipeModul || '',
+      jmlModul: jmlModul,
+      jmlSlot: ps[`rect${num}KapasitasSlot`] || r.jmlSlot || '',
+      arusBeban: ps[`rect${num}ArusBeban`] || r.arusBeban || '',
+      tegInput: ps[`rect${num}TegInput`] || r.tegInput || '',
+      tegFloating: ps[`rect${num}TegFloating`] || r.tegFloating || '',
+      modules,
+      mcbs,
     };
   });
 
   const setRectifiers = (newRectifiers: RectifierData[]) => {
     updateFormData('rectifier', { rectifiers: newRectifiers });
 
-    const powerUpdates: Record<string, any> = {};
+    const powerUpdates: Record<string, any> = {
+      activeRectifiers: newRectifiers.map(r => parseInt(r.id, 10)).filter(n => !isNaN(n))
+    };
     newRectifiers.forEach((r, idx) => {
       const rectNum = idx + 1;
       if (rectNum <= 3) {
         if (r.merk !== undefined) powerUpdates[`rect${rectNum}Merk`] = r.merk;
         if (r.tipe !== undefined) powerUpdates[`rect${rectNum}Tipe`] = r.tipe;
-        if (r.sn !== undefined) powerUpdates[`rect${rectNum}SN`] = r.sn;
+        if (r.sn !== undefined) {
+          powerUpdates[`rect${rectNum}SN`] = r.sn;
+          powerUpdates[`rect${rectNum}Serial number`] = r.sn;
+        }
         if (r.tipeModul !== undefined) powerUpdates[`rect${rectNum}TipeModul`] = r.tipeModul;
         if (r.jmlModul !== undefined) powerUpdates[`rect${rectNum}ModulJml`] = r.jmlModul;
         if (r.jmlSlot !== undefined) powerUpdates[`rect${rectNum}KapasitasSlot`] = r.jmlSlot;
@@ -218,29 +243,6 @@ export const RectifierScreen: React.FC = () => {
     updateFormData('powerSystem', powerUpdates);
   };
 
-  const addRectifier = () => {
-    const newId = (rectifiers.length > 0 ? Math.max(...rectifiers.map(r => parseInt(r.id))) + 1 : 1).toString();
-    setRectifiers([
-      ...rectifiers,
-      {
-        id: newId,
-        isExpanded: true,
-        merk: '',
-        tipe: '',
-        sn: '',
-        tipeModul: '',
-        jmlModul: '',
-        jmlSlot: '',
-        modules: [],
-        mcbs: [
-          { id: '1', merk: '', kapasitas: '', peruntukan: '' }
-        ],
-        arusBeban: '',
-        tegInput: '',
-        tegFloating: '',
-      }
-    ]);
-  };
 
   const deleteRectifier = (id: string) => {
     showAlert({
@@ -297,25 +299,16 @@ export const RectifierScreen: React.FC = () => {
   };
 
   const renderMeasurement = (
-    rectId: string,
     label: string,
     value: string,
-    field: keyof RectifierData,
     unit: string = 'V'
   ) => {
     return (
       <View style={styles.measurementRow}>
         <Text style={styles.measurementLabel}>{label}</Text>
         <View style={styles.measurementInputWrapper}>
-          <View style={styles.measurementInputContainer}>
-            <TextInput
-              style={styles.measurementInput}
-              value={value}
-              onChangeText={(val) => updateRectifier(rectId, field, val)}
-              placeholder="—"
-              placeholderTextColor={Colors.textMuted}
-              keyboardType="numeric"
-            />
+          <View style={[styles.measurementInputContainer, styles.lockedMeasurementContainer]}>
+            <Text style={styles.lockedMeasurementText}>{value || '—'}</Text>
           </View>
           <Text style={styles.measurementUnit}>{unit}</Text>
         </View>
@@ -324,9 +317,11 @@ export const RectifierScreen: React.FC = () => {
   };
 
   const addMCB = (rectId: string) => {
+    let createdMcbId = '1';
     setRectifiers(rectifiers.map((r: RectifierData) => {
       if (r.id === rectId) {
         const newMcbId = (r.mcbs.length > 0 ? Math.max(...r.mcbs.map(m => parseInt(m.id))) + 1 : 1).toString();
+        createdMcbId = newMcbId;
         return {
           ...r,
           mcbs: [...r.mcbs, { id: newMcbId, merk: '', kapasitas: '', peruntukan: '' }]
@@ -334,6 +329,11 @@ export const RectifierScreen: React.FC = () => {
       }
       return r;
     }));
+    showAlert({
+      type: 'success',
+      title: 'Berhasil Ditambahkan',
+      message: `Baris MCB #${createdMcbId} pada Rectifier #${rectId} berhasil ditambahkan.`,
+    });
   };
 
   const updateMCB = (rectId: string, mcbId: string, field: keyof RectifierMCB, value: string) => {
@@ -349,15 +349,29 @@ export const RectifierScreen: React.FC = () => {
   };
 
   const removeMCB = (rectId: string, mcbId: string) => {
-    setRectifiers(rectifiers.map((r: RectifierData) => {
-      if (r.id === rectId) {
-        return {
-          ...r,
-          mcbs: r.mcbs.filter(m => m.id !== mcbId)
-        };
-      }
-      return r;
-    }));
+    showAlert({
+      type: 'confirm',
+      title: 'Hapus MCB',
+      message: 'Apakah Anda yakin ingin menghapus MCB ini?',
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: () => {
+            setRectifiers(rectifiers.map((r: RectifierData) => {
+              if (r.id === rectId) {
+                return {
+                  ...r,
+                  mcbs: r.mcbs.filter(m => m.id !== mcbId)
+                };
+              }
+              return r;
+            }));
+          }
+        }
+      ]
+    });
   };
 
 
@@ -400,77 +414,64 @@ export const RectifierScreen: React.FC = () => {
                     <ChevronDown color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} />
                   }
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => deleteRectifier(rect.id)}
-                  style={styles.deleteBtn}
-                >
-                  <Trash2 color={Colors.danger} size={18} />
-                </TouchableOpacity>
+                {parseInt(rect.id, 10) > 1 && (
+                  <TouchableOpacity
+                    onPress={() => deleteRectifier(rect.id)}
+                    style={styles.deleteBtn}
+                  >
+                    <Trash2 color={Colors.danger} size={18} />
+                  </TouchableOpacity>
+                )}
               </View>
 
               {rect.isExpanded && (
                 <View style={styles.cardBody}>
+
                   {/* Merk */}
                   <View style={styles.inputGroupFull}>
                     <Text style={styles.inputLabel}>MERK</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={rect.merk}
-                      onChangeText={(val) => updateRectifier(rect.id, 'merk', val)}
-                      placeholder=" "
-                      placeholderTextColor={Colors.textMuted}
-                    />
+                    <View style={styles.lockedContainer}>
+                      <Text style={styles.lockedText}>{rect.merk || '—'}</Text>
+                    </View>
                   </View>
 
                   {/* Tipe & SN */}
                   <View style={styles.row}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>TIPE</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={rect.tipe}
-                        onChangeText={(val) => updateRectifier(rect.id, 'tipe', val)}
-                      />
+                      <View style={styles.lockedContainer}>
+                        <Text style={styles.lockedText}>{rect.tipe || '—'}</Text>
+                      </View>
                     </View>
                     <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>SN</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={rect.sn}
-                        onChangeText={(val) => updateRectifier(rect.id, 'sn', val)}
-                      />
+                      <Text style={styles.inputLabel}>SERIAL NUMBER</Text>
+                      <View style={styles.lockedContainer}>
+                        <Text style={styles.lockedText}>{rect.sn || '—'}</Text>
+                      </View>
                     </View>
                   </View>
 
                   {/* Tipe Modul */}
                   <View style={styles.inputGroupFull}>
                     <Text style={styles.inputLabel}>TIPE MODUL</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={rect.tipeModul}
-                      onChangeText={(val) => updateRectifier(rect.id, 'tipeModul', val)}
-                    />
+                    <View style={styles.lockedContainer}>
+                      <Text style={styles.lockedText}>{rect.tipeModul || '—'}</Text>
+                    </View>
                   </View>
 
                   {/* Jml Modul & Jml Slot */}
                   <View style={styles.row}>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>JUMLAH MODUL</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={rect.jmlModul}
-                        onChangeText={(val) => handleJmlModulChange(rect.id, val)}
-                        keyboardType="numeric"
-                      />
+                      <View style={styles.lockedContainer}>
+                        <Text style={styles.lockedText}>{rect.jmlModul || '—'}</Text>
+                      </View>
                     </View>
                     <View style={styles.inputGroup}>
                       <Text style={styles.inputLabel}>JUMLAH SLOT MODUL</Text>
-                      <TextInput
-                        style={styles.inputBox}
-                        value={rect.jmlSlot}
-                        onChangeText={(val) => updateRectifier(rect.id, 'jmlSlot', val)}
-                        keyboardType="numeric"
-                      />
+                      <View style={styles.lockedContainer}>
+                        <Text style={styles.lockedText}>{rect.jmlSlot || '—'}</Text>
+                      </View>
                     </View>
                   </View>
 
@@ -493,13 +494,16 @@ export const RectifierScreen: React.FC = () => {
                               />
                             </View>
                             <View style={styles.inputGroup}>
-                              <Text style={styles.inputLabel}>Kapasitas (A)</Text>
-                              <TextInput
-                                style={styles.inputBox}
-                                value={mod.kapasitas}
-                                onChangeText={(val) => updateModule(rect.id, mod.id, 'kapasitas', val)}
-                                keyboardType="numeric"
-                              />
+                              <Text style={styles.inputLabel}>Kapasitas</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <TextInput
+                                  style={[styles.inputBox, { flex: 1 }]}
+                                  value={mod.kapasitas}
+                                  onChangeText={(val) => updateModule(rect.id, mod.id, 'kapasitas', val)}
+                                  keyboardType="numeric"
+                                />
+                                <Text style={styles.measurementUnit}>A</Text>
+                              </View>
                             </View>
                           </View>
 
@@ -514,9 +518,9 @@ export const RectifierScreen: React.FC = () => {
                       <Text style={styles.subHeading}>Pengukuran</Text>
                     </View>
 
-                    {renderMeasurement(rect.id, 'ARUS BEBAN', rect.arusBeban, 'arusBeban', 'A')}
-                    {renderMeasurement(rect.id, 'TEGANGAN INPUT', rect.tegInput, 'tegInput', 'V')}
-                    {renderMeasurement(rect.id, 'TEGANGAN FLOATING', rect.tegFloating, 'tegFloating', 'V')}
+                    {renderMeasurement('ARUS BEBAN', rect.arusBeban ? `${rect.arusBeban}` : '', 'A')}
+                    {renderMeasurement('TEGANGAN INPUT', rect.tegInput ? `${rect.tegInput}` : '', 'V')}
+                    {renderMeasurement('TEGANGAN FLOATING', rect.tegFloating ? `${rect.tegFloating}` : '', 'V')}
                   </View>
 
                   {/* Output MCB */}
@@ -532,29 +536,35 @@ export const RectifierScreen: React.FC = () => {
                       <View key={mcb.id} style={styles.mcbItem}>
                         <View style={styles.mcbHeaderRow}>
                           <Text style={styles.mcbItemTitle}>MCB {index + 1}</Text>
-                          <TouchableOpacity onPress={() => removeMCB(rect.id, mcb.id)}>
-                            <Trash2 size={16} color={Colors.danger} />
-                          </TouchableOpacity>
+                          {rect.mcbs.length > 1 && (
+                            <TouchableOpacity onPress={() => removeMCB(rect.id, mcb.id)}>
+                              <Trash2 size={16} color={Colors.danger} />
+                            </TouchableOpacity>
+                          )}
                         </View>
                         <View style={styles.row}>
                           <View style={styles.inputGroup}>
                             <Text style={styles.inputLabel}>Merk</Text>
-                            <TextInput
-                              style={styles.inputBox}
-                              value={mcb.merk}
-                              onChangeText={(val) => updateMCB(rect.id, mcb.id, 'merk', val)}
-                              placeholder="Merk"
-                              placeholderTextColor={Colors.textMuted}
-                            />
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <TextInput
+                                style={[styles.inputBox, { flex: 1 }]}
+                                value={mcb.merk}
+                                onChangeText={(val) => updateMCB(rect.id, mcb.id, 'merk', val)}
+                              />
+                              <View style={styles.measurementUnit} />
+                            </View>
                           </View>
                           <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Kapasitas (A)</Text>
-                            <TextInput
-                              style={styles.inputBox}
-                              value={mcb.kapasitas}
-                              onChangeText={(val) => updateMCB(rect.id, mcb.id, 'kapasitas', val)}
-                              keyboardType="numeric"
-                            />
+                            <Text style={styles.inputLabel}>Kapasitas</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <TextInput
+                                style={[styles.inputBox, { flex: 1 }]}
+                                value={mcb.kapasitas}
+                                onChangeText={(val) => updateMCB(rect.id, mcb.id, 'kapasitas', val)}
+                                keyboardType="numeric"
+                              />
+                              <Text style={styles.measurementUnit}>A</Text>
+                            </View>
                           </View>
                         </View>
                         <View style={styles.inputGroupFull}>
@@ -573,75 +583,7 @@ export const RectifierScreen: React.FC = () => {
             </View>
           ))}
 
-          {/* Add Rectifier Button */}
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={addRectifier}
-            activeOpacity={0.7}
-          >
-            <Plus color={Colors.white} size={20} style={{ marginRight: Spacing.sm }} />
-            <Text style={styles.addButtonText}>Tambah Rectifier Baru</Text>
-          </TouchableOpacity>
 
-          {/* Card: Foto */}
-          <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setFotoExpanded(!fotoExpanded)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardTitleRow}>
-                <Camera color={Colors.primary} size={20} style={{ marginRight: Spacing.sm }} />
-                <Text style={styles.cardTitle}>Foto ({sectionPhotos.length})</Text>
-              </View>
-              {fotoExpanded ? (
-                <ChevronUp color={Colors.textMuted} size={20} />
-              ) : (
-                <ChevronDown color={Colors.textMuted} size={20} />
-              )}
-            </TouchableOpacity>
-
-            {fotoExpanded && (
-              <View style={styles.cardBody}>
-                <View style={styles.photoGrid}>
-                  {sectionPhotos.map((fotoUri, index) => (
-                    <DynamicPhotoCard
-                      key={index}
-                      uri={fotoUri}
-                      onPress={() => setSelectedPhoto(fotoUri)}
-                      onDelete={() => removePhotoBySection('rectifier', index)}
-                      dateStr={getPhotoTimestamp(fotoUri)}
-                      coordsStr={getPhotoCoordinates(fotoUri) || coordsStr}
-                      addressStr={addressStr}
-                      label={`Rectifier #${index + 1}`}
-                    />
-                  ))}
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handleTakePhoto}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <Camera color={Colors.primary} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Kamera</Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.photoUploadBoxWrapper}
-                    onPress={handlePickGallery}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.photoUploadBoxAdd}>
-                      <ImageIcon color={Colors.textMuted} size={26} style={{ marginBottom: 4 }} />
-                      <Text style={styles.photoUploadText}>Galeri</Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
 
           {/* Card: Catatan */}
           <View style={styles.card}>
@@ -673,13 +615,6 @@ export const RectifierScreen: React.FC = () => {
 
         </Animated.ScrollView>
       </View>
-
-      {/* Image Preview Modal */}
-      <ImagePreviewModal
-        visible={!!selectedPhoto}
-        imageUri={selectedPhoto}
-        onClose={() => setSelectedPhoto(null)}
-      />
     </View>
   );
 };
@@ -829,6 +764,54 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontWeight: 'bold',
     marginLeft: Spacing.sm,
+  },
+  syncNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: Spacing.md,
+  },
+  syncNoticeText: {
+    ...Typography.caption,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  lockedContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 42,
+  },
+  lockedText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  lockedMeasurementContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  lockedMeasurementText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
   },
   sectionHeaderRow: {
     flexDirection: 'row',

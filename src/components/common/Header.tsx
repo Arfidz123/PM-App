@@ -98,8 +98,6 @@ export const Header: React.FC<HeaderProps> = ({
   const backScaleAnim = useRef(new Animated.Value(1)).current;
   // Title slide animation
   const titleAnim = useRef(new Animated.Value(0)).current;
-  // Shimmer for bottom accent
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -117,17 +115,6 @@ export const Header: React.FC<HeaderProps> = ({
         useNativeDriver: true,
       }),
     ]).start();
-
-    const shimmer = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 2500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    shimmer.start();
-    return () => shimmer.stop();
   }, []);
 
   const handleBackPressIn = () => {
@@ -245,26 +232,7 @@ export const Header: React.FC<HeaderProps> = ({
             </Animated.View>
           )}
 
-          {/* Animated gradient accent bar at bottom */}
-          {!transparent && (
-            <View style={styles.bottomAccentContainer}>
-              <Animated.View
-                style={[
-                  styles.shimmerBar,
-                  {
-                    transform: [
-                      {
-                        translateX: shimmerAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-200, 300],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-            </View>
-          )}
+
         </LinearGradient>
       </Animated.View>
     </>
@@ -332,24 +300,5 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     marginLeft: Spacing.sm,
-  },
-  bottomAccentContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 2,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    overflow: 'hidden',
-  },
-  shimmerBar: {
-    width: 140,
-    height: 2,
-    backgroundColor: Colors.primary,
-    borderRadius: 1,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
   },
 });
