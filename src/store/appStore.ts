@@ -2,7 +2,7 @@
  * App Store - Global application state
  */
 
-import {create} from 'zustand';
+import { create } from 'zustand';
 
 interface AppState {
   // User/Inspector info
@@ -20,7 +20,7 @@ interface AppState {
   setFirstLaunch: (first: boolean) => void;
 }
 
-export const useAppStore = create<AppState>()((set) => ({
+export const useAppStore = create<AppState>()(set => ({
   // Initial state
   inspectorName: '',
   companyName: '',
@@ -28,8 +28,8 @@ export const useAppStore = create<AppState>()((set) => ({
   isFirstLaunch: true,
 
   // Actions
-  setInspectorName: (name) => set({inspectorName: name}),
-  setCompanyName: (name) => set({companyName: name}),
-  setDbReady: (ready) => set({isDbReady: ready}),
-  setFirstLaunch: (first) => set({isFirstLaunch: first}),
+  setInspectorName: name => set({ inspectorName: name }),
+  setCompanyName: name => set({ companyName: name }),
+  setDbReady: ready => set({ isDbReady: ready }),
+  setFirstLaunch: first => set({ isFirstLaunch: first }),
 }));

@@ -10,9 +10,9 @@ import {DatabaseProvider} from '@nozbe/watermelondb/DatabaseProvider';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {AlertProvider} from './src/components/common';
 import database from './src/database';
-import {seedDefaultTemplates, seedSampleAssets} from './src/database/seeds';
+import {seedDefaultTemplates} from './src/database/seeds';
 import {useAppStore} from './src/store/appStore';
-import {restoreInspectionsFromSupabase} from './src/services/syncService';
+import {restoreInspectionsFromFirebase} from './src/services/syncService';
 import {Colors, Typography, Spacing} from './src/theme';
 
 function App() {
@@ -87,12 +87,11 @@ function AppInitializer() {
   const initializeApp = async () => {
     try {
       await seedDefaultTemplates();
-      await seedSampleAssets();
       
       setDbReady(true);
       setIsReady(true);
 
-      restoreInspectionsFromSupabase().catch(err => {
+      restoreInspectionsFromFirebase().catch(err => {
         console.warn('Background restore on startup error:', err);
       });
     } catch (error) {

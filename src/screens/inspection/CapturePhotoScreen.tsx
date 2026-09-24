@@ -4,7 +4,7 @@
  * Uses a placeholder since vision-camera needs native setup
  */
 
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,26 +13,31 @@ import {
   Image,
   FlatList,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Button, Card, showAlert} from '../../components/common';
-import {useInspectionStore} from '../../store/inspectionStore';
-import {useAppStore} from '../../store/appStore';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import { Header, Button, Card, showAlert } from '../../components/common';
+import { useInspectionStore } from '../../store/inspectionStore';
+import { useAppStore } from '../../store/appStore';
 import database from '../../database';
-import {Asset, ChecklistItem, Inspection} from '../../database/models';
-import type {RootStackParamList} from '../../types';
-import type {ChecklistEntry} from '../../store/inspectionStore';
+import { Asset, ChecklistItem, Inspection } from '../../database/models';
+import type { RootStackParamList } from '../../types';
+import type { ChecklistEntry } from '../../store/inspectionStore';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const CapturePhotoScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const {assetId} = route.params;
-  const {photos, addPhoto, removePhoto, setChecklistEntries, setInspectionId} =
-    useInspectionStore();
-  const {inspectorName} = useAppStore();
+  const { assetId } = route.params;
+  const {
+    photos,
+    addPhoto,
+    removePhoto,
+    setChecklistEntries,
+    setInspectionId,
+  } = useInspectionStore();
+  const { inspectorName } = useAppStore();
   const [loading, setLoading] = useState(false);
 
   const handleTakePhoto = () => {
@@ -50,17 +55,19 @@ export const CapturePhotoScreen: React.FC = () => {
 
       // Create inspection record
       const inspection = await database.write(async () => {
-        return await database.get<Inspection>('inspections').create((i: any) => {
-          i.assetId = assetId;
-          i.inspectorName = inspectorName || 'Teknisi';
-          i.inspectionDate = Date.now();
-          i.type = 'preventive';
-          i.status = 'in_progress';
-          i.photos = JSON.stringify(photos);
-          i.notes = '';
-          i.signaturePath = '';
-          i.pdfPath = '';
-        });
+        return await database
+          .get<Inspection>('inspections')
+          .create((i: any) => {
+            i.assetId = assetId;
+            i.inspectorName = inspectorName || 'Teknisi';
+            i.inspectionDate = Date.now();
+            i.type = 'preventive';
+            i.status = 'in_progress';
+            i.photos = JSON.stringify(photos);
+            i.notes = '';
+            i.signaturePath = '';
+            i.pdfPath = '';
+          });
       });
 
       setInspectionId(inspection.id);
@@ -73,8 +80,12 @@ export const CapturePhotoScreen: React.FC = () => {
           .fetch();
 
         const items = templateItems
-          .filter((ti: ChecklistItem) => ti.templateId === asset.checklistTemplateId)
-          .sort((a: ChecklistItem, b: ChecklistItem) => a.sortOrder - b.sortOrder);
+          .filter(
+            (ti: ChecklistItem) => ti.templateId === asset.checklistTemplateId,
+          )
+          .sort(
+            (a: ChecklistItem, b: ChecklistItem) => a.sortOrder - b.sortOrder,
+          );
 
         const entries: ChecklistEntry[] = items.map((item: ChecklistItem) => ({
           templateItemId: item.id,
@@ -102,7 +113,11 @@ export const CapturePhotoScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error preparing checklist:', error);
-      showAlert({type: 'error', title: 'Error', message: 'Gagal mempersiapkan checklist'});
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Gagal mempersiapkan checklist',
+      });
     } finally {
       setLoading(false);
     }
@@ -121,7 +136,8 @@ export const CapturePhotoScreen: React.FC = () => {
         <TouchableOpacity
           style={styles.cameraArea}
           onPress={handleTakePhoto}
-          activeOpacity={0.7}>
+          activeOpacity={0.7}
+        >
           <Text style={styles.cameraIcon}>📸</Text>
           <Text style={styles.cameraTitle}>Ketuk untuk Mengambil Foto</Text>
           <Text style={styles.cameraSubtitle}>
@@ -132,16 +148,14 @@ export const CapturePhotoScreen: React.FC = () => {
         {/* Photo thumbnails */}
         {photos.length > 0 && (
           <View style={styles.photoSection}>
-            <Text style={styles.photoCount}>
-              {photos.length} foto diambil
-            </Text>
+            <Text style={styles.photoCount}>{photos.length} foto diambil</Text>
             <FlatList
               horizontal
               data={photos}
               keyExtractor={(_, index) => index.toString()}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.photoList}
-              renderItem={({item, index}) => (
+              renderItem={({ item, index }) => (
                 <View style={styles.photoThumb}>
                   <View style={styles.photoPlaceholder}>
                     <Text style={styles.photoPlaceholderText}>📷</Text>
@@ -149,7 +163,8 @@ export const CapturePhotoScreen: React.FC = () => {
                   </View>
                   <TouchableOpacity
                     style={styles.removePhoto}
-                    onPress={() => removePhoto(index)}>
+                    onPress={() => removePhoto(index)}
+                  >
                     <Text style={styles.removePhotoIcon}>✕</Text>
                   </TouchableOpacity>
                 </View>
@@ -186,7 +201,7 @@ export const CapturePhotoScreen: React.FC = () => {
           size="sm"
           fullWidth
           loading={loading}
-          style={{marginTop: Spacing.md}}
+          style={{ marginTop: Spacing.md }}
         />
       </View>
     </View>

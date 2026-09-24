@@ -34,7 +34,10 @@ import { useInspectionStore } from '../../store/inspectionStore';
 import { cleanPopId, cleanPopName } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 import { POP_SEED_DATA } from '../../database/popSeedData';
-import { fetchAssetsFromSupabase } from '../../services/supabaseDb';
+import {
+  fetchAssetsFromFirestore,
+  deleteAssetFromFirestore,
+} from '../../services/firestoreDb';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -103,10 +106,9 @@ export const SelectPopScreen: React.FC = () => {
         await popToDelete.destroyPermanently();
       });
 
-      // 2. Delete from Supabase if online
+      // 2. Delete from Firestore if online
       try {
-        const { supabase } = require('../../services/supabase');
-        await supabase.from('assets').delete().eq('asset_code', assetCode);
+        await deleteAssetFromFirestore(assetCode);
       } catch (cloudErr) {
         console.log('Deleted locally, cloud sync error or offline:', cloudErr);
       }
@@ -141,7 +143,7 @@ export const SelectPopScreen: React.FC = () => {
   useFocusEffect(
     React.useCallback(() => {
       loadPops();
-    }, [])
+    }, []),
   );
 
   useEffect(() => {
@@ -152,7 +154,7 @@ export const SelectPopScreen: React.FC = () => {
         (pop: Asset) =>
           pop.name.toLowerCase().includes(query) ||
           pop.assetCode.toLowerCase().includes(query) ||
-          pop.location.toLowerCase().includes(query)
+          pop.location.toLowerCase().includes(query),
       );
     }
 
@@ -171,7 +173,25 @@ export const SelectPopScreen: React.FC = () => {
       const assets = await database.get<Asset>('assets').query().fetch();
       const assetsCollection = database.get<Asset>('assets');
 
-      const existingAssetsMap = new Map<string, Asset>(assets.map(a => [a.assetCode, a]));
+      // Clean up legacy dummy sample asset (POP_1KDI10015 telecom) if it exists
+      const dummyAssets = assets.filter(
+        a => a.assetCode === 'POP_1KDI10015' && a.category === 'telecom',
+      );
+      if (dummyAssets.length > 0) {
+        await database.write(async () => {
+          for (const dummy of dummyAssets) {
+            await dummy.destroyPermanently();
+          }
+        });
+        deleteAssetFromFirestore('POP_1KDI10015').catch(() => {});
+      }
+
+      const validAssets = assets.filter(
+        a => !(a.assetCode === 'POP_1KDI10015' && a.category === 'telecom'),
+      );
+      const existingAssetsMap = new Map<string, Asset>(
+        validAssets.map(a => [a.assetCode, a]),
+      );
       const batchOps: any[] = [];
 
       POP_SEED_DATA.forEach(pop => {
@@ -201,7 +221,23 @@ export const SelectPopScreen: React.FC = () => {
               asset.specifications = newSpecs;
               asset.checklistTemplateId = '';
               asset.status = 'active';
-            })
+            }),
+          );
+        } else if (existing.specifications !== newSpecs) {
+          batchOps.push(
+            existing.prepareUpdate(asset => {
+              asset.specifications = newSpecs;
+              if (newLat && newLng && (!asset.latitude || !asset.longitude)) {
+                asset.latitude = newLat;
+                asset.longitude = newLng;
+              }
+              if (newLoc && !asset.location) {
+                asset.location = newLoc;
+              }
+              if (newCat && (!asset.category || asset.category === 'other')) {
+                asset.category = newCat;
+              }
+            }),
           );
         }
       });
@@ -223,12 +259,14 @@ export const SelectPopScreen: React.FC = () => {
 
       setPops(Array.from(uniqueAssetsMap.values()));
 
-      // Background Fetch from Supabase for remote added POPs
+      // Background Fetch from Firestore for remote added POPs
       try {
-        const remoteAssets = await fetchAssetsFromSupabase();
+        const remoteAssets = await fetchAssetsFromFirestore();
         if (Array.isArray(remoteAssets) && remoteAssets.length > 0) {
           const remoteBatch: any[] = [];
-          const currentMap = new Map<string, Asset>(updatedAssets.map(a => [a.assetCode, a]));
+          const currentMap = new Map<string, Asset>(
+            updatedAssets.map(a => [a.assetCode, a]),
+          );
 
           remoteAssets.forEach(r => {
             if (r.asset_code && !currentMap.has(r.asset_code)) {
@@ -243,34 +281,44 @@ export const SelectPopScreen: React.FC = () => {
                   asset.manufacturer = r.manufacturer || '';
                   asset.assetModel = r.model || '';
                   asset.serialNumber = r.serial_number || '';
-                  asset.installDate = r.install_date ? new Date(r.install_date).getTime() : Date.now();
+                  asset.installDate = r.install_date
+                    ? new Date(r.install_date).getTime()
+                    : Date.now();
                   asset.qrCode = r.qr_code || '';
                   asset.photoPath = r.photo_path || '';
-                  asset.specifications = typeof r.specifications === 'string' ? r.specifications : JSON.stringify(r.specifications || {});
+                  asset.specifications =
+                    typeof r.specifications === 'string'
+                      ? r.specifications
+                      : JSON.stringify(r.specifications || {});
                   asset.checklistTemplateId = r.checklist_template_id || '';
                   asset.status = (r.status as any) || 'active';
-                })
+                }),
               );
             }
           });
 
           if (remoteBatch.length > 0) {
-            console.log(`Downloaded ${remoteBatch.length} new POPs from Supabase!`);
+            console.log(
+              `Downloaded ${remoteBatch.length} new POPs from Firestore!`,
+            );
             await database.write(async () => {
               await database.batch(...remoteBatch);
             });
-            const refreshed = await database.get<Asset>('assets').query().fetch();
+            const refreshed = await database
+              .get<Asset>('assets')
+              .query()
+              .fetch();
             const refreshedMap = new Map<string, Asset>();
             refreshed.forEach(a => {
-              if (!refreshedMap.has(a.assetCode)) refreshedMap.set(a.assetCode, a);
+              if (!refreshedMap.has(a.assetCode))
+                refreshedMap.set(a.assetCode, a);
             });
             setPops(Array.from(refreshedMap.values()));
           }
         }
       } catch (cloudErr) {
-        // Safe to ignore when offline
+        console.log('Background Firestore sync skipped or offline:', cloudErr);
       }
-
     } catch (error) {
       console.error('Error loading POPs:', error);
     } finally {
@@ -298,15 +346,24 @@ export const SelectPopScreen: React.FC = () => {
           onPress={() => handleSelectPop(item)}
           activeOpacity={0.7}
         >
-          <View style={[styles.popItemIcon, isActive && styles.popItemIconActive]}>
-            <Building2 color={isActive ? Colors.primary : Colors.textMuted} size={22} />
+          <View
+            style={[styles.popItemIcon, isActive && styles.popItemIconActive]}
+          >
+            <Building2
+              color={isActive ? Colors.primary : Colors.textMuted}
+              size={22}
+            />
           </View>
           <View style={styles.popItemContent}>
-            <Text style={[styles.popItemName, isActive && styles.popItemNameActive]}>
+            <Text
+              style={[styles.popItemName, isActive && styles.popItemNameActive]}
+            >
               {cleanPopName(item.name)}
             </Text>
             <View style={styles.popItemMetaRow}>
-              <Text style={styles.popItemCode}>{cleanPopId(item.assetCode)}</Text>
+              <Text style={styles.popItemCode}>
+                {cleanPopId(item.assetCode)}
+              </Text>
               {item.category ? (
                 <View style={styles.categoryBadge}>
                   <Text style={styles.categoryBadgeText}>{item.category}</Text>
@@ -315,7 +372,11 @@ export const SelectPopScreen: React.FC = () => {
             </View>
             {item.location ? (
               <View style={styles.locationRow}>
-                <MapPin size={12} color={Colors.textMuted} style={{ marginRight: 4 }} />
+                <MapPin
+                  size={12}
+                  color={Colors.textMuted}
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={styles.popItemLocation} numberOfLines={1}>
                   {item.location}
                 </Text>
@@ -347,7 +408,11 @@ export const SelectPopScreen: React.FC = () => {
       {/* Shared Header with Embedded Search Bar */}
       <Header
         title="Pilih POP"
-        subtitle={`${filteredPops.length} POP tersedia`}
+        subtitle={
+          searchQuery.trim()
+            ? `${filteredPops.length} dari ${pops.length} POP`
+            : `${pops.length} POP tersedia`
+        }
         onBack={() => navigation.goBack()}
         rightAction={
           <TouchableOpacity
@@ -383,7 +448,10 @@ export const SelectPopScreen: React.FC = () => {
             autoCapitalize="none"
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearch('')} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => handleSearch('')}
+              activeOpacity={0.7}
+            >
               <XCircle size={18} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
@@ -411,7 +479,7 @@ export const SelectPopScreen: React.FC = () => {
       ) : (
         <FlatList
           data={filteredPops}
-          keyExtractor={(item) => item.id}
+          keyExtractor={item => item.id}
           renderItem={renderPopItem}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -441,10 +509,15 @@ export const SelectPopScreen: React.FC = () => {
             {/* Detail POP Info Box (Kotak Merah: Nama POP & Teks Peringatan) */}
             {popToDelete && (
               <View style={styles.popDetailBox}>
-                <Text style={styles.popDetailName}>{cleanPopName(popToDelete.name)}</Text>
+                <Text style={styles.popDetailName}>
+                  {cleanPopName(popToDelete.name)}
+                </Text>
                 <Text style={styles.popDetailWarningText}>
-                  <Text style={{ fontWeight: 'bold', color: '#FCA5A5' }}>Peringatan : </Text>
-                  Tindakan ini tidak dapat dibatalkan, seluruh data dan riwayat akan dihapus seketika.
+                  <Text style={{ fontWeight: 'bold', color: '#FCA5A5' }}>
+                    Peringatan :{' '}
+                  </Text>
+                  Tindakan ini tidak dapat dibatalkan, seluruh data dan riwayat
+                  akan dihapus seketika.
                 </Text>
               </View>
             )}
@@ -482,7 +555,7 @@ export const SelectPopScreen: React.FC = () => {
                 style={[
                   styles.captchaInput,
                   captchaInput.trim().toUpperCase() === captchaCode &&
-                  styles.captchaInputMatch,
+                    styles.captchaInputMatch,
                 ]}
                 placeholder="Ketik kode CAPTCHA di sini"
                 placeholderTextColor={Colors.textMuted}
@@ -504,10 +577,13 @@ export const SelectPopScreen: React.FC = () => {
                     isAcknowledged && styles.checkboxBoxChecked,
                   ]}
                 >
-                  {isAcknowledged && <Check size={14} color="#ffffff" strokeWidth={3} />}
+                  {isAcknowledged && (
+                    <Check size={14} color="#ffffff" strokeWidth={3} />
+                  )}
                 </View>
                 <Text style={styles.checkboxLabel}>
-                  Saya memahami risiko dan menyetujui penghapusan seluruh data POP ini.
+                  Saya memahami risiko dan menyetujui penghapusan seluruh data
+                  POP ini.
                 </Text>
               </TouchableOpacity>
             </View>
@@ -528,7 +604,7 @@ export const SelectPopScreen: React.FC = () => {
                   styles.confirmDeleteBtn,
                   (!isAcknowledged ||
                     captchaInput.trim().toUpperCase() !== captchaCode) &&
-                  styles.confirmDeleteBtnDisabled,
+                    styles.confirmDeleteBtnDisabled,
                 ]}
                 onPress={handleConfirmDelete}
                 disabled={
@@ -542,8 +618,14 @@ export const SelectPopScreen: React.FC = () => {
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <Trash2 size={16} color="#ffffff" style={{ marginRight: 6 }} />
-                    <Text style={styles.confirmDeleteBtnText}>Hapus Semua Data</Text>
+                    <Trash2
+                      size={16}
+                      color="#ffffff"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.confirmDeleteBtnText}>
+                      Hapus Semua Data
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>

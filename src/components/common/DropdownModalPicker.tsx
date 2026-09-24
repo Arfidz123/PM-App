@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
-  Animated,
 } from 'react-native';
 import { Check, X } from 'lucide-react-native';
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
@@ -28,57 +27,17 @@ export const DropdownModalPicker: React.FC<DropdownModalPickerProps> = ({
   onSelect,
   onClose,
 }) => {
-  const overlayAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.85)).current;
-
-  useEffect(() => {
-    if (visible) {
-      overlayAnim.setValue(0);
-      scaleAnim.setValue(0.85);
-
-      Animated.parallel([
-        Animated.timing(overlayAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 7,
-          tension: 130,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [visible]);
-
-  const handleClose = (callback?: () => void) => {
-    Animated.parallel([
-      Animated.timing(overlayAnim, {
-        toValue: 0,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onClose();
-      if (callback) {
-        callback();
-      }
-    });
-  };
-
   const handleSelect = (opt: string) => {
-    if (selectedValue === opt) {
+    onClose();
+    if (
+      selectedValue === opt ||
+      (Boolean(selectedValue) &&
+        selectedValue.trim().toLowerCase() === opt.trim().toLowerCase())
+    ) {
       onSelect('');
     } else {
       onSelect(opt);
     }
-    handleClose();
   };
 
   if (!visible) return null;
@@ -87,37 +46,35 @@ export const DropdownModalPicker: React.FC<DropdownModalPickerProps> = ({
     <Modal
       visible={visible}
       transparent
-      animationType="none"
-      onRequestClose={() => handleClose()}
+      animationType="fade"
+      onRequestClose={onClose}
     >
-      <Animated.View style={[styles.backdrop, { opacity: overlayAnim }]}>
+      <View style={styles.backdrop}>
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
-          onPress={() => handleClose()}
+          onPress={onClose}
         />
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: overlayAnim,
-            },
-          ]}
-        >
+        <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
           <View style={styles.divider} />
 
-          <ScrollView style={styles.scrollList} showsVerticalScrollIndicator={false}>
-            {options.map((opt) => {
-              const isSelected = selectedValue === opt;
+          <ScrollView
+            style={styles.scrollList}
+            showsVerticalScrollIndicator={false}
+          >
+            {options.map(opt => {
+              const isSelected =
+                selectedValue === opt ||
+                (Boolean(selectedValue) &&
+                  selectedValue.trim().toLowerCase() === opt.trim().toLowerCase());
 
               return (
                 <TouchableOpacity
                   key={opt}
                   style={[styles.item, isSelected && styles.itemActive]}
                   onPress={() => handleSelect(opt)}
-                  activeOpacity={0.7}
+                  activeOpacity={0.6}
                 >
                   <Text
                     style={[
@@ -127,7 +84,9 @@ export const DropdownModalPicker: React.FC<DropdownModalPickerProps> = ({
                   >
                     {opt}
                   </Text>
-                  {isSelected && <Check size={18} color="#ffffff" strokeWidth={2.5} />}
+                  {isSelected && (
+                    <Check size={18} color="#ffffff" strokeWidth={2.5} />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -135,14 +94,19 @@ export const DropdownModalPicker: React.FC<DropdownModalPickerProps> = ({
 
           <TouchableOpacity
             style={styles.cancelBtn}
-            onPress={() => handleClose()}
-            activeOpacity={0.8}
+            onPress={onClose}
+            activeOpacity={0.7}
           >
-            <X size={17} color="#ffffff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+            <X
+              size={17}
+              color="#ffffff"
+              strokeWidth={2.5}
+              style={{ marginRight: 6 }}
+            />
             <Text style={styles.cancelBtnText}>Tutup</Text>
           </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
+        </View>
+      </View>
     </Modal>
   );
 };

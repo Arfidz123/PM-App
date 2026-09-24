@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,18 @@ import {
   Dimensions,
   NativeModules,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, Share2, ChevronLeft, ChevronRight, Check } from 'lucide-react-native';
+import {
+  Download,
+  Share2,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Send,
+} from 'lucide-react-native';
 import WebView from 'react-native-webview';
 import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
 import LinearGradient from 'react-native-linear-gradient';
@@ -19,10 +27,18 @@ import LinearGradient from 'react-native-linear-gradient';
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
 import { Header, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { generatePdfSections, generateDownloadablePdfHtml } from '../../utils/pdfTemplate';
+import {
+  generatePdfSections,
+  generateDownloadablePdfHtml,
+} from '../../utils/pdfTemplate';
 import database from '../../database';
-import { syncInspectionsToSupabase, saveInspectionDirectlyToSupabase } from '../../services/syncService';
-import { sharePdfFile } from '../../utils/helpers';
+import { resolveAllTelegramUrisInObject } from '../../services/telegramStorage';
+import { saveInspectionDirectlyToFirebase } from '../../services/syncService';
+import {
+  extractSavedPmProfile,
+  savePopPmProfile,
+} from '../../services/savedPmProfileService';
+import { sharePdfFile, cleanPopId } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -33,7 +49,19 @@ const SLIDE_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
 export const ReviewPdfScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [generatedPdfPath, setGeneratedPdfPath] = useState<string>('');
+  const [generatedPdfFileName, setGeneratedPdfFileName] = useState<string>('');
+  const dotsScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (dotsScrollRef.current) {
+      const xOffset = Math.max(0, activeIndex * 44 - (SCREEN_WIDTH / 2 - 40));
+      dotsScrollRef.current.scrollTo({ x: xOffset, animated: true });
+    }
+  }, [activeIndex]);
 
   const {
     activePopId,
@@ -47,25 +75,59 @@ export const ReviewPdfScreen: React.FC = () => {
     resetInspection,
   } = useInspectionStore();
 
-  const mergedFormData = useMemo(() => ({
-    ...formData,
-    photos: photos || [],
-    currentLocation: currentLocation || null,
-  }), [formData, photos, currentLocation]);
-
-  const sections = useMemo(() =>
-    generatePdfSections(activePopId, activePopName, activePopLocation, mergedFormData),
-    [activePopId, activePopName, activePopLocation, mergedFormData]
+  const mergedFormData = useMemo(
+    () => ({
+      ...formData,
+      infoPop: {
+        ...(formData as any)?.infoPop,
+        popId: activePopId,
+        namaPop: activePopName,
+        alamat: activePopLocation || (formData as any)?.infoPop?.alamat,
+        latitude: (formData as any)?.infoPop?.latitude || currentLocation?.lat,
+        longitude:
+          (formData as any)?.infoPop?.longitude || currentLocation?.lng,
+      },
+    }),
+    [formData, activePopId, activePopName, activePopLocation, currentLocation],
   );
 
-  const downloadableHtml = useMemo(() =>
-    generateDownloadablePdfHtml(activePopId, activePopName, activePopLocation, mergedFormData),
-    [activePopId, activePopName, activePopLocation, mergedFormData]
-  );
+  const [resolvedFormData, setResolvedFormData] = useState<any>(null);
 
-  const currentSection: any = sections[activeIndex];
+  useEffect(() => {
+    let isMounted = true;
+    resolveAllTelegramUrisInObject(mergedFormData).then(res => {
+      if (isMounted) setResolvedFormData(res);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [mergedFormData]);
+
+  const activeFormData = resolvedFormData || mergedFormData;
+
+  const sections = useMemo(() => {
+    return generatePdfSections(
+      activePopId,
+      activePopName,
+      activePopLocation,
+      activeFormData,
+    );
+  }, [activePopId, activePopName, activePopLocation, activeFormData]);
+
+  const downloadableHtml = useMemo(() => {
+    return generateDownloadablePdfHtml(
+      activePopId,
+      activePopName,
+      activePopLocation,
+      activeFormData,
+    );
+  }, [activePopId, activePopName, activePopLocation, activeFormData]);
+
+  const currentSection: any = sections[activeIndex] || sections[0];
+
+  // Scale HTML content to fit slide container
   const scaledHtml = useMemo(() => {
-    if (!currentSection) return '';
+    if (!currentSection?.html) return '';
     const pWidth = currentSection.pageWidth || 850;
     const initialScale = (SLIDE_WIDTH / pWidth).toFixed(2);
     return currentSection.html.replace(
@@ -74,11 +136,26 @@ export const ReviewPdfScreen: React.FC = () => {
     );
   }, [currentSection]);
 
-  const saveInspectionDataAndGetPdfPath = async () => {
+  /**
+   * Helper untuk membuat atau mengambil file PDF lokal di HP
+   */
+  const getOrGenerateLocalPdf = async (): Promise<{
+    pdfPath: string;
+    pdfFileName: string;
+  }> => {
+    if (generatedPdfPath && generatedPdfFileName) {
+      return { pdfPath: generatedPdfPath, pdfFileName: generatedPdfFileName };
+    }
+
     const now = new Date();
-    const dateStr = `${now.getDate().toString().padStart(2, '0')}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getFullYear()}`;
-    const pdfFileName = `PM_Report_${activePopId || 'POP'}_${dateStr}`;
-    const timestamp = Date.now();
+    const dateStr = `${now.getDate().toString().padStart(2, '0')}-${(
+      now.getMonth() + 1
+    )
+      .toString()
+      .padStart(2, '0')}-${now.getFullYear()}`;
+    const cleanId = cleanPopId(activePopId || '') || 'POP';
+    const safePopId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const pdfFileName = `PM_Report_${safePopId}_${dateStr}`;
 
     const options = {
       html: downloadableHtml,
@@ -91,245 +168,361 @@ export const ReviewPdfScreen: React.FC = () => {
       let file: any;
       if (typeof generatePDF === 'function') {
         file = await generatePDF(options as any);
-      } else if (RNHTMLtoPDF && typeof RNHTMLtoPDF.convert === 'function') {
-        file = await RNHTMLtoPDF.convert(options);
+      } else if (
+        RNHTMLtoPDF &&
+        typeof (RNHTMLtoPDF as any).convert === 'function'
+      ) {
+        file = await (RNHTMLtoPDF as any).convert(options);
       }
       pdfPath = file?.filePath || '';
-    } catch (pdfErr) {
-      console.log('PDF Generation error:', pdfErr);
-    }
-
-    const inspectionId = editingInspectionId || `insp_${timestamp}`;
-    const effectiveInspectionDate = originalInspectionDate || timestamp;
-    let isCloudSaved = false;
-    let cloudSaveResult: any = null;
-    try {
-      cloudSaveResult = await saveInspectionDirectlyToSupabase({
-        id: inspectionId,
-        assetId: activePopId || 'unknown',
-        inspectorName: 'Teknisi',
-        inspectionDate: effectiveInspectionDate,
-        type: 'PM',
-        status: 'completed',
-        pdfPath: pdfPath,
-        formData: mergedFormData,
-        photos: photos || [],
-        notes: (mergedFormData as any)?.infoPop?.catatan || '',
-      });
-      isCloudSaved = true;
-      console.log('Successfully saved inspection directly to Supabase Cloud!');
-    } catch (supabaseErr) {
-      console.warn('Direct Supabase upload failed, queuing for sync:', supabaseErr);
-      isCloudSaved = false;
-    }
-
-    const effectivePdfPath = cloudSaveResult?.remotePdfPath || pdfPath;
-    const effectiveFormData = cloudSaveResult?.remoteFormData || mergedFormData;
-    const effectivePhotos = cloudSaveResult?.remotePhotos || photos || [];
-
-    try {
-      let existingRecord: any = null;
-      if (editingInspectionId) {
-        try {
-          existingRecord = await database.get('inspections').find(editingInspectionId);
-        } catch (findErr) {}
+    } catch (pdfErr: any) {
+      console.warn(
+        'First generatePDF attempt failed, retrying with forceReset:',
+        pdfErr,
+      );
+      try {
+        let file: any = await generatePDF({
+          ...options,
+          forceReset: true,
+        } as any);
+        pdfPath = file?.filePath || '';
+      } catch (retryErr: any) {
+        console.error('Retry generatePDF failed:', retryErr);
+        throw new Error(
+          'Gagal membuat PDF: ' +
+            (retryErr?.message || pdfErr?.message || 'Error konversi PDF'),
+        );
       }
-
-      await database.write(async () => {
-        if (existingRecord) {
-          await existingRecord.update((insp: any) => {
-            insp.assetId = activePopId || 'unknown';
-            insp.pdfPath = effectivePdfPath;
-            insp.formData = JSON.stringify(effectiveFormData);
-            insp.photos = JSON.stringify(effectivePhotos);
-            insp.notes = (mergedFormData as any)?.infoPop?.catatan || '';
-            insp.isSynced = isCloudSaved;
-          });
-        } else {
-          await database.get('inspections').create((inspection: any) => {
-            inspection._raw.id = inspectionId;
-            inspection.assetId = activePopId || 'unknown';
-            inspection.inspectorName = 'Teknisi';
-            inspection.inspectionDate = timestamp;
-            inspection.type = 'PM';
-            inspection.status = 'completed';
-            inspection.pdfPath = effectivePdfPath;
-            inspection.formData = JSON.stringify(effectiveFormData);
-            inspection.photos = JSON.stringify(effectivePhotos);
-            inspection.notes = (mergedFormData as any)?.infoPop?.catatan || '';
-            inspection.isSynced = isCloudSaved;
-          });
-        }
-      });
-    } catch (dbErr) {
-      console.warn('Local database save fallback error:', dbErr);
     }
 
-    if (!isCloudSaved) {
-      syncInspectionsToSupabase().catch((err) => {
-        console.warn('Background sync failed:', err);
-      });
+    if (!pdfPath) {
+      throw new Error('File PDF tidak berhasil dibuat pada perangkat.');
     }
 
+    setGeneratedPdfPath(pdfPath);
+    setGeneratedPdfFileName(pdfFileName);
     return { pdfPath, pdfFileName };
   };
 
-  const handleDownloadPdf = async () => {
+  /**
+   * 1. SIMPAN: Simpan ke Database Lokal, Upload PDF ke Telegram (1x Saja), dan Sync Firestore
+   */
+  const handleSaveInspection = async () => {
     setSaving(true);
     try {
-      const { pdfPath, pdfFileName } = await saveInspectionDataAndGetPdfPath();
+      const { pdfPath, pdfFileName } = await getOrGenerateLocalPdf();
+      const timestamp = Date.now();
+      const inspectionId = editingInspectionId || `insp_${timestamp}`;
+      const effectiveInspectionDate = originalInspectionDate || timestamp;
+
+      // 1. Simpan ke database lokal WatermelonDB
+      try {
+        let existingRecord: any = null;
+        if (editingInspectionId) {
+          try {
+            existingRecord = await database
+              .get('inspections')
+              .find(editingInspectionId);
+          } catch (findErr) {}
+        }
+
+        await database.write(async () => {
+          if (existingRecord) {
+            await existingRecord.update((insp: any) => {
+              insp.assetId = activePopId || 'unknown';
+              insp.pdfPath = pdfPath;
+              insp.formData = JSON.stringify(mergedFormData);
+              insp.photos = JSON.stringify(photos || []);
+              insp.notes = (mergedFormData as any)?.infoPop?.catatan || '';
+              insp.isSynced = false;
+            });
+          } else {
+            await database.get('inspections').create((inspection: any) => {
+              inspection._raw.id = inspectionId;
+              inspection.assetId = activePopId || 'unknown';
+              inspection.inspectorName = 'Teknisi';
+              inspection.inspectionDate = effectiveInspectionDate;
+              inspection.type = 'PM';
+              inspection.status = 'completed';
+              inspection.pdfPath = pdfPath;
+              inspection.formData = JSON.stringify(mergedFormData);
+              inspection.photos = JSON.stringify(photos || []);
+              inspection.notes =
+                (mergedFormData as any)?.infoPop?.catatan || '';
+              inspection.isSynced = false;
+            });
+          }
+        });
+      } catch (dbErr) {
+        console.warn('Local database save fallback error:', dbErr);
+      }
+
+      // Save static profile for this POP for future PMs
+      try {
+        if (activePopId) {
+          const profile = extractSavedPmProfile(mergedFormData);
+          await savePopPmProfile(activePopId, profile);
+        }
+      } catch (profileErr) {
+        console.warn('Error saving POP PM profile:', profileErr);
+      }
+
+      // 2. Upload PDF ke Telegram (HANYA SEKALI) dan simpan ke Firestore
+      try {
+        const cloudRes = await saveInspectionDirectlyToFirebase({
+          id: inspectionId,
+          assetId: activePopId || 'unknown',
+          inspectorName: 'Teknisi',
+          inspectionDate: effectiveInspectionDate,
+          type: 'PM',
+          status: 'completed',
+          pdfPath: pdfPath,
+          formData: mergedFormData,
+          photos: photos || [],
+          notes: (mergedFormData as any)?.infoPop?.catatan || '',
+        });
+
+        // Update local DB with Telegram remote URL & Cloud Sync status
+        if (cloudRes) {
+          const isUploaded = Boolean(
+            cloudRes.isSynced ||
+              (cloudRes.remotePdfPath &&
+                (cloudRes.remotePdfPath.startsWith('http://') ||
+                  cloudRes.remotePdfPath.startsWith('https://'))),
+          );
+          try {
+            const inspRecord = await database
+              .get('inspections')
+              .find(inspectionId);
+            if (inspRecord) {
+              await database.write(async () => {
+                await inspRecord.update((i: any) => {
+                  if (isUploaded) {
+                    i.isSynced = true;
+                  }
+                  if (cloudRes.remotePdfPath) {
+                    i.pdfPath = cloudRes.remotePdfPath;
+                  }
+                  if (
+                    cloudRes.remotePhotos &&
+                    Array.isArray(cloudRes.remotePhotos) &&
+                    cloudRes.remotePhotos.length > 0
+                  ) {
+                    i.photos = JSON.stringify(cloudRes.remotePhotos);
+                  }
+                  if (cloudRes.data?.form_data) {
+                    i.formData = JSON.stringify(cloudRes.data.form_data);
+                  }
+                });
+              });
+            }
+          } catch (updateErr) {
+            console.warn('Error updating local DB sync status:', updateErr);
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Direct Telegram / Firestore upload error:', cloudErr);
+      }
+
+      setSaving(false);
+      resetInspection();
+
+      showAlert({
+        type: 'success',
+        title: 'Laporan Berhasil Disimpan!',
+        message:
+          'Data inspeksi dan file PDF laporan telah berhasil disimpan serta terkirim ke Channel Telegram.',
+        buttons: [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'MainTabs' as any }],
+              });
+            },
+          },
+        ],
+      });
+    } catch (error: any) {
+      console.error('Error in handleSaveInspection:', error);
+      setSaving(false);
+      showAlert({
+        type: 'error',
+        title: 'Gagal Menyimpan Laporan',
+        message: error?.message || 'Terjadi kesalahan saat menyimpan laporan.',
+        buttons: [{ text: 'OK' }],
+      });
+    }
+  };
+
+  /**
+   * 2. DOWNLOAD: HANYA download ke folder Download HP (TIDAK kirim ke Telegram)
+   */
+  const handleDownloadPdfOnly = async () => {
+    setDownloading(true);
+    try {
+      const { pdfPath, pdfFileName } = await getOrGenerateLocalPdf();
 
       if (pdfPath && Platform.OS === 'android' && NativeModules.PdfDownloader) {
         try {
-          await NativeModules.PdfDownloader.saveToDownloads(pdfPath, pdfFileName);
+          await NativeModules.PdfDownloader.saveToDownloads(
+            pdfPath,
+            pdfFileName,
+          );
         } catch (downloadErr) {
           console.warn('Save to downloads notice:', downloadErr);
         }
       }
 
-      const isEditing = !!editingInspectionId;
-      resetInspection();
-      setSaving(false);
+      setDownloading(false);
 
       showAlert({
         type: 'success',
         title: 'Unduhan Berhasil',
-        message: isEditing
-          ? 'Perubahan laporan berhasil disimpan dan file PDF telah diunduh!'
-          : 'Laporan PDF berhasil diunduh dan disimpan ke folder Download perangkat Anda.',
-        buttons: [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'MainTabs' as any }],
-              });
-            },
-          },
-        ],
+        message:
+          'Laporan berhasil diunduh dan disimpan ke folder Download perangkat Anda.',
+        buttons: [{ text: 'OK' }],
       });
-    } catch (error) {
-      console.error('Error in handleDownloadPdf:', error);
-      setSaving(false);
+    } catch (error: any) {
+      console.error('Error in handleDownloadPdfOnly:', error);
+      setDownloading(false);
       showAlert({
-        type: 'success',
-        title: 'Sukses',
-        message: 'Data inspeksi berhasil disimpan!',
-        buttons: [
-          {
-            text: 'OK',
-            onPress: () => {
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'MainTabs' as any }],
-              });
-            },
-          },
-        ],
+        type: 'error',
+        title: 'Gagal Mengunduh',
+        message:
+          'Gagal mengunduh: ' + (error?.message || 'Terjadi kesalahan sistem'),
+        buttons: [{ text: 'OK' }],
       });
-      resetInspection();
     }
   };
 
-  const handleSharePdf = async () => {
-    setSaving(true);
+  /**
+   * 3. BAGIKAN: HANYA membuka dialog share HP / WhatsApp (TIDAK kirim ke Telegram)
+   */
+  const handleSharePdfOnly = async () => {
+    setSharing(true);
     try {
-      const { pdfPath } = await saveInspectionDataAndGetPdfPath();
-      resetInspection();
-      setSaving(false);
+      const { pdfPath } = await getOrGenerateLocalPdf();
+      setSharing(false);
 
       if (pdfPath) {
         try {
           await sharePdfFile(
             pdfPath,
             `Laporan PM - ${activePopName || 'POP'}`,
-            `Berikut file laporan PDF PM untuk POP ${activePopName || ''}`
+            `Berikut file laporan PM untuk POP ${activePopName || ''}`,
           );
         } catch (shareErr) {
           console.warn('Share PDF error:', shareErr);
         }
       }
-
-      navigation.navigate('MainTabs' as any);
-    } catch (error) {
-      console.error('Error in handleSharePdf:', error);
-      setSaving(false);
-      resetInspection();
-      navigation.navigate('MainTabs' as any);
+    } catch (error: any) {
+      console.error('Error in handleSharePdfOnly:', error);
+      setSharing(false);
+      showAlert({
+        type: 'error',
+        title: 'Gagal Membagikan',
+        message:
+          'Gagal membagikan: ' + (error?.message || 'Terjadi kesalahan sistem'),
+        buttons: [{ text: 'OK' }],
+      });
     }
   };
+
+  const isBusy = saving || downloading || sharing;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <Header
-        title="Review & Download PDF"
-        subtitle={activePopName ? `POP: ${activePopName}` : 'Preview Laporan PM'}
+        title="Review Laporan"
+        subtitle={
+          activePopName ? `POP: ${activePopName}` : 'Preview Laporan PM'
+        }
         onBack={() => navigation.goBack()}
       />
 
       <View style={styles.contentContainer}>
         {/* Numbered Dots Row */}
-        <View style={styles.dotsRow}>
-          {sections.map((_, idx) => {
-            const isActive = idx === activeIndex;
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => setActiveIndex(idx)}
-                activeOpacity={0.7}
-                style={[styles.dot, isActive && styles.dotActive]}
-              >
-                <Text style={[styles.dotText, isActive && styles.dotTextActive]}>
-                  {idx + 1}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.dotsContainer}>
+          <ScrollView
+            ref={dotsScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dotsScrollContent}
+          >
+            {sections.map((_, idx) => {
+              const isActive = idx === activeIndex;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => setActiveIndex(idx)}
+                  activeOpacity={0.7}
+                  style={[styles.dot, isActive && styles.dotActive]}
+                >
+                  <Text
+                    style={[styles.dotText, isActive && styles.dotTextActive]}
+                  >
+                    {idx + 1}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Section Header Navigation */}
         <View style={styles.sectionHeader}>
           <TouchableOpacity
-            style={[styles.navArrowBtn, activeIndex === 0 && styles.navArrowBtnDisabled]}
-            onPress={() => activeIndex > 0 && setActiveIndex(activeIndex - 1)}
+            style={[styles.navBtn, activeIndex === 0 && styles.navBtnDisabled]}
             disabled={activeIndex === 0}
-            activeOpacity={0.7}
+            onPress={() => setActiveIndex(i => Math.max(0, i - 1))}
           >
-            <ChevronLeft color={activeIndex === 0 ? 'rgba(255,255,255,0.2)' : Colors.white} size={20} />
+            <ChevronLeft
+              color={activeIndex === 0 ? Colors.textMuted : Colors.text}
+              size={20}
+            />
           </TouchableOpacity>
 
-          <View style={styles.sectionTitleWrapper}>
-            <Text style={styles.sectionTitle} numberOfLines={1}>
-              {activeIndex + 1}. {sections[activeIndex]?.title || 'Preview Halaman'}
-            </Text>
-            <Text style={styles.slideCounterText}>
-              Halaman {activeIndex + 1} dari {sections.length}
-            </Text>
-          </View>
+          <Text style={styles.sectionTitleText} numberOfLines={1}>
+            {currentSection?.title || 'Preview Laporan'}
+          </Text>
 
           <TouchableOpacity
-            style={[styles.navArrowBtn, activeIndex === sections.length - 1 && styles.navArrowBtnDisabled]}
-            onPress={() => activeIndex < sections.length - 1 && setActiveIndex(activeIndex + 1)}
+            style={[
+              styles.navBtn,
+              activeIndex === sections.length - 1 && styles.navBtnDisabled,
+            ]}
             disabled={activeIndex === sections.length - 1}
-            activeOpacity={0.7}
+            onPress={() =>
+              setActiveIndex(i => Math.min(sections.length - 1, i + 1))
+            }
           >
-            <ChevronRight color={activeIndex === sections.length - 1 ? 'rgba(255,255,255,0.2)' : Colors.white} size={20} />
+            <ChevronRight
+              color={
+                activeIndex === sections.length - 1
+                  ? Colors.textMuted
+                  : Colors.text
+              }
+              size={20}
+            />
           </TouchableOpacity>
         </View>
 
-        {/* Active PDF WebView */}
-        <View style={styles.webviewWrapper}>
+        {/* Slide Preview Box */}
+        <View style={styles.previewBox}>
           {scaledHtml ? (
             <WebView
-              key={`webview-slide-${activeIndex}`}
+              key={`preview-section-${activeIndex}`}
               source={{ html: scaledHtml }}
-              style={{ flex: 1, backgroundColor: '#fff' }}
+              style={styles.webView}
               scalesPageToFit={true}
+              nestedScrollEnabled={true}
               showsVerticalScrollIndicator={true}
               showsHorizontalScrollIndicator={true}
-              nestedScrollEnabled={true}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
               setBuiltInZoomControls={true}
               setDisplayZoomControls={false}
               allowsInlineMediaPlayback={true}
@@ -343,13 +536,14 @@ export const ReviewPdfScreen: React.FC = () => {
           ) : null}
         </View>
 
-        {/* Action Buttons */}
+        {/* ─── ACTION BUTTONS: SIMPAN, DOWNLOAD, BAGIKAN (1 BARIS) ─── */}
         <View style={styles.actionsContainer}>
+          {/* Tombol Simpan */}
           <TouchableOpacity
-            style={[styles.actionBtn, styles.downloadBtn]}
+            style={[styles.actionBtn, styles.saveBtn]}
             activeOpacity={0.85}
-            onPress={handleDownloadPdf}
-            disabled={saving}
+            onPress={handleSaveInspection}
+            disabled={isBusy}
           >
             <LinearGradient
               colors={['#10B981', '#059669']}
@@ -361,31 +555,68 @@ export const ReviewPdfScreen: React.FC = () => {
                 <ActivityIndicator color={Colors.white} size="small" />
               ) : (
                 <>
-                  <Download color={Colors.white} size={20} style={{ marginRight: 8 }} />
-                  <Text style={styles.actionBtnText}>Download PDF</Text>
+                  <Check
+                    color={Colors.white}
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.actionBtnText}>Simpan</Text>
                 </>
               )}
             </LinearGradient>
           </TouchableOpacity>
 
+          {/* Tombol Download */}
           <TouchableOpacity
-            style={[styles.actionBtn, styles.shareBtnInline]}
+            style={[styles.actionBtn, styles.downloadBtn]}
             activeOpacity={0.85}
-            onPress={handleSharePdf}
-            disabled={saving}
+            onPress={handleDownloadPdfOnly}
+            disabled={isBusy}
           >
             <LinearGradient
-              colors={['#3B82F6', '#1E40AF']}
+              colors={['#3B82F6', '#2563EB']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.actionBtnGradient}
             >
-              {saving ? (
+              {downloading ? (
                 <ActivityIndicator color={Colors.white} size="small" />
               ) : (
                 <>
-                  <Share2 color={Colors.white} size={20} style={{ marginRight: 8 }} />
-                  <Text style={styles.actionBtnText}>Bagikan PDF</Text>
+                  <Download
+                    color={Colors.white}
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.actionBtnText}>Download</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Tombol Bagikan */}
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.shareBtn]}
+            activeOpacity={0.85}
+            onPress={handleSharePdfOnly}
+            disabled={isBusy}
+          >
+            <LinearGradient
+              colors={['#64748B', '#475569']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.actionBtnGradient}
+            >
+              {sharing ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <>
+                  <Share2
+                    color={Colors.white}
+                    size={16}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.actionBtnText}>Bagikan</Text>
                 </>
               )}
             </LinearGradient>
@@ -405,19 +636,21 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+  dotsContainer: {
     marginBottom: Spacing.sm,
+  },
+  dotsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
     gap: 8,
   },
   dot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.2)',
@@ -426,17 +659,19 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    transform: [{ scale: 1.1 }],
+    borderColor: '#60A5FA',
+    transform: [{ scale: 1.08 }],
     ...Shadow.sm,
   },
   dotText: {
-    fontSize: 13,
+    ...Typography.caption,
+    color: Colors.textSecondary,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
+    fontSize: 13,
   },
   dotTextActive: {
     color: Colors.white,
+    fontWeight: '800',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -444,78 +679,67 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: Colors.glassBorder,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
-  sectionTitleWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: Spacing.xs,
+  navBtn: {
+    padding: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  sectionTitle: {
+  navBtnDisabled: {
+    opacity: 0.3,
+  },
+  sectionTitleText: {
     ...Typography.body,
-    color: Colors.white,
+    color: Colors.text,
     fontWeight: '700',
-    fontSize: 15,
-    textAlign: 'center',
-  },
-  slideCounterText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontWeight: '600',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  navArrowBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navArrowBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  webviewWrapper: {
+    fontSize: 14,
     flex: 1,
-    borderBottomLeftRadius: BorderRadius.xl,
-    borderBottomRightRadius: BorderRadius.xl,
+    textAlign: 'center',
+    marginHorizontal: Spacing.sm,
+  },
+  previewBox: {
+    flex: 1,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: Colors.glassBorder,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.15)',
     ...Shadow.md,
+  },
+  webView: {
+    flex: 1,
+    backgroundColor: Colors.white,
   },
   actionsContainer: {
     flexDirection: 'row',
     marginTop: Spacing.md,
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   actionBtn: {
     flex: 1,
-    borderRadius: BorderRadius.xl,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    ...Shadow.md,
+    ...Shadow.sm,
   },
+  saveBtn: {},
   downloadBtn: {},
-  shareBtnInline: {},
+  shareBtn: {},
   actionBtnGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: BorderRadius.xl,
+    paddingVertical: 12,
+    paddingHorizontal: Spacing.xs,
   },
   actionBtnText: {
-    ...Typography.button,
+    ...Typography.bodySmall,
     color: Colors.white,
-    fontWeight: 'bold',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 13,
   },
 });

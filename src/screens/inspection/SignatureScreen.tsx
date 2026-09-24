@@ -3,7 +3,7 @@
  * Digital signature capture and final submission
  */
 
-import React, {useState, useRef} from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,32 +11,30 @@ import {
   TouchableOpacity,
   PanResponder,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Button, showAlert} from '../../components/common';
-import {useInspectionStore, ChecklistEntry} from '../../store/inspectionStore';
-import {useAppStore} from '../../store/appStore';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import { Header, Button, showAlert } from '../../components/common';
+import {
+  useInspectionStore,
+  ChecklistEntry,
+} from '../../store/inspectionStore';
+import { useAppStore } from '../../store/appStore';
 import database from '../../database';
-import {Inspection, InspectionItem, Asset} from '../../database/models';
-import {generateInspectionPDF} from '../../services/pdf';
-import type {RootStackParamList} from '../../types';
-import {syncInspectionsToSupabase} from '../../services/syncService';
+import { Inspection, InspectionItem, Asset } from '../../database/models';
+import { generateInspectionPDF } from '../../services/pdf';
+import type { RootStackParamList } from '../../types';
+import { syncInspectionsToFirebase } from '../../services/syncService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SignatureScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const {inspectionId} = route.params;
-  const {
-    currentAssetId,
-    checklistEntries,
-    photos,
-    notes,
-    resetInspection,
-  } = useInspectionStore();
-  const {inspectorName, companyName} = useAppStore();
+  const { inspectionId } = route.params;
+  const { currentAssetId, checklistEntries, photos, notes, resetInspection } =
+    useInspectionStore();
+  const { inspectorName, companyName } = useAppStore();
   const [signed, setSigned] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,7 +50,11 @@ export const SignatureScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!signed) {
-      showAlert({type: 'warning', title: 'Perhatian', message: 'Silakan tanda tangan terlebih dahulu'});
+      showAlert({
+        type: 'warning',
+        title: 'Perhatian',
+        message: 'Silakan tanda tangan terlebih dahulu',
+      });
       return;
     }
 
@@ -144,8 +146,8 @@ export const SignatureScreen: React.FC = () => {
       resetInspection();
 
       // Trigger sync in background without awaiting or blocking UI
-      syncInspectionsToSupabase().catch((err) => {
-        console.warn('Background sync failed:', err);
+      syncInspectionsToFirebase().catch(err => {
+        console.warn('Background Firebase sync failed:', err);
       });
 
       showAlert({
@@ -156,7 +158,7 @@ export const SignatureScreen: React.FC = () => {
           {
             text: 'Lihat Detail',
             onPress: () =>
-              navigation.navigate('InspectionDetail', {inspectionId}),
+              navigation.navigate('InspectionDetail', { inspectionId }),
           },
           {
             text: 'Ke Dashboard',
@@ -166,7 +168,11 @@ export const SignatureScreen: React.FC = () => {
       });
     } catch (error) {
       console.error('Error submitting inspection:', error);
-      showAlert({type: 'error', title: 'Error', message: 'Gagal menyimpan data. Silakan coba lagi.'});
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Gagal menyimpan data. Silakan coba lagi.',
+      });
     } finally {
       setSubmitting(false);
     }
@@ -193,7 +199,8 @@ export const SignatureScreen: React.FC = () => {
             signed && styles.signatureCanvasSigned,
           ]}
           onPress={handleSign}
-          activeOpacity={0.7}>
+          activeOpacity={0.7}
+        >
           {signed ? (
             <View style={styles.signedContent}>
               <Text style={styles.signedCheck}>✓</Text>
@@ -224,7 +231,8 @@ export const SignatureScreen: React.FC = () => {
         {signed && (
           <TouchableOpacity
             onPress={handleClearSignature}
-            style={styles.clearButton}>
+            style={styles.clearButton}
+          >
             <Text style={styles.clearText}>Hapus Tanda Tangan</Text>
           </TouchableOpacity>
         )}
@@ -258,7 +266,7 @@ export const SignatureScreen: React.FC = () => {
           variant="ghost"
           size="sm"
           fullWidth
-          style={{marginTop: Spacing.md}}
+          style={{ marginTop: Spacing.md }}
         />
       </View>
     </View>

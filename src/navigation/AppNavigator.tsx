@@ -46,14 +46,18 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 // Tab bar icon component with spring animation
-const TabIcon: React.FC<{ IconComponent: any; focused: boolean; label: string }> = ({
-  IconComponent,
-  focused,
-  label,
-}) => {
+const TabIcon: React.FC<{
+  IconComponent: any;
+  focused: boolean;
+  label: string;
+}> = ({ IconComponent, focused, label }) => {
   const activeColor = '#3B82F6';
-  const scaleAnim = React.useRef(new Animated.Value(focused ? 1.15 : 1)).current;
-  const opacityAnim = React.useRef(new Animated.Value(focused ? 1 : 0.6)).current;
+  const scaleAnim = React.useRef(
+    new Animated.Value(focused ? 1.15 : 1),
+  ).current;
+  const opacityAnim = React.useRef(
+    new Animated.Value(focused ? 1 : 0.6),
+  ).current;
 
   React.useEffect(() => {
     Animated.parallel([
@@ -73,14 +77,21 @@ const TabIcon: React.FC<{ IconComponent: any; focused: boolean; label: string }>
 
   return (
     <View style={tabStyles.container}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}>
-        <IconComponent color={focused ? activeColor : Colors.textMuted} size={24} />
+      <Animated.View
+        style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}
+      >
+        <IconComponent
+          color={focused ? activeColor : Colors.textMuted}
+          size={24}
+        />
       </Animated.View>
       <Text
         numberOfLines={1}
         style={[
           tabStyles.label,
-          focused ? { color: activeColor, fontWeight: 'bold' } : { color: Colors.textMuted }
+          focused
+            ? { color: activeColor, fontWeight: 'bold' }
+            : { color: Colors.textMuted },
         ]}
       >
         {label}
@@ -122,7 +133,8 @@ function MainTabs() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
-      }}>
+      }}
+    >
       <Tab.Screen
         name="Home"
         component={DashboardScreen}
@@ -137,7 +149,11 @@ function MainTabs() {
         component={HistoryScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon IconComponent={History} focused={focused} label="Riwayat" />
+            <TabIcon
+              IconComponent={History}
+              focused={focused}
+              label="Riwayat"
+            />
           ),
         }}
       />
@@ -185,7 +201,8 @@ export function AppNavigator() {
           animationDuration: 300,
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
-        }}>
+        }}
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} />
         <Stack.Screen
           name="StartInspection"
@@ -203,7 +220,10 @@ export function AppNavigator() {
         <Stack.Screen name="PowerSystem" component={PowerSystemScreen} />
         <Stack.Screen name="Genset" component={GensetScreen} />
         <Stack.Screen name="Battery" component={BatteryScreen} />
-        <Stack.Screen name="MechanicalElect" component={MechanicalElectScreen} />
+        <Stack.Screen
+          name="MechanicalElect"
+          component={MechanicalElectScreen}
+        />
         <Stack.Screen name="Dokumentasi" component={DokumentasiScreen} />
         <Stack.Screen name="ExternalAlarm" component={ExternalAlarmScreen} />
         <Stack.Screen name="FotIp" component={FotIpScreen} />

@@ -1,9 +1,10 @@
 /**
- * Start Inspection (Camera + GPS Detection) Screen
- * Opens system camera/gallery to take a photo of POP and automatically detects closest POP within 100 meters via GPS
+ * Start Inspection (GPS Detection) Screen
+ * Automatically scans GPS location to detect the closest POP within 100 meters.
+ * Replaces the old photo requirement with pure, fast GPS scanning.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,20 +13,32 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  Animated,
+  Easing,
 } from 'react-native';
-import { showAlert } from '../../components/common';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Geolocation from '@react-native-community/geolocation';
 import { getDistance } from 'geolib';
-import { Camera as CameraIcon, MapPin, Image as ImageIcon, Building2, CheckCircle2, ChevronRight } from 'lucide-react-native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import {
+  Navigation as NavigationIcon,
+  MapPin,
+  Building2,
+  ChevronRight,
+  RotateCcw,
+  ListFilter,
+} from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
+import { Header, showAlert } from '../../components/common';
 import database from '../../database';
 import { Asset, ChecklistItem } from '../../database/models';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission, requestLocationPermission, cleanPopId, cleanPopName } from '../../utils/helpers';
+import {
+  requestLocationPermission,
+  cleanPopId,
+  cleanPopName,
+} from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -38,24 +51,111 @@ interface NearbyPopItem {
 export const StartInspectionScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [detecting, setDetecting] = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState('');
-  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
+  const [loadingMsg, setLoadingMsg] = useState('Memulai pemindaian GPS...');
+  const [currentCoordsStr, setCurrentCoordsStr] = useState<string | null>(null);
   const [nearbyPops, setNearbyPops] = useState<NearbyPopItem[]>([]);
   const [showMultiPopModal, setShowMultiPopModal] = useState(false);
+
+  // Pulse & Radar Animations
+  const radarScale1 = useRef(new Animated.Value(1)).current;
+  const radarOpacity1 = useRef(new Animated.Value(0.6)).current;
+  const radarScale2 = useRef(new Animated.Value(1)).current;
+  const radarOpacity2 = useRef(new Animated.Value(0.6)).current;
+  const iconPulse = useRef(new Animated.Value(1)).current;
 
   const {
     setActivePop,
     setCurrentLocation,
     setChecklistEntries,
     setAsset,
-    addPhoto,
   } = useInspectionStore();
 
-  React.useEffect(() => {
-    handleOpenCamera();
+  useEffect(() => {
+    // Start radar animation loop
+    const radarLoop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(radarScale1, {
+            toValue: 2.2,
+            duration: 2000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(radarScale1, {
+            toValue: 1,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(radarOpacity1, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(radarOpacity1, {
+            toValue: 0.6,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(600),
+          Animated.timing(radarScale2, {
+            toValue: 2.2,
+            duration: 2000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(radarScale2, {
+            toValue: 1,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.delay(600),
+          Animated.timing(radarOpacity2, {
+            toValue: 0,
+            duration: 2000,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(radarOpacity2, {
+            toValue: 0.6,
+            duration: 0,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(iconPulse, {
+            toValue: 1.1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+          Animated.timing(iconPulse, {
+            toValue: 1,
+            duration: 1000,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    );
+
+    radarLoop.start();
+
+    // Trigger GPS scan directly on mount
+    processGpsDetection();
+
+    return () => {
+      radarLoop.stop();
+    };
   }, []);
 
-  const applySelectedPop = async (selectedAsset: Asset, photoUri?: string) => {
+  const applySelectedPop = async (selectedAsset: Asset) => {
     try {
       setShowMultiPopModal(false);
       setDetecting(true);
@@ -67,10 +167,10 @@ export const StartInspectionScreen: React.FC = () => {
         .fetch();
 
       const assetTemplateItems = templateItems.filter(
-        (item) => item.templateId === selectedAsset?.checklistTemplateId
+        item => item.templateId === selectedAsset?.checklistTemplateId,
       );
 
-      const entries = assetTemplateItems.map((item) => ({
+      const entries = assetTemplateItems.map(item => ({
         templateItemId: (item as any).id,
         category: item.category,
         label: item.label,
@@ -88,14 +188,15 @@ export const StartInspectionScreen: React.FC = () => {
       }));
 
       setChecklistEntries(entries);
-      setActivePop(selectedAsset.assetCode, selectedAsset.name, selectedAsset.location, selectedAsset.specifications);
+      setActivePop(
+        selectedAsset.assetCode,
+        selectedAsset.name,
+        selectedAsset.location,
+        selectedAsset.specifications,
+      );
       setAsset((selectedAsset as any).id);
 
-      if (photoUri) {
-        addPhoto(photoUri);
-      }
-
-      await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      await new Promise<void>(resolve => setTimeout(resolve, 300));
       setDetecting(false);
       navigation.goBack();
     } catch (error) {
@@ -105,18 +206,41 @@ export const StartInspectionScreen: React.FC = () => {
     }
   };
 
-  const processGpsDetection = async (photoUri?: string) => {
+  const processGpsDetection = async () => {
     setDetecting(true);
-    setLoadingMsg('Mendapatkan lokasi GPS...');
+    setLoadingMsg('Mendapatkan sinyal & koordinat GPS...');
 
-    await requestLocationPermission();
+    const hasPermission = await requestLocationPermission();
+    if (!hasPermission) {
+      setDetecting(false);
+      showAlert({
+        type: 'warning',
+        title: 'Izin Lokasi Diperlukan',
+        message:
+          'Aplikasi memerlukan izin GPS untuk mendeteksi POP terdekat secara otomatis.',
+        buttons: [
+          {
+            text: 'Batal',
+            style: 'cancel',
+            onPress: () => navigation.goBack(),
+          },
+          {
+            text: 'Pilih Manual',
+            onPress: () => navigation.replace('SelectPop'),
+          },
+        ],
+      });
+      return;
+    }
 
-    const fetchPosition = (enableHighAcc: boolean): Promise<{ latitude: number; longitude: number }> => {
+    const fetchPosition = (
+      enableHighAcc: boolean,
+    ): Promise<{ latitude: number; longitude: number }> => {
       return new Promise((resolve, reject) => {
         Geolocation.getCurrentPosition(
-          (pos) => resolve(pos.coords),
-          (err) => reject(err),
-          { enableHighAccuracy: enableHighAcc, timeout: 10000, maximumAge: 0 }
+          pos => resolve(pos.coords),
+          err => reject(err),
+          { enableHighAccuracy: enableHighAcc, timeout: 10000, maximumAge: 0 },
         );
       });
     };
@@ -136,11 +260,8 @@ export const StartInspectionScreen: React.FC = () => {
     if (coords) {
       const { latitude, longitude } = coords;
       const coordsStr = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      setCurrentCoordsStr(coordsStr);
       setCurrentLocation({ lat: latitude, lng: longitude });
-
-      if (photoUri) {
-        addPhoto(photoUri, undefined, coordsStr);
-      }
 
       setLoadingMsg('Mencari POP terdekat dalam radius 100m...');
 
@@ -148,12 +269,21 @@ export const StartInspectionScreen: React.FC = () => {
         const assets = await database.get<Asset>('assets').query().fetch();
 
         const matchedPops: NearbyPopItem[] = [];
+        let closestAsset: Asset | null = null;
+        let closestDistance = Infinity;
+
         for (const asset of assets) {
           if (asset.latitude && asset.longitude) {
             const distance = getDistance(
               { latitude, longitude },
-              { latitude: asset.latitude, longitude: asset.longitude }
+              { latitude: asset.latitude, longitude: asset.longitude },
             );
+
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestAsset = asset;
+            }
+
             // Jarak deteksi dibatasi 100 meter
             if (distance <= 100) {
               matchedPops.push({ asset, distance });
@@ -163,15 +293,20 @@ export const StartInspectionScreen: React.FC = () => {
 
         matchedPops.sort((a, b) => a.distance - b.distance);
 
-        // Jika ditemukan 1 POP
+        // Jika ditemukan tepat 1 POP
         if (matchedPops.length === 1) {
           const singlePop = matchedPops[0];
           setDetecting(false);
+          setLoadingMsg(`Ditemukan: ${cleanPopName(singlePop.asset.name)}`);
 
           showAlert({
             type: 'success',
             title: 'POP Terdeteksi!',
-            message: `Terdeteksi via GPS:\n${cleanPopName(singlePop.asset.name)} (${cleanPopId(singlePop.asset.assetCode)})\nJarak: ${singlePop.distance} meter`,
+            message: `Terdeteksi via GPS:\n${cleanPopName(
+              singlePop.asset.name,
+            )} (${cleanPopId(singlePop.asset.assetCode)})\nJarak: ${
+              singlePop.distance
+            } meter`,
             buttons: [
               {
                 text: 'Pilih POP Lain',
@@ -179,8 +314,8 @@ export const StartInspectionScreen: React.FC = () => {
                 onPress: () => navigation.replace('SelectPop'),
               },
               {
-                text: 'Lanjutkan',
-                onPress: () => applySelectedPop(singlePop.asset, photoUri),
+                text: 'Mulai Maintenance',
+                onPress: () => applySelectedPop(singlePop.asset),
               },
             ],
           });
@@ -191,88 +326,160 @@ export const StartInspectionScreen: React.FC = () => {
         if (matchedPops.length > 1) {
           setNearbyPops(matchedPops);
           setDetecting(false);
+          setLoadingMsg(`Ditemukan ${matchedPops.length} POP terdekat`);
           setShowMultiPopModal(true);
           return;
         }
+
+        // Jika tidak ada POP dalam radius 100m
+        setDetecting(false);
+        setLoadingMsg('Tidak ada POP dalam radius 100m');
+
+        const closestInfo = closestAsset
+          ? `\n\nPOP terdekat yang terdaftar:\n${cleanPopName(
+              closestAsset.name,
+            )} (${
+              closestDistance >= 1000
+                ? (closestDistance / 1000).toFixed(1) + ' km'
+                : closestDistance + ' meter'
+            })`
+          : '';
+
+        showAlert({
+          type: 'warning',
+          title: 'Lokasi Tidak Cocok',
+          message: `Lokasi GPS Anda tidak berada dalam radius 100 meter dari POP manapun.${closestInfo}\n\nSilakan scan ulang di lokasi atau pilih POP secara manual.`,
+          buttons: [
+            {
+              text: 'Scan Ulang',
+              onPress: () => processGpsDetection(),
+            },
+            {
+              text: 'Pilih Manual',
+              onPress: () => navigation.replace('SelectPop'),
+            },
+          ],
+        });
+        return;
       } catch (error) {
         console.error('Error during GPS matching:', error);
-      }
-    } else {
-      if (photoUri) {
-        addPhoto(photoUri);
       }
     }
 
     setDetecting(false);
+    setLoadingMsg('Gagal membaca koordinat GPS');
     showAlert({
-      type: 'warning',
-      title: 'Lokasi Tidak Cocok',
-      message: 'Lokasi GPS Anda tidak berada dalam radius 100 meter dari POP manapun. Silakan pilih POP secara manual.',
+      type: 'error',
+      title: 'GPS Tidak Terdeteksi',
+      message:
+        'Gagal mendapatkan sinyal GPS dari perangkat Anda. Pastikan layanan lokasi/GPS aktif di ponsel Anda.',
       buttons: [
         {
-          text: 'Batal',
-          style: 'cancel',
-          onPress: () => navigation.goBack(),
+          text: 'Coba Lagi',
+          onPress: () => processGpsDetection(),
         },
         {
-          text: 'Pilih POP',
+          text: 'Pilih Manual',
           onPress: () => navigation.replace('SelectPop'),
         },
       ],
     });
   };
 
-  const handleOpenCamera = async () => {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) {
-      showAlert({
-        type: 'error',
-        title: 'Izin Kamera Ditolak',
-        message: 'Aplikasi memerlukan izin kamera untuk fitur ini.',
-        buttons: [{ text: 'OK', onPress: () => navigation.goBack() }],
-      });
-      return;
-    }
-
-    launchCamera(
-      {
-        mediaType: 'photo',
-        cameraType: 'back',
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.7,
-        saveToPhotos: false,
-        includeBase64: false,
-      },
-      (response) => {
-        if (response.didCancel) {
-          navigation.goBack();
-        } else if (response.errorCode) {
-          showAlert({
-            type: 'error',
-            title: 'Error Kamera',
-            message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini',
-            buttons: [{ text: 'OK', onPress: () => navigation.goBack() }],
-          });
-        } else if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            setCapturedPhotoUri(uri);
-            processGpsDetection(uri);
-          }
-        }
-      }
-    );
-  };
-
   return (
     <View style={styles.container}>
-      <View style={styles.detectingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.detectingText}>{loadingMsg || 'Membuka Kamera...'}</Text>
-        <View style={styles.locationBadge}>
-          <MapPin color={Colors.info} size={16} />
-          <Text style={styles.locationText}>Radius Deteksi GPS: 100 Meter</Text>
+      <Header
+        title="Scan Lokasi GPS"
+        onBack={() => navigation.goBack()}
+      />
+
+      <View style={styles.content}>
+        {/* Radar Scanner Visual */}
+        <View style={styles.radarWrapper}>
+          <Animated.View
+            style={[
+              styles.radarCircle,
+              {
+                transform: [{ scale: radarScale1 }],
+                opacity: radarOpacity1,
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.radarCircle,
+              {
+                transform: [{ scale: radarScale2 }],
+                opacity: radarOpacity2,
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.centerIconCircle,
+              { transform: [{ scale: iconPulse }] },
+            ]}
+          >
+            <NavigationIcon color={Colors.white} size={36} />
+          </Animated.View>
+        </View>
+
+        {/* Status Card */}
+        <View style={styles.statusCard}>
+          {detecting ? (
+            <ActivityIndicator
+              size="small"
+              color={Colors.primary}
+              style={{ marginBottom: Spacing.sm }}
+            />
+          ) : (
+            <MapPin
+              color={Colors.primary}
+              size={24}
+              style={{ marginBottom: Spacing.sm }}
+            />
+          )}
+
+          <Text style={styles.statusMessage}>{loadingMsg}</Text>
+
+          {currentCoordsStr ? (
+            <Text style={styles.coordsText}>
+              Koordinat: {currentCoordsStr}
+            </Text>
+          ) : null}
+
+          <View style={styles.radiusBadge}>
+            <View style={styles.activeDot} />
+            <Text style={styles.radiusBadgeText}>
+              Radius: 100 Meter
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity
+            style={styles.scanAgainButton}
+            onPress={processGpsDetection}
+            disabled={detecting}
+            activeOpacity={0.8}
+          >
+            <RotateCcw color={Colors.white} size={18} />
+            <Text style={styles.scanAgainButtonText}>
+              {detecting ? 'Sedang Memindai...' : 'Scan Ulang GPS'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.selectManualButton}
+            onPress={() => navigation.replace('SelectPop')}
+            activeOpacity={0.8}
+          >
+            <ListFilter color={Colors.primary} size={18} />
+            <Text style={styles.selectManualButtonText}>
+              Pilih POP Manual dari Daftar
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -294,25 +501,34 @@ export const StartInspectionScreen: React.FC = () => {
               </View>
               <Text style={styles.modalTitle}>Pilih POP Terdekat</Text>
               <Text style={styles.modalSubtitle}>
-                Ditemukan {nearbyPops.length} POP dalam radius 100 meter dari posisi Anda:
+                Ditemukan {nearbyPops.length} POP dalam radius 100 meter dari
+                posisi Anda saat ini:
               </Text>
             </View>
 
             <FlatList
               data={nearbyPops}
-              keyExtractor={(item) => (item.asset as any).id || item.asset.assetCode}
+              keyExtractor={item =>
+                (item.asset as any).id || item.asset.assetCode
+              }
               style={styles.popList}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={styles.popCard}
                   activeOpacity={0.75}
-                  onPress={() => applySelectedPop(item.asset, capturedPhotoUri || undefined)}
+                  onPress={() => applySelectedPop(item.asset)}
                 >
                   <View style={styles.popCardLeft}>
-                    <Text style={styles.popCardName}>{cleanPopName(item.asset.name)}</Text>
-                    <Text style={styles.popCardCode}>{cleanPopId(item.asset.assetCode)}</Text>
+                    <Text style={styles.popCardName}>
+                      {cleanPopName(item.asset.name)}
+                    </Text>
+                    <Text style={styles.popCardCode}>
+                      {cleanPopId(item.asset.assetCode)}
+                    </Text>
                     {item.asset.location ? (
-                      <Text style={styles.popCardLocation} numberOfLines={1}>{item.asset.location}</Text>
+                      <Text style={styles.popCardLocation} numberOfLines={1}>
+                        {item.asset.location}
+                      </Text>
                     ) : null}
                   </View>
                   <View style={styles.distanceBadge}>
@@ -325,14 +541,16 @@ export const StartInspectionScreen: React.FC = () => {
 
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={styles.selectManualBtn}
+                style={styles.modalSelectManualBtn}
                 onPress={() => {
                   setShowMultiPopModal(false);
                   navigation.replace('SelectPop');
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.selectManualText}>Pilih POP Lainnya dari Daftar</Text>
+                <Text style={styles.modalSelectManualText}>
+                  Pilih POP Lainnya dari Daftar
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -346,39 +564,122 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
   },
-  detectingContainer: {
+  radarWrapper: {
+    width: 200,
+    height: 200,
     alignItems: 'center',
-    backgroundColor: Colors.surface,
-    padding: Spacing['2xl'],
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    width: '100%',
+    justifyContent: 'center',
+    marginBottom: Spacing['2xl'],
+    position: 'relative',
+  },
+  radarCircle: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+  },
+  centerIconCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
     ...Shadow.lg,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  detectingText: {
-    color: Colors.white,
-    ...Typography.h4,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+  statusCard: {
+    width: '100%',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.xl,
+    ...Shadow.md,
+  },
+  statusMessage: {
+    ...Typography.subtitle1,
+    color: Colors.text,
+    fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 4,
   },
-  locationBadge: {
+  coordsText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    fontFamily: 'monospace',
+    marginBottom: Spacing.md,
+  },
+  radiusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(52, 152, 219, 0.2)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
   },
-  locationText: {
-    color: Colors.info,
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#3B82F6',
+    marginRight: 6,
+  },
+  radiusBadgeText: {
     ...Typography.caption,
-    marginLeft: Spacing.xs,
+    color: '#93C5FD',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  actionButtonsContainer: {
+    width: '100%',
+    gap: Spacing.md,
+  },
+  scanAgainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    ...Shadow.sm,
+  },
+  scanAgainButtonText: {
+    ...Typography.button,
+    color: Colors.white,
+    fontWeight: 'bold',
+  },
+  selectManualButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    paddingVertical: 14,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+  },
+  selectManualButtonText: {
+    ...Typography.button,
+    color: Colors.primary,
     fontWeight: '600',
   },
 
@@ -481,11 +782,11 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
     paddingTop: Spacing.md,
   },
-  selectManualBtn: {
+  modalSelectManualBtn: {
     alignItems: 'center',
     paddingVertical: Spacing.sm,
   },
-  selectManualText: {
+  modalSelectManualText: {
     color: Colors.primary,
     ...Typography.button,
     fontSize: 13,

@@ -12,7 +12,11 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronDown, Trash2 } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, showAlert, DropdownModalPicker } from '../../components/common';
+import {
+  Header,
+  showAlert,
+  DropdownModalPicker,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import type { RootStackParamList } from '../../types';
 
@@ -52,14 +56,9 @@ export const DcpdbScreen: React.FC = () => {
   const { formData, updateFormData } = useInspectionStore();
 
   const dcpdbSaved = formData.dcpdb || {};
-  const psSaved = formData.powerSystem || {};
 
   const getInitialMcbList = (): DcpdbMcbRow[] => {
-    const list =
-      dcpdbSaved.dcpdbBeban ||
-      dcpdbSaved.bebanDcpdb ||
-      psSaved.dcpdbBeban ||
-      psSaved.bebanDcpdb;
+    const list = dcpdbSaved.dcpdbBeban || dcpdbSaved.bebanDcpdb;
 
     if (Array.isArray(list) && list.length > 0) {
       return list.map((item: any, idx: number) => ({
@@ -69,7 +68,9 @@ export const DcpdbScreen: React.FC = () => {
         phasa:
           item.phasa ||
           item.labelMcb ||
-          (item.dcpdb && ['R', 'S', 'T'].includes(item.dcpdb) ? item.dcpdb : '') ||
+          (item.dcpdb && ['R', 'S', 'T'].includes(item.dcpdb)
+            ? item.dcpdb
+            : '') ||
           '',
         peruntukan: item.peruntukan || '',
         beban:
@@ -121,10 +122,14 @@ export const DcpdbScreen: React.FC = () => {
   };
 
   const [mcbList, setMcbList] = useState<DcpdbMcbRow[]>(getInitialMcbList);
-  const [aresterAda, setAresterAda] = useState<string>(dcpdbSaved.aresterAda || '');
-  const [aresterTipe, setAresterTipe] = useState<string>(dcpdbSaved.aresterTipe || '');
+  const [aresterAda, setAresterAda] = useState<string>(
+    dcpdbSaved.aresterAda || '',
+  );
+  const [aresterTipe, setAresterTipe] = useState<string>(
+    dcpdbSaved.aresterTipe || '',
+  );
   const [aresterWarnaIndikator, setAresterWarnaIndikator] = useState<string>(
-    dcpdbSaved.aresterWarnaIndikator || ''
+    dcpdbSaved.aresterWarnaIndikator || '',
   );
   const [catatan, setCatatan] = useState<string>(dcpdbSaved.catatan || '');
 
@@ -148,7 +153,7 @@ export const DcpdbScreen: React.FC = () => {
     updatedAresterAda: string,
     updatedAresterTipe: string,
     updatedAresterWarna: string,
-    updatedCatatan: string
+    updatedCatatan: string,
   ) => {
     const normalized = updatedMcbList.map((item, idx) => {
       const ph = item.phasa || '';
@@ -180,13 +185,6 @@ export const DcpdbScreen: React.FC = () => {
     };
 
     updateFormData('dcpdb', dcpdbPayload);
-
-    // Keep powerSystem.dcpdbBeban in sync for review & PDF exports
-    updateFormData('powerSystem', {
-      ...(formData.powerSystem || {}),
-      dcpdbBeban: normalized,
-      bebanDcpdb: normalized,
-    });
   };
 
   const addMcbRow = () => {
@@ -203,7 +201,13 @@ export const DcpdbScreen: React.FC = () => {
     };
     const updated = [...mcbList, newRow];
     setMcbList(updated);
-    syncToStore(updated, aresterAda, aresterTipe, aresterWarnaIndikator, catatan);
+    syncToStore(
+      updated,
+      aresterAda,
+      aresterTipe,
+      aresterWarnaIndikator,
+      catatan,
+    );
     showAlert({
       type: 'success',
       title: 'MCB Ditambahkan',
@@ -228,18 +232,34 @@ export const DcpdbScreen: React.FC = () => {
               mcb: String(idx + 1),
             }));
             setMcbList(reindexed);
-            syncToStore(reindexed, aresterAda, aresterTipe, aresterWarnaIndikator, catatan);
+            syncToStore(
+              reindexed,
+              aresterAda,
+              aresterTipe,
+              aresterWarnaIndikator,
+              catatan,
+            );
           },
         },
       ],
     });
   };
 
-  const updateMcbField = (index: number, field: keyof DcpdbMcbRow, value: string) => {
+  const updateMcbField = (
+    index: number,
+    field: keyof DcpdbMcbRow,
+    value: string,
+  ) => {
     const updated = [...mcbList];
     updated[index] = { ...updated[index], [field]: value };
     setMcbList(updated);
-    syncToStore(updated, aresterAda, aresterTipe, aresterWarnaIndikator, catatan);
+    syncToStore(
+      updated,
+      aresterAda,
+      aresterTipe,
+      aresterWarnaIndikator,
+      catatan,
+    );
   };
 
   const handleUpdateAresterAda = (val: string) => {
@@ -266,7 +286,7 @@ export const DcpdbScreen: React.FC = () => {
     value: string,
     onSelect: (val: string) => void,
     options: string[],
-    title: string
+    title: string,
   ) => {
     return (
       <TouchableOpacity
@@ -307,20 +327,18 @@ export const DcpdbScreen: React.FC = () => {
       >
         {/* Card 1: Beban DCPDB */}
         <View style={styles.card}>
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: Spacing.md,
-              marginTop: Spacing.sm,
-            }}
-          >
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Beban DCPDB</Text>
-            <TouchableOpacity onPress={addMcbRow} style={{ padding: 8 }}>
-              <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>+ Tambah MCB Baru</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Beban DCPDB</Text>
+            <TouchableOpacity
+              onPress={addMcbRow}
+              style={{ paddingVertical: 4 }}
+            >
+              <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>
+                + Tambah MCB Baru
+              </Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.titleDivider} />
 
           {mcbList.map((row, i) => (
             <View
@@ -328,21 +346,24 @@ export const DcpdbScreen: React.FC = () => {
               style={[
                 styles.card,
                 {
-                  marginTop: Spacing.md,
+                  marginTop: i === 0 ? 0 : Spacing.md,
                   borderWidth: 1,
                   borderColor: Colors.border,
                 },
               ]}
             >
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>MCB #{i + 1}</Text>
+                <Text style={styles.mcbCardTitle}>MCB #{i + 1}</Text>
                 {mcbList.length > 1 && (
-                  <TouchableOpacity onPress={() => removeMcbRow(i)} style={{ padding: 4 }}>
-                    <Trash2 color={Colors.danger} size={20} />
+                  <TouchableOpacity
+                    onPress={() => removeMcbRow(i)}
+                    style={{ padding: 4 }}
+                  >
+                    <Trash2 color={Colors.danger} size={15} />
                   </TouchableOpacity>
                 )}
               </View>
-              <View style={[styles.divider, { marginTop: 0, marginBottom: Spacing.md }]} />
+              <View style={styles.titleDivider} />
 
               {/* Baris 1: Kapasitas & Phasa */}
               <View style={styles.row}>
@@ -352,7 +373,7 @@ export const DcpdbScreen: React.FC = () => {
                     style={styles.textInput}
                     keyboardType="numeric"
                     value={row.kapasitas}
-                    onChangeText={(val) => updateMcbField(i, 'kapasitas', val)}
+                    onChangeText={val => updateMcbField(i, 'kapasitas', val)}
                     placeholder="—"
                     placeholderTextColor={Colors.textMuted}
                   />
@@ -363,9 +384,9 @@ export const DcpdbScreen: React.FC = () => {
                   <View style={{ width: 100 }}>
                     {renderDropdownSelect(
                       row.phasa,
-                      (val) => updateMcbField(i, 'phasa', val),
+                      val => updateMcbField(i, 'phasa', val),
                       ['R', 'S', 'T'],
-                      `Pilih Phasa MCB #${i + 1}`
+                      `Pilih Phasa MCB #${i + 1}`,
                     )}
                   </View>
                 </View>
@@ -378,7 +399,9 @@ export const DcpdbScreen: React.FC = () => {
                   <TextInput
                     style={styles.textInput}
                     value={row.merk}
-                    onChangeText={(val) => updateMcbField(i, 'merk', val)}
+                    onChangeText={val => updateMcbField(i, 'merk', val)}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
                   />
                 </View>
 
@@ -387,7 +410,9 @@ export const DcpdbScreen: React.FC = () => {
                   <TextInput
                     style={styles.textInput}
                     value={row.peruntukan}
-                    onChangeText={(val) => updateMcbField(i, 'peruntukan', val)}
+                    onChangeText={val => updateMcbField(i, 'peruntukan', val)}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
                   />
                 </View>
               </View>
@@ -402,7 +427,7 @@ export const DcpdbScreen: React.FC = () => {
                     <TextInput
                       style={styles.measurementInput}
                       value={row.beban}
-                      onChangeText={(val) => updateMcbField(i, 'beban', val)}
+                      onChangeText={val => updateMcbField(i, 'beban', val)}
                       placeholder="—"
                       placeholderTextColor={Colors.textMuted}
                       keyboardType="numeric"
@@ -419,7 +444,7 @@ export const DcpdbScreen: React.FC = () => {
                     <TextInput
                       style={styles.measurementInput}
                       value={row.arus}
-                      onChangeText={(val) => updateMcbField(i, 'arus', val)}
+                      onChangeText={val => updateMcbField(i, 'arus', val)}
                       placeholder="—"
                       placeholderTextColor={Colors.textMuted}
                       keyboardType="numeric"
@@ -436,7 +461,7 @@ export const DcpdbScreen: React.FC = () => {
                     <TextInput
                       style={styles.measurementInput}
                       value={row.suhuKabel}
-                      onChangeText={(val) => updateMcbField(i, 'suhuKabel', val)}
+                      onChangeText={val => updateMcbField(i, 'suhuKabel', val)}
                       placeholder="—"
                       placeholderTextColor={Colors.textMuted}
                       keyboardType="numeric"
@@ -450,8 +475,8 @@ export const DcpdbScreen: React.FC = () => {
 
         {/* Card 2: Arester */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Arester</Text>
-          <View style={[styles.divider, { marginTop: 0, marginBottom: Spacing.md }]} />
+          <Text style={styles.cardTitle}>Arester</Text>
+          <View style={styles.titleDivider} />
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
@@ -460,7 +485,7 @@ export const DcpdbScreen: React.FC = () => {
                 aresterAda,
                 handleUpdateAresterAda,
                 ['Ada', 'Tidak Ada'],
-                'Pilih Status Arester'
+                'Pilih Status Arester',
               )}
             </View>
             <View style={{ flex: 1 }} />
@@ -474,6 +499,8 @@ export const DcpdbScreen: React.FC = () => {
                   style={styles.textInput}
                   value={aresterTipe}
                   onChangeText={handleUpdateAresterTipe}
+                  placeholder="—"
+                  placeholderTextColor={Colors.textMuted}
                 />
               </View>
 
@@ -483,6 +510,8 @@ export const DcpdbScreen: React.FC = () => {
                   style={styles.textInput}
                   value={aresterWarnaIndikator}
                   onChangeText={handleUpdateAresterWarna}
+                  placeholder="—"
+                  placeholderTextColor={Colors.textMuted}
                 />
               </View>
             </View>
@@ -491,11 +520,14 @@ export const DcpdbScreen: React.FC = () => {
 
         {/* Card 3: Catatan */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Catatan</Text>
-          <View style={[styles.divider, { marginTop: 0, marginBottom: Spacing.md }]} />
+          <Text style={styles.cardTitle}>Catatan</Text>
+          <View style={styles.titleDivider} />
 
           <TextInput
-            style={[styles.textInput, { height: 100, textAlignVertical: 'top' }]}
+            style={[
+              styles.textInput,
+              { height: 100, textAlignVertical: 'top' },
+            ]}
             value={catatan}
             onChangeText={handleUpdateCatatan}
             placeholder="Tambahkan catatan..."
@@ -521,7 +553,7 @@ export const DcpdbScreen: React.FC = () => {
         options={modalPicker.options}
         selectedValue={modalPicker.selectedValue}
         onSelect={modalPicker.onSelect}
-        onClose={() => setModalPicker((prev) => ({ ...prev, visible: false }))}
+        onClose={() => setModalPicker(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );
@@ -533,14 +565,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: 80,
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
   },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     ...Shadow.sm,
@@ -549,21 +581,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: 28,
   },
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  mcbCardTitle: {
+    ...Typography.h4,
+    color: Colors.text,
+    fontSize: 15,
+    fontWeight: 'bold',
+    lineHeight: 22,
+  },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
-    marginBottom: Spacing.md,
+    lineHeight: 24,
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.textMuted,
+    fontSize: 10,
+    color: Colors.textSecondary,
     fontWeight: 'bold',
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -575,14 +625,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: Colors.text,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    height: 44,
-    ...Typography.body,
+    paddingVertical: 8,
+    height: 38,
+    fontSize: 13,
+    textAlign: 'left',
   },
   row: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   divider: {
     height: 1,
@@ -597,8 +648,10 @@ const styles = StyleSheet.create({
   },
   measurementLabel: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
     fontWeight: '600',
+    flex: 1,
   },
   measurementInputWrapper: {
     flexDirection: 'row',
@@ -609,25 +662,26 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     width: 90,
-    height: 44,
+    height: 38,
     justifyContent: 'center',
     paddingHorizontal: 12,
     backgroundColor: Colors.background,
   },
   measurementInput: {
-    ...Typography.body,
     color: Colors.text,
-    textAlign: 'right',
+    textAlign: 'left',
     padding: 0,
     margin: 0,
+    fontSize: 14,
   },
   measurementUnit: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.textMuted,
     fontWeight: 'bold',
     marginLeft: Spacing.sm,
     width: 45,
     textAlign: 'left',
+    fontSize: 11,
   },
   selectBox: {
     width: '100%',
@@ -638,13 +692,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: Colors.background,
-    height: 44,
+    height: 38,
   },
   selectText: {
-    ...Typography.body,
     color: Colors.text,
+    fontSize: 13,
   },
   selectTextPlaceholder: {
     color: Colors.textMuted,

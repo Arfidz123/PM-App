@@ -4,7 +4,7 @@
  * This is separate from ReviewPdfScreen which reads from the live zustand store.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,21 +15,37 @@ import {
   Share,
   Platform,
   NativeModules,
+  ScrollView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Download, Share2, ChevronLeft, ChevronRight, Edit3 } from 'lucide-react-native';
+import {
+  Download,
+  Share2,
+  ChevronLeft,
+  ChevronRight,
+  Edit3,
+} from 'lucide-react-native';
 import WebView from 'react-native-webview';
 import RNHTMLtoPDF, { generatePDF } from 'react-native-html-to-pdf';
 import LinearGradient from 'react-native-linear-gradient';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
 import { Header, showAlert } from '../../components/common';
+import { resolveAllTelegramUrisInObject } from '../../services/telegramStorage';
 import database from '../../database';
 import { Inspection, Asset } from '../../database/models';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { generateDownloadablePdfHtml, generatePdfSections } from '../../utils/pdfTemplate';
-import { formatDate, cleanPopId, cleanPopName, sharePdfFile } from '../../utils/helpers';
+import {
+  generateDownloadablePdfHtml,
+  generatePdfSections,
+} from '../../utils/pdfTemplate';
+import {
+  formatDate,
+  cleanPopId,
+  cleanPopName,
+  sharePdfFile,
+} from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -43,10 +59,20 @@ export const HistoryReviewPdfScreen: React.FC = () => {
   const { inspectionId } = route.params || {};
 
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [asset, setAsset] = useState<Asset | null>(null);
   const [mergedFormData, setMergedFormData] = useState<any>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const dotsScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (dotsScrollRef.current) {
+      const xOffset = Math.max(0, activeIndex * 44 - (SCREEN_WIDTH / 2 - 40));
+      dotsScrollRef.current.scrollTo({ x: xOffset, animated: true });
+    }
+  }, [activeIndex]);
 
   useEffect(() => {
     loadData();
@@ -60,13 +86,18 @@ export const HistoryReviewPdfScreen: React.FC = () => {
 
     try {
       setLoading(true);
-      const insp = await database.get<Inspection>('inspections').find(inspectionId);
+      const insp = await database
+        .get<Inspection>('inspections')
+        .find(inspectionId);
       setInspection(insp);
 
       let parsedForm: any = {};
       if (insp.formData) {
         try {
-          parsedForm = typeof insp.formData === 'string' ? JSON.parse(insp.formData) : insp.formData;
+          parsedForm =
+            typeof insp.formData === 'string'
+              ? JSON.parse(insp.formData)
+              : insp.formData;
         } catch (e) {
           console.warn('Failed to parse formData string:', e);
         }
@@ -75,25 +106,37 @@ export const HistoryReviewPdfScreen: React.FC = () => {
       let parsedPhotos: any[] = [];
       if (insp.photos) {
         try {
-          parsedPhotos = typeof insp.photos === 'string' ? JSON.parse(insp.photos) : insp.photos;
+          parsedPhotos =
+            typeof insp.photos === 'string'
+              ? JSON.parse(insp.photos)
+              : insp.photos;
         } catch (e) {}
       }
 
       const merged = {
         ...parsedForm,
-        inspectionStartTime: parsedForm.inspectionStartTime || (insp.inspectionDate ? new Date(insp.inspectionDate).toISOString() : new Date().toISOString()),
-        photos: parsedPhotos.length > 0 ? parsedPhotos : (parsedForm.photos || []),
+        inspectionStartTime:
+          parsedForm.inspectionStartTime ||
+          (insp.inspectionDate
+            ? new Date(insp.inspectionDate).toISOString()
+            : new Date().toISOString()),
+        photos:
+          parsedPhotos.length > 0 ? parsedPhotos : parsedForm.photos || [],
         notes: insp.notes || parsedForm.notes || '',
       };
-      setMergedFormData(merged);
+      const resolvedMerged = await resolveAllTelegramUrisInObject(merged);
+      setMergedFormData(resolvedMerged);
 
       try {
-        const assetData = await database.get<Asset>('assets').find(insp.assetId);
+        const assetData = await database
+          .get<Asset>('assets')
+          .find(insp.assetId);
         setAsset(assetData);
       } catch (assetErr) {
         try {
           const allAssets = await database.get<Asset>('assets').query().fetch();
-          const found = allAssets.find((a: Asset) => a.assetCode === insp.assetId) || null;
+          const found =
+            allAssets.find((a: Asset) => a.assetCode === insp.assetId) || null;
           setAsset(found);
         } catch (e) {}
       }
@@ -105,20 +148,32 @@ export const HistoryReviewPdfScreen: React.FC = () => {
   };
 
   const activePopId = asset?.assetCode || inspection?.assetId || 'POP';
-  const popName = (asset as any)?.name
-    || mergedFormData?.infoPop?.namaPop
-    || mergedFormData?.infoPop?.popName
-    || (inspection?.assetId !== 'unknown' ? inspection?.assetId : 'POP');
-  const popLocation = (asset as any)?.location || mergedFormData?.infoPop?.lokasi || '';
+  const popName =
+    (asset as any)?.name ||
+    mergedFormData?.infoPop?.namaPop ||
+    mergedFormData?.infoPop?.popName ||
+    (inspection?.assetId !== 'unknown' ? inspection?.assetId : 'POP');
+  const popLocation =
+    (asset as any)?.location || mergedFormData?.infoPop?.lokasi || '';
 
   const sections = useMemo(() => {
     if (!mergedFormData) return [];
-    return generatePdfSections(activePopId, popName, popLocation, mergedFormData);
+    return generatePdfSections(
+      activePopId,
+      popName,
+      popLocation,
+      mergedFormData,
+    );
   }, [activePopId, popName, popLocation, mergedFormData]);
 
   const downloadableHtml = useMemo(() => {
     if (!mergedFormData) return '';
-    return generateDownloadablePdfHtml(activePopId, popName, popLocation, mergedFormData);
+    return generateDownloadablePdfHtml(
+      activePopId,
+      popName,
+      popLocation,
+      mergedFormData,
+    );
   }, [activePopId, popName, popLocation, mergedFormData]);
 
   const currentSection: any = sections[activeIndex];
@@ -133,77 +188,161 @@ export const HistoryReviewPdfScreen: React.FC = () => {
   }, [currentSection]);
 
   const ensurePdfPath = async (): Promise<string> => {
-    if (inspection?.pdfPath) return inspection.pdfPath;
-    if (!downloadableHtml) return '';
+    // 1. If downloadableHtml is available, ALWAYS convert to a fresh local PDF first!
+    if (downloadableHtml) {
+      const cleanId = cleanPopId(activePopId) || 'POP';
+      const safePopId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const pdfFileName = `PM_Report_${safePopId}_${Date.now()}`;
+      const options = {
+        html: downloadableHtml,
+        fileName: pdfFileName,
+        directory: 'docs',
+      };
 
-    const pdfFileName = `PM_Report_${cleanPopId(activePopId)}_${Date.now()}`;
-    const options = {
-      html: downloadableHtml,
-      fileName: pdfFileName,
-      directory: 'docs',
-    };
+      try {
+        let file: any;
+        if (typeof generatePDF === 'function') {
+          file = await generatePDF(options as any);
+        } else if (
+          RNHTMLtoPDF &&
+          typeof (RNHTMLtoPDF as any).convert === 'function'
+        ) {
+          file = await (RNHTMLtoPDF as any).convert(options);
+        }
 
-    try {
-      let file: any;
-      if (typeof generatePDF === 'function') {
-        file = await generatePDF(options as any);
-      } else if (RNHTMLtoPDF && typeof RNHTMLtoPDF.convert === 'function') {
-        file = await RNHTMLtoPDF.convert(options);
-      }
-      const generatedPath = file?.filePath || '';
-      if (generatedPath && inspection) {
+        const generatedPath = file?.filePath || '';
+        if (generatedPath) {
+          if (inspection) {
+            try {
+              await database.write(async () => {
+                await inspection.update((i: any) => {
+                  i.pdfPath = generatedPath;
+                });
+              });
+            } catch (updateErr) {}
+          }
+          return generatedPath;
+        }
+      } catch (firstErr) {
+        console.warn(
+          'First ensurePdfPath attempt failed, retrying with forceReset:',
+          firstErr,
+        );
         try {
-          await database.write(async () => {
-            await inspection.update((i: any) => {
-              i.pdfPath = generatedPath;
-            });
-          });
-        } catch (updateErr) {}
+          const file = await generatePDF({
+            ...options,
+            forceReset: true,
+          } as any);
+          const generatedPath = file?.filePath || '';
+          if (generatedPath) {
+            return generatedPath;
+          }
+        } catch (retryErr) {
+          console.error('Retry generatePDF failed:', retryErr);
+        }
       }
-      return generatedPath;
-    } catch (e) {
-      console.error('Error generating PDF on demand:', e);
-      return '';
     }
+
+    // 2. If inspection already has a local file path
+    if (
+      inspection?.pdfPath &&
+      !inspection.pdfPath.startsWith('http://') &&
+      !inspection.pdfPath.startsWith('https://') &&
+      !inspection.pdfPath.startsWith('telegram://')
+    ) {
+      return inspection.pdfPath;
+    }
+
+    // 3. Fallback: if it's a telegram or http url, resolve it to an active download link
+    if (inspection?.pdfPath) {
+      let p = inspection.pdfPath;
+      if (p.startsWith('telegram://')) {
+        try {
+          const { resolveTelegramUri } = require('../../services/telegramStorage');
+          const resolved = await resolveTelegramUri(p);
+          if (resolved) {
+            return resolved;
+          }
+        } catch (resErr) {
+          console.warn('Failed resolving telegram uri:', resErr);
+        }
+      }
+      return p;
+    }
+
+    return '';
   };
 
   const handleSharePdf = async () => {
-    const validPath = await ensurePdfPath();
-    if (validPath) {
-      try {
+    setSharing(true);
+    try {
+      const validPath = await ensurePdfPath();
+      if (validPath) {
         await sharePdfFile(
           validPath,
           `PM Report - ${cleanPopId(activePopId)}`,
-          `Laporan PM untuk ${cleanPopName(popName)} - ${formatDate(inspection?.inspectionDate || Date.now())}`,
+          `Laporan PM untuk ${cleanPopName(popName)} - ${formatDate(
+            inspection?.inspectionDate || Date.now(),
+          )}`,
         );
-      } catch (error) {
-        showAlert({type: 'error', title: 'Error', message: 'Gagal membagikan PDF'});
+      } else {
+        showAlert({
+          type: 'error',
+          title: 'Error',
+          message: 'Gagal membuat file PDF untuk dibagikan',
+        });
       }
-    } else {
-      showAlert({type: 'info', title: 'Info', message: 'Gagal membuat file PDF untuk laporan ini'});
+    } catch (error: any) {
+      showAlert({
+        type: 'error',
+        title: 'Error',
+        message: 'Gagal membagikan PDF: ' + (error?.message || ''),
+      });
+    } finally {
+      setSharing(false);
     }
   };
 
   const handleDownloadPdf = async () => {
-    const validPath = await ensurePdfPath();
-    if (validPath) {
-      const pdfFileName = `PM_Report_${cleanPopId(activePopId)}_${Date.now()}`;
+    setDownloading(true);
+    try {
+      const validPath = await ensurePdfPath();
+      if (!validPath) {
+        throw new Error(
+          'Gagal membuat atau menemukan file PDF untuk laporan ini.',
+        );
+      }
+
+      const cleanId = cleanPopId(activePopId) || 'POP';
+      const safePopId = cleanId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const pdfFileName = `PM_Report_${safePopId}_${Date.now()}`;
 
       if (Platform.OS === 'android' && NativeModules.PdfDownloader) {
-        try {
-          await NativeModules.PdfDownloader.saveToDownloads(validPath, pdfFileName);
-        } catch (downloadErr) {
-          console.warn('Save to downloads notice:', downloadErr);
-        }
+        await NativeModules.PdfDownloader.saveToDownloads(
+          validPath,
+          pdfFileName,
+        );
       }
 
-      try {
-        await sharePdfFile(validPath, `Laporan PM - ${cleanPopName(popName || activePopId)}`, `Berikut file laporan PDF PM`);
-      } catch (shareErr) {
-        console.warn('Open PDF notice:', shareErr);
-      }
-    } else {
-      showAlert({type: 'error', title: 'Error', message: 'Gagal membuat file PDF.'});
+      showAlert({
+        type: 'success',
+        title: 'Unduhan Berhasil',
+        message:
+          'Laporan PDF berhasil diunduh ke folder Download perangkat Anda.',
+        buttons: [{ text: 'OK' }],
+      });
+    } catch (error: any) {
+      console.error('Download error in history review:', error);
+      showAlert({
+        type: 'error',
+        title: 'Gagal Mengunduh',
+        message:
+          'Terjadi kesalahan saat mengunduh PDF: ' +
+          (error?.message || 'Error tidak diketahui'),
+        buttons: [{ text: 'OK' }],
+      });
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -212,13 +351,17 @@ export const HistoryReviewPdfScreen: React.FC = () => {
     showAlert({
       type: 'confirm',
       title: 'Edit Laporan PM',
-      message: `Anda akan membuka formulir inspeksi "${cleanPopName(popName || activePopId || 'POP')}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
+      message: `Anda akan membuka formulir inspeksi "${cleanPopName(
+        popName || activePopId || 'POP',
+      )}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
       buttons: [
         { text: 'Batal', style: 'cancel' },
         {
           text: 'Edit Sekarang',
           onPress: () => {
-            useInspectionStore.getState().loadExistingInspection(inspection, asset);
+            useInspectionStore
+              .getState()
+              .loadExistingInspection(inspection, asset);
             navigation.navigate('MainTabs');
           },
         },
@@ -259,7 +402,8 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
-            activeOpacity={0.8}>
+            activeOpacity={0.8}
+          >
             <Text style={styles.backBtnText}>Kembali</Text>
           </TouchableOpacity>
         </View>
@@ -278,38 +422,54 @@ export const HistoryReviewPdfScreen: React.FC = () => {
 
       <View style={styles.contentContainer}>
         {/* Numbered Dots Row */}
-        <View style={styles.dotsRow}>
-          {sections.map((_: any, idx: number) => {
-            const isActive = idx === activeIndex;
-            return (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => setActiveIndex(idx)}
-                activeOpacity={0.7}
-                style={[styles.dot, isActive && styles.dotActive]}
-              >
-                <Text style={[styles.dotText, isActive && styles.dotTextActive]}>
-                  {idx + 1}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+        <View style={styles.dotsContainer}>
+          <ScrollView
+            ref={dotsScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dotsScrollContent}
+          >
+            {sections.map((_: any, idx: number) => {
+              const isActive = idx === activeIndex;
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => setActiveIndex(idx)}
+                  activeOpacity={0.7}
+                  style={[styles.dot, isActive && styles.dotActive]}
+                >
+                  <Text
+                    style={[styles.dotText, isActive && styles.dotTextActive]}
+                  >
+                    {idx + 1}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Section Header Navigation */}
         <View style={styles.sectionHeader}>
           <TouchableOpacity
-            style={[styles.navArrowBtn, activeIndex === 0 && styles.navArrowBtnDisabled]}
+            style={[
+              styles.navArrowBtn,
+              activeIndex === 0 && styles.navArrowBtnDisabled,
+            ]}
             onPress={() => activeIndex > 0 && setActiveIndex(activeIndex - 1)}
             disabled={activeIndex === 0}
             activeOpacity={0.7}
           >
-            <ChevronLeft color={activeIndex === 0 ? 'rgba(255,255,255,0.2)' : Colors.white} size={20} />
+            <ChevronLeft
+              color={activeIndex === 0 ? 'rgba(255,255,255,0.2)' : Colors.white}
+              size={20}
+            />
           </TouchableOpacity>
 
           <View style={styles.sectionTitleWrapper}>
             <Text style={styles.sectionTitle} numberOfLines={1}>
-              {activeIndex + 1}. {sections[activeIndex]?.title || 'Preview Halaman'}
+              {activeIndex + 1}.{' '}
+              {sections[activeIndex]?.title || 'Preview Halaman'}
             </Text>
             <Text style={styles.slideCounterText}>
               Halaman {activeIndex + 1} dari {sections.length}
@@ -317,12 +477,25 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           </View>
 
           <TouchableOpacity
-            style={[styles.navArrowBtn, activeIndex === sections.length - 1 && styles.navArrowBtnDisabled]}
-            onPress={() => activeIndex < sections.length - 1 && setActiveIndex(activeIndex + 1)}
+            style={[
+              styles.navArrowBtn,
+              activeIndex === sections.length - 1 && styles.navArrowBtnDisabled,
+            ]}
+            onPress={() =>
+              activeIndex < sections.length - 1 &&
+              setActiveIndex(activeIndex + 1)
+            }
             disabled={activeIndex === sections.length - 1}
             activeOpacity={0.7}
           >
-            <ChevronRight color={activeIndex === sections.length - 1 ? 'rgba(255,255,255,0.2)' : Colors.white} size={20} />
+            <ChevronRight
+              color={
+                activeIndex === sections.length - 1
+                  ? 'rgba(255,255,255,0.2)'
+                  : Colors.white
+              }
+              size={20}
+            />
           </TouchableOpacity>
         </View>
 
@@ -355,12 +528,14 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.actionBtn, styles.editBtn]}
             activeOpacity={0.85}
-            onPress={handleEditInspection}>
+            onPress={handleEditInspection}
+          >
             <LinearGradient
               colors={['#F59E0B', '#D97706']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.actionBtnGradient}>
+              style={styles.actionBtnGradient}
+            >
               <Edit3
                 color={Colors.white}
                 size={18}
@@ -373,36 +548,54 @@ export const HistoryReviewPdfScreen: React.FC = () => {
           <TouchableOpacity
             style={[styles.actionBtn, styles.downloadBtn]}
             activeOpacity={0.85}
-            onPress={handleDownloadPdf}>
+            onPress={handleDownloadPdf}
+            disabled={downloading || sharing}
+          >
             <LinearGradient
-              colors={['#10B981', '#059669']}
+              colors={['#3B82F6', '#2563EB']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.actionBtnGradient}>
-              <Download
-                color={Colors.white}
-                size={18}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={styles.actionBtnText}>Download</Text>
+              style={styles.actionBtnGradient}
+            >
+              {downloading ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <>
+                  <Download
+                    color={Colors.white}
+                    size={18}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.actionBtnText}>Download</Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionBtn, styles.shareBtnInline]}
             activeOpacity={0.85}
-            onPress={handleSharePdf}>
+            onPress={handleSharePdf}
+            disabled={downloading || sharing}
+          >
             <LinearGradient
-              colors={['#3B82F6', '#1E40AF']}
+              colors={['#64748B', '#475569']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.actionBtnGradient}>
-              <Share2
-                color={Colors.white}
-                size={18}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={styles.actionBtnText}>Bagikan</Text>
+              style={styles.actionBtnGradient}
+            >
+              {sharing ? (
+                <ActivityIndicator color={Colors.white} size="small" />
+              ) : (
+                <>
+                  <Share2
+                    color={Colors.white}
+                    size={18}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.actionBtnText}>Bagikan</Text>
+                </>
+              )}
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -476,17 +669,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+  dotsContainer: {
     marginBottom: Spacing.sm,
+  },
+  dotsScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 2,
     gap: 8,
   },
   dot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.2)',
@@ -495,17 +690,18 @@ const styles = StyleSheet.create({
   },
   dotActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    transform: [{ scale: 1.1 }],
+    borderColor: '#60A5FA',
+    transform: [{ scale: 1.08 }],
     ...Shadow.sm,
   },
   dotText: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.4)',
+    color: 'rgba(255,255,255,0.5)',
   },
   dotTextActive: {
     color: Colors.white,
+    fontWeight: '800',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -572,12 +768,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Shadow.md,
   },
-  editBtn: {
-  },
-  downloadBtn: {
-  },
-  shareBtnInline: {
-  },
+  editBtn: {},
+  downloadBtn: {},
+  shareBtnInline: {},
   actionBtnGradient: {
     flexDirection: 'row',
     alignItems: 'center',

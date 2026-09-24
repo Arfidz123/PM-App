@@ -35,18 +35,78 @@ interface CategoryItemDef {
 
 const DEFAULT_CATEGORY_ITEMS: Record<string, CategoryItemDef[]> = {
   external_alarm: [
-    { key: 'mainsFail', label: 'Catuan PLN Mati (Mains Fail)', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'rectifierAlarm', label: 'Rectifier Major / Minor Alarm', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'batteryLow', label: 'Battery Low Voltage / Discharge', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'highTemp', label: 'Suhu Ruangan Tinggi (High Temp)', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'smokeFire', label: 'Sensor Asap & Api (Smoke / Fire)', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'doorSensor', label: 'Sensor Pintu Terbuka (Door Open)', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'gensetRunFail', label: 'Genset Run / Fail Alarm', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'arresterFail', label: 'Surge Arrester Fail', type: 'select', options: ['Normal', 'Alarm', 'N/A'] },
-    { key: 'tipeController', label: 'Tipe Controller I/O', type: 'text', placeholder: 'SNMP / RTU / IoT Box...' },
-    { key: 'suhuRuangan', label: 'Suhu Ruangan Terukur', type: 'numeric', unit: '°C' },
-    { key: 'kelembaban', label: 'Kelembaban Ruangan (Humidity)', type: 'numeric', unit: '% RH' },
-    { key: 'catatan', label: 'Catatan & Temuan Alarm', type: 'text', placeholder: 'Tulis catatan alarm...' },
+    {
+      key: 'mainsFail',
+      label: 'Catuan PLN Mati (Mains Fail)',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'rectifierAlarm',
+      label: 'Rectifier Major / Minor Alarm',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'batteryLow',
+      label: 'Battery Low Voltage / Discharge',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'highTemp',
+      label: 'Suhu Ruangan Tinggi (High Temp)',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'smokeFire',
+      label: 'Sensor Asap & Api (Smoke / Fire)',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'doorSensor',
+      label: 'Sensor Pintu Terbuka (Door Open)',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'gensetRunFail',
+      label: 'Genset Run / Fail Alarm',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'arresterFail',
+      label: 'Surge Arrester Fail',
+      type: 'select',
+      options: ['Normal', 'Alarm', 'N/A'],
+    },
+    {
+      key: 'tipeController',
+      label: 'Tipe Controller I/O',
+      type: 'text',
+      placeholder: 'SNMP / RTU / IoT Box...',
+    },
+    {
+      key: 'suhuRuangan',
+      label: 'Suhu Ruangan Terukur',
+      type: 'numeric',
+      unit: '°C',
+    },
+    {
+      key: 'kelembaban',
+      label: 'Kelembaban Ruangan (Humidity)',
+      type: 'numeric',
+      unit: '% RH',
+    },
+    {
+      key: 'catatan',
+      label: 'Catatan & Temuan Alarm',
+      type: 'text',
+      placeholder: 'Tulis catatan alarm...',
+    },
   ],
   genset: [],
   fot_ip: [],
@@ -70,28 +130,30 @@ export const CategoryFormScreen: React.FC = () => {
     }
   }, [categoryId]);
 
-  const { checklistEntries, updateChecklistEntry, formData, updateFormData } = useInspectionStore();
+  const { checklistEntries, updateChecklistEntry, formData, updateFormData } =
+    useInspectionStore();
 
   // 1. Check if category entries exist in database checklistEntries
   const categoryEntries = (checklistEntries || []).filter(
-    (entry) => entry.category === categoryId,
+    entry => entry.category === categoryId,
   );
 
   // 2. Built-in standard category fields fallback
   const defaultItems = DEFAULT_CATEGORY_ITEMS[categoryId] || [];
-  const isDefaultCategory = categoryEntries.length === 0 && defaultItems.length > 0;
+  const isDefaultCategory =
+    categoryEntries.length === 0 && defaultItems.length > 0;
 
   // Local form state bound to formData[categoryId]
   const currentFormData = formData[categoryId] || {};
 
   const handleUpdateChecklistValue = (item: any, value: string) => {
     const globalIndex = checklistEntries.findIndex(
-      (e) => e.templateItemId === item.templateItemId,
+      e => e.templateItemId === item.templateItemId,
     );
     if (globalIndex !== -1) {
       updateChecklistEntry(globalIndex, {
         value,
-        status: !value ? 'na' : (value === 'NOK' ? 'warning' : 'ok'),
+        status: !value ? 'na' : value === 'NOK' ? 'warning' : 'ok',
       });
     }
   };
@@ -100,22 +162,7 @@ export const CategoryFormScreen: React.FC = () => {
     const updated = { ...currentFormData, [key]: value };
     updateFormData(categoryId, updated);
 
-    // Two-way sync to powerSystem if relevant
-    if (categoryId === 'genset') {
-      const ps = formData.powerSystem || {};
-      const psSync: Record<string, any> = {};
-      if (key === 'gensetAda') psSync.gensetAda = value;
-      if (key === 'merkGenset') psSync.merkGenset = value;
-      if (key === 'snGenset') psSync.snGenset = value;
-      if (key === 'jenisGenset') psSync.jenisGenset = value;
-      if (key === 'tipeGenset') psSync.tipeGenset = value;
-      if (key === 'kapasitasGenset') psSync.kapasitasGenset = value;
-      if (key === 'phasaGenset') psSync.phasaGenset = value;
-      if (key === 'cosGenset') psSync.cosGenset = value;
-      if (Object.keys(psSync).length > 0) {
-        updateFormData('powerSystem', { ...ps, ...psSync });
-      }
-    } else if (categoryId === 'acpdb') {
+    if (categoryId === 'acpdb') {
       const ps = formData.powerSystem || {};
       const psSync: Record<string, any> = {};
       if (key === 'teganganR_N') psSync.teganganR_N = value;
@@ -134,7 +181,7 @@ export const CategoryFormScreen: React.FC = () => {
   const handleSetAllNormal = () => {
     if (!isDefaultCategory) return;
     const batchUpdates: Record<string, string> = {};
-    defaultItems.forEach((item) => {
+    defaultItems.forEach(item => {
       if (item.type === 'pass_fail') {
         batchUpdates[item.key] = 'OK';
       } else if (item.type === 'select' && item.options) {
@@ -151,7 +198,8 @@ export const CategoryFormScreen: React.FC = () => {
     showAlert({
       type: 'success',
       title: 'Status Diatur',
-      message: 'Semua item pemeriksaan cepat telah diatur ke kondisi Normal / OK.',
+      message:
+        'Semua item pemeriksaan cepat telah diatur ke kondisi Normal / OK.',
     });
   };
 
@@ -171,13 +219,15 @@ export const CategoryFormScreen: React.FC = () => {
 
   // Count filled items
   const filledCount = isDefaultCategory
-    ? defaultItems.filter((item) => {
+    ? defaultItems.filter(item => {
         const val = currentFormData[item.key];
         return val !== undefined && val !== '';
       }).length
-    : categoryEntries.filter((item) => item.value !== '').length;
+    : categoryEntries.filter(item => item.value !== '').length;
 
-  const totalCount = isDefaultCategory ? defaultItems.length : categoryEntries.length;
+  const totalCount = isDefaultCategory
+    ? defaultItems.length
+    : categoryEntries.length;
 
   const renderChecklistItem = (item: any) => {
     return (
@@ -187,16 +237,48 @@ export const CategoryFormScreen: React.FC = () => {
         {item.type === 'pass_fail' && (
           <View style={styles.segmentedControl}>
             <TouchableOpacity
-              style={[styles.segmentBtn, item.value === 'OK' && styles.segmentBtnActiveOk]}
-              onPress={() => handleUpdateChecklistValue(item, item.value === 'OK' ? '' : 'OK')}
+              style={[
+                styles.segmentBtn,
+                item.value === 'OK' && styles.segmentBtnActiveOk,
+              ]}
+              onPress={() =>
+                handleUpdateChecklistValue(
+                  item,
+                  item.value === 'OK' ? '' : 'OK',
+                )
+              }
             >
-              <Text style={item.value === 'OK' ? styles.segmentTextActive : styles.segmentText}>OK</Text>
+              <Text
+                style={
+                  item.value === 'OK'
+                    ? styles.segmentTextActive
+                    : styles.segmentText
+                }
+              >
+                OK
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.segmentBtn, item.value === 'NOK' && styles.segmentBtnActiveNok]}
-              onPress={() => handleUpdateChecklistValue(item, item.value === 'NOK' ? '' : 'NOK')}
+              style={[
+                styles.segmentBtn,
+                item.value === 'NOK' && styles.segmentBtnActiveNok,
+              ]}
+              onPress={() =>
+                handleUpdateChecklistValue(
+                  item,
+                  item.value === 'NOK' ? '' : 'NOK',
+                )
+              }
             >
-              <Text style={item.value === 'NOK' ? styles.segmentTextActive : styles.segmentText}>NOK</Text>
+              <Text
+                style={
+                  item.value === 'NOK'
+                    ? styles.segmentTextActive
+                    : styles.segmentText
+                }
+              >
+                NOK
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -207,11 +289,10 @@ export const CategoryFormScreen: React.FC = () => {
               style={styles.textInput}
               keyboardType="numeric"
               value={item.value}
-              onChangeText={(val) => handleUpdateChecklistValue(item, val)}
+              onChangeText={val => handleUpdateChecklistValue(item, val)}
               placeholder="0"
               placeholderTextColor={Colors.textMuted}
             />
-            {item.unit ? <Text style={styles.unitText}>{item.unit}</Text> : null}
           </View>
         )}
 
@@ -231,9 +312,22 @@ export const CategoryFormScreen: React.FC = () => {
                 <TouchableOpacity
                   key={opt}
                   style={[styles.segmentBtn, item.value === opt && activeStyle]}
-                  onPress={() => handleUpdateChecklistValue(item, item.value === opt ? '' : opt)}
+                  onPress={() =>
+                    handleUpdateChecklistValue(
+                      item,
+                      item.value === opt ? '' : opt,
+                    )
+                  }
                 >
-                  <Text style={item.value === opt ? styles.segmentTextActive : styles.segmentText}>{opt}</Text>
+                  <Text
+                    style={
+                      item.value === opt
+                        ? styles.segmentTextActive
+                        : styles.segmentText
+                    }
+                  >
+                    {opt}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -244,7 +338,7 @@ export const CategoryFormScreen: React.FC = () => {
           <TextInput
             style={[styles.textInput, { marginTop: Spacing.sm }]}
             value={item.value}
-            onChangeText={(val) => handleUpdateChecklistValue(item, val)}
+            onChangeText={val => handleUpdateChecklistValue(item, val)}
             placeholder="Keterangan..."
             placeholderTextColor={Colors.textMuted}
           />
@@ -267,7 +361,7 @@ export const CategoryFormScreen: React.FC = () => {
 
         {item.type === 'pass_fail' && (
           <View style={styles.segmentedControl}>
-            {['OK', 'NOK', 'N/A'].map((opt) => {
+            {['OK', 'NOK', 'N/A'].map(opt => {
               const isActive = value === opt;
               const activeStyle =
                 opt === 'OK'
@@ -280,9 +374,17 @@ export const CategoryFormScreen: React.FC = () => {
                   key={opt}
                   activeOpacity={0.7}
                   style={[styles.segmentBtn, isActive && activeStyle]}
-                  onPress={() => handleUpdateCustomValue(item.key, value === opt ? '' : opt)}
+                  onPress={() =>
+                    handleUpdateCustomValue(item.key, value === opt ? '' : opt)
+                  }
                 >
-                  <Text style={isActive ? styles.segmentTextActive : styles.segmentText}>{opt}</Text>
+                  <Text
+                    style={
+                      isActive ? styles.segmentTextActive : styles.segmentText
+                    }
+                  >
+                    {opt}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -291,12 +393,19 @@ export const CategoryFormScreen: React.FC = () => {
 
         {item.type === 'select' && item.options && (
           <View style={styles.optionsWrap}>
-            {item.options.map((opt) => {
+            {item.options.map(opt => {
               const isActive = value === opt;
               let activeStyle = styles.segmentBtnActiveOk;
-              if (opt.toLowerCase().includes('alarm') || opt.toLowerCase() === 'nok' || opt.toLowerCase().includes('critical')) {
+              if (
+                opt.toLowerCase().includes('alarm') ||
+                opt.toLowerCase() === 'nok' ||
+                opt.toLowerCase().includes('critical')
+              ) {
                 activeStyle = styles.segmentBtnActiveNok;
-              } else if (opt.toLowerCase().includes('warning') || opt.toLowerCase() === 'kurang') {
+              } else if (
+                opt.toLowerCase().includes('warning') ||
+                opt.toLowerCase() === 'kurang'
+              ) {
                 activeStyle = styles.segmentBtnActiveNa;
               }
 
@@ -305,10 +414,24 @@ export const CategoryFormScreen: React.FC = () => {
                   key={opt}
                   activeOpacity={0.7}
                   style={[styles.optionChip, isActive && activeStyle]}
-                  onPress={() => handleUpdateCustomValue(item.key, value === opt ? '' : opt)}
+                  onPress={() =>
+                    handleUpdateCustomValue(item.key, value === opt ? '' : opt)
+                  }
                 >
-                  {isActive && <Check size={14} color={Colors.white} style={{ marginRight: 4 }} />}
-                  <Text style={isActive ? styles.segmentTextActive : styles.segmentText}>{opt}</Text>
+                  {isActive && (
+                    <Check
+                      size={14}
+                      color={Colors.white}
+                      style={{ marginRight: 4 }}
+                    />
+                  )}
+                  <Text
+                    style={
+                      isActive ? styles.segmentTextActive : styles.segmentText
+                    }
+                  >
+                    {opt}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -321,11 +444,10 @@ export const CategoryFormScreen: React.FC = () => {
               style={styles.textInput}
               keyboardType="numeric"
               value={value}
-              onChangeText={(val) => handleUpdateCustomValue(item.key, val)}
+              onChangeText={val => handleUpdateCustomValue(item.key, val)}
               placeholder="0"
               placeholderTextColor={Colors.textMuted}
             />
-            {item.unit ? <Text style={styles.unitText}>{item.unit}</Text> : null}
           </View>
         )}
 
@@ -333,7 +455,7 @@ export const CategoryFormScreen: React.FC = () => {
           <TextInput
             style={styles.textInput}
             value={value}
-            onChangeText={(val) => handleUpdateCustomValue(item.key, val)}
+            onChangeText={val => handleUpdateCustomValue(item.key, val)}
             placeholder={item.placeholder || 'Keterangan...'}
             placeholderTextColor={Colors.textMuted}
           />
@@ -346,15 +468,26 @@ export const CategoryFormScreen: React.FC = () => {
     <View style={styles.container}>
       <Header
         title={categoryLabel || 'Pemeriksaan'}
-        subtitle={totalCount > 0 ? `${filledCount}/${totalCount} item terisi` : undefined}
+        subtitle={
+          totalCount > 0
+            ? `${filledCount}/${totalCount} item terisi`
+            : undefined
+        }
         onBack={() => navigation.goBack()}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Quick action helper if default items exist */}
         {isDefaultCategory && defaultItems.length > 0 && (
           <View style={styles.quickActionRow}>
-            <TouchableOpacity style={styles.quickActionButton} onPress={handleSetAllNormal} activeOpacity={0.8}>
+            <TouchableOpacity
+              style={styles.quickActionButton}
+              onPress={handleSetAllNormal}
+              activeOpacity={0.8}
+            >
               <Sparkles size={16} color={Colors.primary} />
               <Text style={styles.quickActionText}>Set Semua Normal / OK</Text>
             </TouchableOpacity>
@@ -369,13 +502,19 @@ export const CategoryFormScreen: React.FC = () => {
         ) : (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>Halaman Dikosongkan</Text>
-            <Text style={styles.emptyText}>Isi form pada halaman ini sedang dikosongkan sementara.</Text>
+            <Text style={styles.emptyText}>
+              Isi form pada halaman ini sedang dikosongkan sementara.
+            </Text>
           </View>
         )}
 
         {/* Save button */}
         {(isDefaultCategory || categoryEntries.length > 0) && (
-          <TouchableOpacity style={styles.saveButton} onPress={handleSaveAndBack} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleSaveAndBack}
+            activeOpacity={0.85}
+          >
             <LinearGradient
               colors={['#3B82F6', '#1E40AF']}
               start={{ x: 0, y: 0 }}
@@ -398,8 +537,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: 48,
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
   },
   quickActionRow: {
     flexDirection: 'row',
@@ -423,7 +562,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   itemCard: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     backgroundColor: Colors.surface,
     borderColor: Colors.border,
     borderRadius: BorderRadius.lg,
@@ -523,7 +662,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    ...Typography.body,
+    fontSize: 15,
   },
   unitText: {
     marginLeft: Spacing.sm,

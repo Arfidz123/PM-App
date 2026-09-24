@@ -162,7 +162,7 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
 
-      onPanResponderGrant: (evt) => {
+      onPanResponderGrant: evt => {
         const touches = evt.nativeEvent.touches;
         if (touches && touches.length >= 2) {
           // Cubit 2 jari langsung terdeteksi
@@ -204,7 +204,7 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
             const factor = distance / initialDistanceRef.current;
             const targetScale = Math.min(
               Math.max(initialScaleRef.current * factor, 0.8),
-              5
+              5,
             );
             scale.setValue(targetScale);
             currentScaleRef.current = targetScale;
@@ -279,7 +279,7 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
           resetZoom();
         }
       },
-    })
+    }),
   ).current;
 
   if (!visible || !source) return null;
@@ -331,11 +331,7 @@ export const ImageZoomModal: React.FC<ImageZoomModalProps> = ({
               },
             ]}
           >
-            <Image
-              source={source}
-              style={styles.image}
-              resizeMode="contain"
-            />
+            <Image source={source} style={styles.image} resizeMode="contain" />
           </Animated.View>
         </View>
 

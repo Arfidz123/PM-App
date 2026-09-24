@@ -3,15 +3,15 @@
  * Represents a single item in a checklist template
  */
 
-import {Model} from '@nozbe/watermelondb';
-import {field, text, relation} from '@nozbe/watermelondb/decorators';
-import type {ChecklistItemType} from '../../types';
+import { Model } from '@nozbe/watermelondb';
+import { field, text, relation } from '@nozbe/watermelondb/decorators';
+import type { ChecklistItemType } from '../../types';
 
 export default class ChecklistItem extends Model {
   static table = 'checklist_items';
 
   static associations = {
-    checklist_templates: {type: 'belongs_to' as const, key: 'template_id'},
+    checklist_templates: { type: 'belongs_to' as const, key: 'template_id' },
   };
   @text('template_id') templateId!: string;
   @text('category') category!: string;

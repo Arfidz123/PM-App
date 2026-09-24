@@ -13,13 +13,26 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Camera, Plus, Check, Trash2, Image as ImageIcon } from 'lucide-react-native';
+import {
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  Camera,
+  Plus,
+  Check,
+  Trash2,
+  Image as ImageIcon,
+} from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
 import { Header, showAlert } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
+import {
+  requestCameraPermission,
+  getLiveCoordinatesString,
+  getCurrentFormattedTimestamp,
+} from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -43,14 +56,29 @@ interface BatteryData {
 
 export const BatteryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { formData, updateFormData, currentLocation, activePopLocation } = useInspectionStore();
+  const { formData, updateFormData, currentLocation, activePopLocation } =
+    useInspectionStore();
   const batteryData = formData.battery || {};
 
   const infoPop = formData.infoPop || {};
-  const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
-  const addressStr = (infoPop.alamat && infoPop.alamat.trim() !== '') ? infoPop.alamat : (activePopLocation || currentLocation?.address || '-');
+  const coordsStr =
+    infoPop.koordinat ||
+    (currentLocation
+      ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}`
+      : '');
+  const addressStr =
+    infoPop.alamat && infoPop.alamat.trim() !== ''
+      ? infoPop.alamat
+      : activePopLocation || currentLocation?.address || '-';
   const now = new Date();
-  const dateStr = `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
+  const dateStr = `${now.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })} ${now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} WITA`;
 
   // Entrance animations
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -67,14 +95,25 @@ export const BatteryScreen: React.FC = () => {
   }, []);
 
   const handleSavePressIn = () => {
-    Animated.spring(saveButtonAnim, { toValue: 0.96, friction: 4, tension: 200, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 0.96,
+      friction: 4,
+      tension: 200,
+      useNativeDriver: true,
+    }).start();
   };
   const handleSavePressOut = () => {
-    Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 150,
+      useNativeDriver: true,
+    }).start();
   };
 
   const catatan = batteryData.catatan || '';
-  const setCatatan = (val: string) => updateFormData('battery', { ...batteryData, catatan: val });
+  const setCatatan = (val: string) =>
+    updateFormData('battery', { ...batteryData, catatan: val });
 
   const banks: BatteryData[] = batteryData.banks || [
     {
@@ -92,7 +131,7 @@ export const BatteryScreen: React.FC = () => {
       cell4: '',
       vTotal: '54.4',
       kondisi: 'OK',
-    }
+    },
   ];
 
   const setBanks = (newBanks: BatteryData[]) => {
@@ -118,20 +157,20 @@ export const BatteryScreen: React.FC = () => {
         cell4: '',
         vTotal: '',
         kondisi: '',
-      }
+      },
     ]);
     showAlert({
       type: 'success',
       title: 'Berhasil Ditambahkan',
-      message: `Bank Baterai #${newId} berhasil ditambahkan.`,
+      message: `Baterai Bank #${newId} berhasil ditambahkan.`,
     });
   };
 
   const deleteBank = (bankId: string) => {
     showAlert({
       type: 'confirm',
-      title: 'Hapus Bank Baterai',
-      message: `Apakah Anda yakin ingin menghapus Bank #${bankId}?`,
+      title: 'Hapus Baterai Bank',
+      message: `Apakah Anda yakin ingin menghapus Baterai Bank #${bankId}?`,
       buttons: [
         { text: 'Batal', style: 'cancel' },
         {
@@ -139,28 +178,30 @@ export const BatteryScreen: React.FC = () => {
           style: 'destructive',
           onPress: () => {
             setBanks(banks.filter((b: BatteryData) => b.id !== bankId));
-          }
-        }
-      ]
+          },
+        },
+      ],
     });
   };
 
   const updateBank = (id: string, field: keyof BatteryData, value: any) => {
     setBanks(
-      banks.map((b: BatteryData) => (b.id === id ? { ...b, [field]: value } : b))
+      banks.map((b: BatteryData) =>
+        b.id === id ? { ...b, [field]: value } : b,
+      ),
     );
   };
 
   const renderSegmentedControl = (
     label: string,
     value: string,
-    onChange: (val: string) => void
+    onChange: (val: string) => void,
   ) => {
     return (
       <View style={styles.segmentContainer}>
         <Text style={styles.segmentLabel}>{label}</Text>
         <View style={styles.segmentedControl}>
-          {['OK', 'NOK', 'N/A'].map((opt) => (
+          {['OK', 'NOK', 'N/A'].map(opt => (
             <TouchableOpacity
               key={opt}
               style={[
@@ -175,9 +216,17 @@ export const BatteryScreen: React.FC = () => {
               onPress={() => onChange(value === opt ? '' : opt)}
             >
               {value === opt && opt === 'OK' && (
-                <Check size={14} color={Colors.white} style={{ marginRight: 4 }} />
+                <Check
+                  size={14}
+                  color={Colors.white}
+                  style={{ marginRight: 4 }}
+                />
               )}
-              <Text style={value === opt ? styles.segmentTextActive : styles.segmentText}>
+              <Text
+                style={
+                  value === opt ? styles.segmentTextActive : styles.segmentText
+                }
+              >
                 {opt}
               </Text>
             </TouchableOpacity>
@@ -192,28 +241,30 @@ export const BatteryScreen: React.FC = () => {
     label: string,
     value: string,
     field: keyof BatteryData,
-    isTotal: boolean = false
+    isTotal: boolean = false,
   ) => {
     return (
       <View style={styles.measurementRow}>
-        <Text style={[styles.measurementLabel, isTotal && { fontWeight: 'bold' }]}>{label}</Text>
+        <Text
+          style={[styles.measurementLabel, isTotal && { fontWeight: 'bold' }]}
+        >
+          {label}
+        </Text>
         <View style={styles.measurementInputWrapper}>
           <View style={styles.measurementInputContainer}>
             <TextInput
               style={styles.measurementInput}
               value={value}
-              onChangeText={(val) => updateBank(id, field, val)}
+              onChangeText={val => updateBank(id, field, val)}
               placeholder="—"
               placeholderTextColor={Colors.textMuted}
               keyboardType="numeric"
             />
           </View>
-          <Text style={styles.measurementUnit}>V</Text>
         </View>
       </View>
     );
   };
-
 
   return (
     <View style={styles.container}>
@@ -241,100 +292,135 @@ export const BatteryScreen: React.FC = () => {
         >
           {banks.map((bank, index) => (
             <View key={bank.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <TouchableOpacity
-                  style={styles.cardTitleRow}
-                  onPress={() => updateBank(bank.id, 'isExpanded', !bank.isExpanded)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.cardTitle}>Bank #{bank.id}</Text>
-                  {bank.isExpanded ?
-                    <ChevronUp color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} /> :
-                    <ChevronDown color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} />
-                  }
-                </TouchableOpacity>
-                {parseInt(bank.id, 10) > 1 && (
-                  <TouchableOpacity
-                    onPress={() => deleteBank(bank.id)}
-                    style={styles.deleteBtn}
-                  >
-                    <Trash2 color={Colors.danger} size={18} />
-                  </TouchableOpacity>
-                )}
-              </View>
+              <TouchableOpacity
+                style={styles.cardHeader}
+                onPress={() =>
+                  updateBank(bank.id, 'isExpanded', !bank.isExpanded)
+                }
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardTitleRow}>
+                  <Text style={styles.cardTitle}>Baterai Bank#{bank.id}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {parseInt(bank.id, 10) > 1 && (
+                    <TouchableOpacity
+                      onPress={e => {
+                        e.stopPropagation();
+                        deleteBank(bank.id);
+                      }}
+                      style={[styles.deleteBtn, { marginRight: 8 }]}
+                    >
+                      <Trash2 color={Colors.danger} size={18} />
+                    </TouchableOpacity>
+                  )}
+                  {bank.isExpanded ? (
+                    <ChevronUp color={Colors.textMuted} size={20} />
+                  ) : (
+                    <ChevronDown color={Colors.textMuted} size={20} />
+                  )}
+                </View>
+              </TouchableOpacity>
 
               {bank.isExpanded && (
-                <View style={styles.cardBody}>
-                  {/* Section: Baterai */}
-                  <View style={[styles.cardTitleRow, styles.subHeadingContainer, { marginBottom: Spacing.sm }]}>
-                    <Text style={styles.cardTitle}>BATERAI</Text>
-                  </View>
+                <>
+                  <View style={styles.titleDivider} />
+                  <View style={styles.cardBody}>
+                    {/* Merk */}
+                    <View style={styles.inputGroupFull}>
+                      <Text style={styles.inputLabel}>MERK</Text>
+                      <TextInput
+                        style={styles.inputBox}
+                        value={bank.merk}
+                        onChangeText={val => updateBank(bank.id, 'merk', val)}
+                        placeholder="—"
+                        placeholderTextColor={Colors.textMuted}
+                      />
+                    </View>
 
-                  {/* Merk */}
-                  <View style={styles.inputGroupFull}>
-                    <Text style={styles.inputLabel}>MERK</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={bank.merk}
-                      onChangeText={(val) => updateBank(bank.id, 'merk', val)}
-                    />
-                  </View>
-
-                  {/* Tipe & Kapasitas */}
-                  <View style={styles.row}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>TIPE</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Tipe & Kapasitas */}
+                    <View style={styles.row}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>TIPE</Text>
                         <TextInput
-                          style={[styles.inputBox, { flex: 1 }]}
+                          style={styles.inputBox}
                           value={bank.tipe}
-                          onChangeText={(val) => updateBank(bank.id, 'tipe', val)}
+                          onChangeText={val => updateBank(bank.id, 'tipe', val)}
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
                         />
-                        <View style={styles.measurementUnit} />
                       </View>
-                    </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>KAPASITAS</Text>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>KAPASITAS</Text>
                         <TextInput
-                          style={[styles.inputBox, { flex: 1 }]}
+                          style={styles.inputBox}
                           value={bank.kapasitas}
-                          onChangeText={(val) => updateBank(bank.id, 'kapasitas', val)}
+                          onChangeText={val =>
+                            updateBank(bank.id, 'kapasitas', val)
+                          }
                           keyboardType="numeric"
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
                         />
-                        <Text style={styles.measurementUnit}>AH</Text>
                       </View>
                     </View>
-                  </View>
 
-                  {/* SN */}
-                  <View style={styles.inputGroupFull}>
-                    <Text style={styles.inputLabel}>SERIAL NUMBER</Text>
-                    <TextInput
-                      style={styles.inputBox}
-                      value={bank.sn}
-                      onChangeText={(val) => updateBank(bank.id, 'sn', val)}
+                    {/* SN */}
+                    <View style={styles.inputGroupFull}>
+                      <Text style={styles.inputLabel}>SERIAL NUMBER</Text>
+                      <TextInput
+                        style={styles.inputBox}
+                        value={bank.sn}
+                        onChangeText={val => updateBank(bank.id, 'sn', val)}
+                        placeholder="—"
+                        placeholderTextColor={Colors.textMuted}
+                      />
+                    </View>
+
+                    {/* Section: Tegangan */}
+                    <View style={styles.subHeadingContainer}>
+                      <Text style={styles.subHeading}>Tegangan</Text>
+                    </View>
+
+                    {/* Cells */}
+                    {renderCellMeasurement(
+                      bank.id,
+                      'Cell #1',
+                      bank.cell1,
+                      'cell1',
+                    )}
+                    {renderCellMeasurement(
+                      bank.id,
+                      'Cell #2',
+                      bank.cell2,
+                      'cell2',
+                    )}
+                    {renderCellMeasurement(
+                      bank.id,
+                      'Cell #3',
+                      bank.cell3,
+                      'cell3',
+                    )}
+                    {renderCellMeasurement(
+                      bank.id,
+                      'Cell #4',
+                      bank.cell4,
+                      'cell4',
+                    )}
+
+                    <View
+                      style={[styles.divider, { marginVertical: Spacing.sm }]}
                     />
+
+                    {renderCellMeasurement(
+                      bank.id,
+                      'V Total',
+                      bank.vTotal,
+                      'vTotal',
+                      true,
+                    )}
                   </View>
-
-
-
-                  {/* Section: Tegangan */}
-                  <View style={styles.divider} />
-                  <View style={[styles.cardTitleRow, styles.subHeadingContainer, { marginBottom: Spacing.sm, marginTop: Spacing.sm }]}>
-                    <Text style={styles.cardTitle}>TEGANGAN</Text>
-                  </View>
-
-                  {/* Cells */}
-                  {renderCellMeasurement(bank.id, 'Cell #1', bank.cell1, 'cell1')}
-                  {renderCellMeasurement(bank.id, 'Cell #2', bank.cell2, 'cell2')}
-                  {renderCellMeasurement(bank.id, 'Cell #3', bank.cell3, 'cell3')}
-                  {renderCellMeasurement(bank.id, 'Cell #4', bank.cell4, 'cell4')}
-
-                  <View style={styles.divider} />
-
-                  {renderCellMeasurement(bank.id, 'V Total', bank.vTotal, 'vTotal', true)}
-                </View>
+                </>
               )}
             </View>
           ))}
@@ -346,18 +432,28 @@ export const BatteryScreen: React.FC = () => {
             activeOpacity={0.7}
           >
             <Plus size={18} color={Colors.primary} style={{ marginRight: 8 }} />
-            <Text style={styles.addButtonText}>Tambah Bank</Text>
+            <Text style={styles.addButtonText}>Tambah Baterai Bank</Text>
           </TouchableOpacity>
-
 
           {/* Card: Catatan */}
           <View style={styles.card}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>Catatan</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Catatan</Text>
+              </View>
             </View>
+            <View style={styles.titleDivider} />
             <View style={styles.cardBody}>
               <TextInput
-                style={[styles.inputBox, { height: 100, textAlignVertical: 'top' }]}
+                style={[
+                  styles.inputBox,
+                  {
+                    height: 100,
+                    textAlignVertical: 'top',
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                  },
+                ]}
                 value={catatan}
                 onChangeText={setCatatan}
                 placeholder="Tambahkan catatan..."
@@ -373,11 +469,11 @@ export const BatteryScreen: React.FC = () => {
               onPress={() => navigation.goBack()}
               onPressIn={handleSavePressIn}
               onPressOut={handleSavePressOut}
-              activeOpacity={1}>
+              activeOpacity={1}
+            >
               <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
             </TouchableOpacity>
           </Animated.View>
-
         </Animated.ScrollView>
       </View>
     </View>
@@ -459,13 +555,18 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    zIndex: 10,
   },
   row: {
     flexDirection: 'row',
@@ -486,19 +587,23 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.textMuted,
+    fontSize: 10,
+    color: Colors.textSecondary,
     fontWeight: 'bold',
     textTransform: 'uppercase',
+    marginBottom: 4,
   },
   inputBox: {
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
+    height: 38,
     backgroundColor: Colors.background,
     color: Colors.text,
-    ...Typography.body,
+    fontSize: 13,
+    textAlign: 'left',
   },
   badgePW: {
     flexDirection: 'row',
@@ -534,11 +639,25 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textTransform: 'uppercase',
   },
+  subHeading: {
+    ...Typography.h4,
+    color: Colors.text,
+    fontSize: 15,
+    fontWeight: 'bold',
+    lineHeight: 22,
+  },
   subHeadingContainer: {
-    paddingBottom: Spacing.sm,
-    marginBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
   measurementRow: {
     flexDirection: 'row',
@@ -548,8 +667,10 @@ const styles = StyleSheet.create({
   },
   measurementLabel: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
     fontWeight: '600',
+    flex: 1,
   },
   measurementInputWrapper: {
     flexDirection: 'row',
@@ -559,24 +680,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
-    width: 80,
-    height: 40,
+    width: 90,
+    height: 38,
     justifyContent: 'center',
     paddingHorizontal: 12,
     backgroundColor: Colors.background,
+    overflow: 'hidden',
   },
   measurementInput: {
-    ...Typography.body,
     color: Colors.text,
-    textAlign: 'right',
+    fontSize: 14,
+    textAlign: 'left',
     padding: 0,
     margin: 0,
   },
   measurementUnit: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.textMuted,
     fontWeight: 'bold',
     marginLeft: Spacing.sm,
+    width: 45,
+    textAlign: 'left',
+    fontSize: 11,
   },
   segmentContainer: {
     flexDirection: 'row',
@@ -634,9 +759,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(59, 130, 246, 0.08)',
     borderWidth: 1.5,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    borderColor: Colors.primary,
     borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     paddingVertical: 14,
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,

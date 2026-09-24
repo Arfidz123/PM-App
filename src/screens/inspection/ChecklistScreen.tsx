@@ -3,7 +3,7 @@
  * Dynamic checklist form based on the asset's template
  */
 
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,20 +13,29 @@ import {
   Switch,
   TextInput,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
-import {Header, Card, Button, StatusBadge, Input} from '../../components/common';
-import {useInspectionStore, ChecklistEntry} from '../../store/inspectionStore';
-import type {RootStackParamList} from '../../types';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import {
+  Header,
+  Card,
+  Button,
+  StatusBadge,
+  Input,
+} from '../../components/common';
+import {
+  useInspectionStore,
+  ChecklistEntry,
+} from '../../store/inspectionStore';
+import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const ChecklistScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const {inspectionId} = route.params;
-  const {checklistEntries, updateChecklistEntry} = useInspectionStore();
+  const { inspectionId } = route.params;
+  const { checklistEntries, updateChecklistEntry } = useInspectionStore();
 
   const completedCount = checklistEntries.filter(
     (e: ChecklistEntry) => e.value !== '' || e.status !== 'na',
@@ -35,7 +44,7 @@ export const ChecklistScreen: React.FC = () => {
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   const handleContinue = () => {
-    navigation.navigate('Review', {inspectionId});
+    navigation.navigate('Review', { inspectionId });
   };
 
   const renderChecklistItem = (entry: ChecklistEntry, index: number) => {
@@ -46,9 +55,7 @@ export const ChecklistScreen: React.FC = () => {
             <Text style={styles.itemIndex}>{index + 1}</Text>
             <View style={styles.itemLabelContainer}>
               <Text style={styles.itemLabel}>{entry.label}</Text>
-              {entry.required && (
-                <Text style={styles.requiredStar}>*</Text>
-              )}
+              {entry.required && <Text style={styles.requiredStar}>*</Text>}
             </View>
           </View>
           {entry.status !== 'na' && (
@@ -60,10 +67,10 @@ export const ChecklistScreen: React.FC = () => {
         {entry.type === 'pass_fail' && (
           <PassFailInput
             value={entry.value}
-            onChange={(val) => {
+            onChange={val => {
               updateChecklistEntry(index, {
                 value: val,
-                status: !val ? 'na' : (val === 'true' ? 'ok' : 'critical'),
+                status: !val ? 'na' : val === 'true' ? 'ok' : 'critical',
               });
             }}
           />
@@ -75,7 +82,7 @@ export const ChecklistScreen: React.FC = () => {
             unit={entry.unit}
             minValue={entry.minValue}
             maxValue={entry.maxValue}
-            onChange={(val) => updateChecklistEntry(index, {value: val})}
+            onChange={val => updateChecklistEntry(index, { value: val })}
           />
         )}
 
@@ -85,8 +92,11 @@ export const ChecklistScreen: React.FC = () => {
             placeholder="Masukkan teks..."
             placeholderTextColor={Colors.textMuted}
             value={entry.value}
-            onChangeText={(val) =>
-              updateChecklistEntry(index, {value: val, status: val ? 'ok' : 'na'})
+            onChangeText={val =>
+              updateChecklistEntry(index, {
+                value: val,
+                status: val ? 'ok' : 'na',
+              })
             }
             multiline
           />
@@ -96,8 +106,8 @@ export const ChecklistScreen: React.FC = () => {
           <SelectInput
             options={entry.options}
             value={entry.value}
-            onChange={(val) =>
-              updateChecklistEntry(index, {value: val, status: 'ok'})
+            onChange={val =>
+              updateChecklistEntry(index, { value: val, status: 'ok' })
             }
           />
         )}
@@ -116,9 +126,7 @@ export const ChecklistScreen: React.FC = () => {
             placeholder="Catatan tambahan..."
             placeholderTextColor={Colors.textMuted}
             value={entry.notes}
-            onChangeText={(val) =>
-              updateChecklistEntry(index, {notes: val})
-            }
+            onChangeText={val => updateChecklistEntry(index, { notes: val })}
           />
         )}
       </Card>
@@ -157,7 +165,8 @@ export const ChecklistScreen: React.FC = () => {
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+      >
         {checklistEntries.map((entry: ChecklistEntry, index: number) =>
           renderChecklistItem(entry, index),
         )}
@@ -181,7 +190,7 @@ export const ChecklistScreen: React.FC = () => {
           fullWidth
         />
 
-        <View style={{height: 40}} />
+        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
@@ -192,33 +201,21 @@ export const ChecklistScreen: React.FC = () => {
 const PassFailInput: React.FC<{
   value: string;
   onChange: (val: string) => void;
-}> = ({value, onChange}) => (
+}> = ({ value, onChange }) => (
   <View style={styles.passFailContainer}>
     <TouchableOpacity
-      style={[
-        styles.passFailButton,
-        value === 'true' && styles.passButton,
-      ]}
-      onPress={() => onChange(value === 'true' ? '' : 'true')}>
-      <Text
-        style={[
-          styles.passFailText,
-          value === 'true' && styles.passText,
-        ]}>
+      style={[styles.passFailButton, value === 'true' && styles.passButton]}
+      onPress={() => onChange(value === 'true' ? '' : 'true')}
+    >
+      <Text style={[styles.passFailText, value === 'true' && styles.passText]}>
         ✓ PASS
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
-      style={[
-        styles.passFailButton,
-        value === 'false' && styles.failButton,
-      ]}
-      onPress={() => onChange(value === 'false' ? '' : 'false')}>
-      <Text
-        style={[
-          styles.passFailText,
-          value === 'false' && styles.failText,
-        ]}>
+      style={[styles.passFailButton, value === 'false' && styles.failButton]}
+      onPress={() => onChange(value === 'false' ? '' : 'false')}
+    >
+      <Text style={[styles.passFailText, value === 'false' && styles.failText]}>
         ✗ FAIL
       </Text>
     </TouchableOpacity>
@@ -231,7 +228,7 @@ const NumericInput: React.FC<{
   minValue: number | null;
   maxValue: number | null;
   onChange: (val: string) => void;
-}> = ({value, unit, minValue, maxValue, onChange}) => (
+}> = ({ value, unit, minValue, maxValue, onChange }) => (
   <View>
     <View style={styles.numericRow}>
       <TextInput
@@ -242,11 +239,10 @@ const NumericInput: React.FC<{
         onChangeText={onChange}
         keyboardType="numeric"
       />
-      {unit ? <Text style={styles.unitText}>{unit}</Text> : null}
     </View>
     {minValue !== null && maxValue !== null && (
       <Text style={styles.rangeHint}>
-        Range normal: {minValue} - {maxValue} {unit}
+        Range normal: {minValue} - {maxValue}
       </Text>
     )}
   </View>
@@ -256,21 +252,23 @@ const SelectInput: React.FC<{
   options: string[];
   value: string;
   onChange: (val: string) => void;
-}> = ({options, value, onChange}) => (
+}> = ({ options, value, onChange }) => (
   <View style={styles.selectContainer}>
-    {options.map((option) => (
+    {options.map(option => (
       <TouchableOpacity
         key={option}
         style={[
           styles.selectOption,
           value === option && styles.selectOptionActive,
         ]}
-        onPress={() => onChange(value === option ? '' : option)}>
+        onPress={() => onChange(value === option ? '' : option)}
+      >
         <Text
           style={[
             styles.selectOptionText,
             value === option && styles.selectOptionTextActive,
-          ]}>
+          ]}
+        >
           {option}
         </Text>
       </TouchableOpacity>
@@ -312,7 +310,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   itemCard: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   itemHeader: {
     flexDirection: 'row',

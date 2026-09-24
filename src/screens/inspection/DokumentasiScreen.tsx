@@ -13,16 +13,29 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, Camera, Trash2, Plus, Image as ImageIcon, Clock, MapPin, Building2 } from 'lucide-react-native';
+import {
+  Camera,
+  Trash2,
+  Plus,
+  Image as ImageIcon,
+  Clock,
+  MapPin,
+  Building2,
+} from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, showAlert, CategorizedPhotoSection, PhotoCategoryConfig } from '../../components/common';
+import {
+  Header,
+  showAlert,
+  CategorizedPhotoSection,
+  PhotoCategoryConfig,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 
 const DOKUMENTASI_PHOTO_CATEGORIES: PhotoCategoryConfig[] = [
-  { key: 'popLuar', label: 'POP Bagian Luar' },
-  { key: 'popDalam', label: 'POP Bagian Dalam' },
+  { key: 'popLuar', label: 'Foto POP Tampak Luar' },
+  { key: 'popDalam', label: 'Foto POP Tampak Dalam' },
   { key: 'genset', label: 'Foto Genset' },
   { key: 'odf', label: 'Foto ODF' },
   { key: 'acpdb', label: 'Foto ACPDB' },
@@ -30,16 +43,21 @@ const DOKUMENTASI_PHOTO_CATEGORIES: PhotoCategoryConfig[] = [
   { key: 'ats', label: 'Foto ATS' },
   { key: 'powerSupply', label: 'Foto Power Supply' },
   { key: 'exhaustFan', label: 'Foto Exhaust Fan' },
-  { key: 'kwhLuar', label: 'Foto Bagian Luar KWH' },
-  { key: 'kwhDalam', label: 'Foto Bagian Dalam KWH' },
+  { key: 'kwhLuar', label: 'Foto Tampak Luar KWH' },
+  { key: 'kwhDalam', label: 'Foto Tampak Dalam KWH' },
   { key: 'rectifierKeseluruhan', label: 'Foto Keseluruhan Rectifier' },
   { key: 'rectifierLcd', label: 'Foto LCD Rectifier' },
   { key: 'batteryKeseluruhan', label: 'Foto Keseluruhan Battery' },
-  { key: 'batteryJauh', label: 'Foto Bagian Jauh Battery' },
-  { key: 'batteryDekat', label: 'Foto Bagian Dekat Battery' },
+  { key: 'batteryJauh', label: 'Foto Tampak Jauh Battery' },
+  { key: 'batteryDekat', label: 'Foto Tampak Dekat Battery' },
   { key: 'lainnya', label: 'Foto Lainnya' },
 ];
-import { requestCameraPermission, fetchCurrentLocation, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
+import {
+  requestCameraPermission,
+  fetchCurrentLocation,
+  getLiveCoordinatesString,
+  getCurrentFormattedTimestamp,
+} from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -63,7 +81,9 @@ export const DokumentasiScreen: React.FC = () => {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   // Folder navigation state
-  const [selectedFolderKey, setSelectedFolderKey] = useState<string | null>(null);
+  const [selectedFolderKey, setSelectedFolderKey] = useState<string | null>(
+    null,
+  );
   const [activeFolderInfo, setActiveFolderInfo] = useState<{
     key: string | null;
     label: string | null;
@@ -111,10 +131,20 @@ export const DokumentasiScreen: React.FC = () => {
   }, []);
 
   const handleSavePressIn = () => {
-    Animated.spring(saveButtonAnim, { toValue: 0.96, friction: 4, tension: 200, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 0.96,
+      friction: 4,
+      tension: 200,
+      useNativeDriver: true,
+    }).start();
   };
   const handleSavePressOut = () => {
-    Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 150,
+      useNativeDriver: true,
+    }).start();
   };
 
   React.useEffect(() => {
@@ -126,18 +156,45 @@ export const DokumentasiScreen: React.FC = () => {
   }, []);
 
   const infoPop = formData.infoPop || {};
-  const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
-  const addressStr = (infoPop.alamat && infoPop.alamat.trim() !== '') ? infoPop.alamat : (activePopLocation || currentLocation?.address || '-');
+  const coordsStr =
+    infoPop.koordinat ||
+    (currentLocation
+      ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}`
+      : '');
+  const addressStr =
+    infoPop.alamat && infoPop.alamat.trim() !== ''
+      ? infoPop.alamat
+      : activePopLocation || currentLocation?.address || '-';
   const now = new Date();
-  const dateStr = `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
+  const dateStr = `${now.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })} ${now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} WITA`;
 
   // Collect all unique photo items across sections
-  const allPhotoItems: { uri: string; label: string; sectionKey?: string; indexInSection?: number }[] = [];
+  const allPhotoItems: {
+    uri: string;
+    label: string;
+    sectionKey?: string;
+    indexInSection?: number;
+  }[] = [];
   const seenUris = new Set<string>();
 
-  const addPhotoItem = (uri: string, label: string, sectionKey?: string, indexInSection?: number) => {
+  const addPhotoItem = (
+    uri: string,
+    label: string,
+    sectionKey?: string,
+    indexInSection?: number,
+  ) => {
     if (!uri) return;
-    const cleanKey = uri.trim().replace(/^file:\/\//i, '').split('?')[0];
+    const cleanKey = uri
+      .trim()
+      .replace(/^file:\/\//i, '')
+      .split('?')[0];
     if (!seenUris.has(cleanKey)) {
       seenUris.add(cleanKey);
       allPhotoItems.push({ uri, label, sectionKey, indexInSection });
@@ -150,11 +207,13 @@ export const DokumentasiScreen: React.FC = () => {
     { key: 'battery', label: 'Foto Battery' },
   ];
 
-  sectionList.forEach((sec) => {
+  sectionList.forEach(sec => {
     const secData = formData[sec.key] || {};
     const secPhotos: string[] = secData.photos || secData.fotos || [];
     if (Array.isArray(secPhotos)) {
-      secPhotos.forEach((p, idx) => addPhotoItem(p, `${sec.label} #${idx + 1}`, sec.key, idx));
+      secPhotos.forEach((p, idx) =>
+        addPhotoItem(p, `${sec.label} #${idx + 1}`, sec.key, idx),
+      );
     }
   });
 
@@ -164,13 +223,19 @@ export const DokumentasiScreen: React.FC = () => {
   const dok = formData.dokumentasi || {};
   const dokPhotos: string[] = dok.photos || dok.fotos || [];
   if (Array.isArray(dokPhotos)) {
-    dokPhotos.forEach((p, idx) => addPhotoItem(p, `Foto Dokumentasi #${idx + 1}`));
+    dokPhotos.forEach((p, idx) =>
+      addPhotoItem(p, `Foto Dokumentasi #${idx + 1}`),
+    );
   }
 
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      showAlert({ type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.' });
+      showAlert({
+        type: 'error',
+        title: 'Izin Kamera Ditolak',
+        message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.',
+      });
       return;
     }
 
@@ -184,10 +249,16 @@ export const DokumentasiScreen: React.FC = () => {
         saveToPhotos: false,
         includeBase64: false,
       },
-      async (response) => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({ type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Tidak dapat membuka kamera pada perangkat ini' });
+          showAlert({
+            type: 'error',
+            title: 'Kamera Error',
+            message:
+              response.errorMessage ||
+              'Tidak dapat membuka kamera pada perangkat ini',
+          });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -198,7 +269,7 @@ export const DokumentasiScreen: React.FC = () => {
             addPhoto(uri, photoTs, liveCoords || undefined);
           }
         }
-      }
+      },
     );
   };
 
@@ -211,21 +282,19 @@ export const DokumentasiScreen: React.FC = () => {
         quality: 0.7,
         selectionLimit: 5,
       },
-      async (response) => {
+      async response => {
         if (response.assets && response.assets.length > 0) {
           const liveCoords = await getLiveCoordinatesString();
           const photoTs = getCurrentFormattedTimestamp();
-          response.assets.forEach((asset) => {
+          response.assets.forEach(asset => {
             if (asset.uri) {
               addPhoto(asset.uri, photoTs, liveCoords || undefined);
             }
           });
         }
-      }
+      },
     );
   };
-
-
 
   if (!activePopId) {
     return (
@@ -241,7 +310,8 @@ export const DokumentasiScreen: React.FC = () => {
           </View>
           <Text style={styles.emptyLockTitle}>Pilih POP Terlebih Dahulu</Text>
           <Text style={styles.emptyLockDesc}>
-            Halaman dokumentasi foto hanya dapat digunakan setelah Anda memilih lokasi POP inspeksi.
+            Halaman dokumentasi foto hanya dapat digunakan setelah Anda memilih
+            lokasi POP inspeksi.
           </Text>
           <TouchableOpacity
             style={styles.selectPopLockBtn}
@@ -270,11 +340,17 @@ export const DokumentasiScreen: React.FC = () => {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
-              <Camera color={Colors.primary} size={20} style={{ marginRight: Spacing.sm }} />
+              <Camera
+                color={Colors.primary}
+                size={20}
+                style={{ marginRight: Spacing.sm }}
+              />
               <Text style={styles.cardTitle} numberOfLines={1}>
                 {activeFolderInfo.key
                   ? `${activeFolderInfo.label} (${activeFolderInfo.count})`
-                  : `Foto Dokumentasi POP (${(formData.dokumentasi?.photos || []).length})`}
+                  : `Foto Dokumentasi POP (${
+                      (formData.dokumentasi?.photos || []).length
+                    })`}
               </Text>
             </View>
 
@@ -299,35 +375,22 @@ export const DokumentasiScreen: React.FC = () => {
                   {activeFolderInfo.count >= 2 ? 'Minimal 2 ✓' : 'Minimal 2'}
                 </Text>
               </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setFotoExpanded(!fotoExpanded)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                {fotoExpanded ? (
-                  <ChevronUp color={Colors.textMuted} size={20} />
-                ) : (
-                  <ChevronDown color={Colors.textMuted} size={20} />
-                )}
-              </TouchableOpacity>
-            )}
+            ) : null}
           </View>
+          <View style={styles.titleDivider} />
 
-          {fotoExpanded && (
-            <View style={styles.cardBody}>
-              <CategorizedPhotoSection
-                sectionKey="dokumentasi"
-                categories={DOKUMENTASI_PHOTO_CATEGORIES}
-                title="Dokumentasi POP"
-                addressStr={addressStr}
-                coordsStr={coordsStr}
-                selectedFolderKey={selectedFolderKey}
-                onSelectFolder={setSelectedFolderKey}
-                onFolderInfoChange={setActiveFolderInfo}
-              />
-            </View>
-          )}
+          <View style={styles.cardBody}>
+            <CategorizedPhotoSection
+              sectionKey="dokumentasi"
+              categories={DOKUMENTASI_PHOTO_CATEGORIES}
+              title="Dokumentasi POP"
+              addressStr={addressStr}
+              coordsStr={coordsStr}
+              selectedFolderKey={selectedFolderKey}
+              onSelectFolder={setSelectedFolderKey}
+              onFolderInfoChange={setActiveFolderInfo}
+            />
+          </View>
         </View>
 
         <Animated.View style={{ transform: [{ scale: saveButtonAnim }] }}>
@@ -339,7 +402,9 @@ export const DokumentasiScreen: React.FC = () => {
             activeOpacity={1}
           >
             <Text style={styles.saveButtonText}>
-              {selectedFolderKey !== null ? 'Selesai & Kembali ke Folder' : 'Simpan & Kembali'}
+              {selectedFolderKey !== null
+                ? 'Selesai & Kembali ke Folder'
+                : 'Simpan & Kembali'}
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -370,6 +435,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.xs,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -380,8 +446,15 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   minRequirementBadge: {
     paddingHorizontal: 9,
@@ -407,12 +480,7 @@ const styles = StyleSheet.create({
   minRequirementBadgeTextWarning: {
     color: Colors.warning,
   },
-  cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.glassBorder,
-  },
+  cardBody: {},
   photoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

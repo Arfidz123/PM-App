@@ -9,10 +9,15 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Trash2, Plus, Lock } from 'lucide-react-native';
+import { ChevronDown, Lock } from 'lucide-react-native';
+import LinearGradient from 'react-native-linear-gradient';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, showAlert, DropdownModalPicker } from '../../components/common';
+import {
+  Header,
+  showAlert,
+  DropdownModalPicker,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import type { RootStackParamList } from '../../types';
 
@@ -21,26 +26,23 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const MechanicalElectScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
 
-  // Accordion state
-  const [acExpanded, setAcExpanded] = useState(true);
-  const [openDropdownKey, setOpenDropdownKey] = useState<string | null>(null);
-  const [exhaustExpanded, setExhaustExpanded] = useState(true);
-  const [groundingExpanded, setGroundingExpanded] = useState(true);
-  const [statusPopExpanded, setStatusPopExpanded] = useState(true);
-
   // Daftar Parameter Pemeriksaan AC
   const AC_CHECK_ITEMS = [
-    { key: 'status', label: 'STATUS AC', ketKey: 'acStatusKet' },
-    { key: 'daya', label: 'DAYA', ketKey: 'acDayaKet' },
-    { key: 'tekanan', label: 'TEKANAN', ketKey: 'acTekananKet' },
-    { key: 'currentMax', label: 'CURRENT MAX.', ketKey: 'acCurrentMaxKet' },
-    { key: 'arus', label: 'ARUS PENGUKURAN', ketKey: 'acArusKet' },
-    { key: 'kondisiIndoor', label: 'KONDISI INDOOR AC', ketKey: 'acKondisiIndoorKet' },
-    { key: 'kondisiPipa', label: 'KONDISI PIPA', ketKey: 'acKondisiPipaKet' },
-    { key: 'autoRestart', label: 'AUTO RESTART', ketKey: 'acAutoRestartKet' },
-    { key: 'switch', label: 'SWITCH KONTAKTOR', ketKey: 'acSwitchKet' },
-    { key: 'settingSuhu', label: 'SETING SUHU AC', ketKey: 'acSettingSuhuKet' },
-    { key: 'suhuRuangan', label: 'SUHU RUANGAN', ketKey: 'acSuhuRuanganKet' },
+    { key: 'status', label: 'Status AC', ketKey: 'acStatusKet' },
+    { key: 'daya', label: 'Daya', ketKey: 'acDayaKet' },
+    { key: 'tekanan', label: 'Tekanan', ketKey: 'acTekananKet' },
+    { key: 'currentMax', label: 'Current Max', ketKey: 'acCurrentMaxKet' },
+    { key: 'arus', label: 'Arus Pengukuran', ketKey: 'acArusKet' },
+    {
+      key: 'kondisiIndoor',
+      label: 'Kondisi Indoor AC',
+      ketKey: 'acKondisiIndoorKet',
+    },
+    { key: 'kondisiPipa', label: 'Kondisi Pipa', ketKey: 'acKondisiPipaKet' },
+    { key: 'autoRestart', label: 'Auto Restart', ketKey: 'acAutoRestartKet' },
+    { key: 'switch', label: 'Switch Kontaktor', ketKey: 'acSwitchKet' },
+    { key: 'settingSuhu', label: 'Seting Suhu AC', ketKey: 'acSettingSuhuKet' },
+    { key: 'suhuRuangan', label: 'Suhu Ruangan', ketKey: 'acSuhuRuanganKet' },
   ];
 
   // Modal Picker state
@@ -55,7 +57,7 @@ export const MechanicalElectScreen: React.FC = () => {
     title: '',
     options: [],
     selectedValue: '',
-    onSelect: () => { },
+    onSelect: () => {},
   });
 
   const { formData, updateFormData } = useInspectionStore();
@@ -63,52 +65,80 @@ export const MechanicalElectScreen: React.FC = () => {
   // Unified Form state
   const defaultForm = {
     // AC (Dynamic List)
-    acList: [{
-      id: 1,
-      status: '',
-      daya: '',
-      tekanan: '',
-      currentMax: '',
-      arus: '',
-      kondisiIndoor: '',
-      kondisiPipa: '',
-      autoRestart: '',
-      switch: '',
-      settingSuhu: '',
-      suhuRuangan: '',
-    }],
-    acSiteStatusKet: '', acSiteStatus: '',
-    acMerk: '', acJumlah: '',
-    acStatusKet: '', acDayaKet: '', acTekananKet: '', acCurrentMaxKet: '',
-    acArusKet: '', acKondisiIndoorKet: '', acKondisiPipaKet: '',
-    acAutoRestartKet: '', acSwitchKet: '', acSettingSuhuKet: '', acSuhuRuanganKet: '',
+    acList: [
+      {
+        id: 1,
+        status: '',
+        daya: '',
+        tekanan: '',
+        currentMax: '',
+        arus: '',
+        kondisiIndoor: '',
+        kondisiPipa: '',
+        autoRestart: '',
+        switch: '',
+        settingSuhu: '',
+        suhuRuangan: '',
+      },
+    ],
+    acSiteStatusKet: '',
+    acSiteStatus: '',
+    acMerk: '',
+    acJumlah: '',
+    acStatusKet: '',
+    acDayaKet: '',
+    acTekananKet: '',
+    acCurrentMaxKet: '',
+    acArusKet: '',
+    acKondisiIndoorKet: '',
+    acKondisiPipaKet: '',
+    acAutoRestartKet: '',
+    acSwitchKet: '',
+    acSettingSuhuKet: '',
+    acSuhuRuanganKet: '',
 
     // Exhaust Fan
-    exStatusKet: '', exStatus: '',
+    exStatusKet: '',
+    exStatus: '',
     exJumlah: '',
-    exSystemKet: '', exSystem: '',
-    exControllerKet: '', exController: '',
+    exSystemKet: '',
+    exSystem: '',
+    exControllerKet: '',
+    exController: '',
 
     // Grounding
     grPengukuran: '',
-    grStatusKet: '', grStatus: '',
-    grPetirKet: '', grPetir: '',
-    grBarIndoorKet: '', grBarIndoor: '',
-    grBarTowerKet: '', grBarTower: '',
-    grBarSumurKet: '', grBarSumur: '',
-    grKabelKet: '', grKabel: '',
-    grKoneksiKet: '', grKoneksi: '',
+    grStatusKet: '',
+    grStatus: '',
+    grPetirKet: '',
+    grPetir: '',
+    grBarIndoorKet: '',
+    grBarIndoor: '',
+    grBarTowerKet: '',
+    grBarTower: '',
+    grBarSumurKet: '',
+    grBarSumur: '',
+    grKabelKet: '',
+    grKabel: '',
+    grKoneksiKet: '',
+    grKoneksi: '',
 
     // Status POP
-    popLokasiKet: '', popLokasi: '',
+    popLokasiKet: '',
+    popLokasi: '',
     popLuas: '',
-    popCatKet: '', popCat: '',
-    popKonstruksiKet: '', popKonstruksi: '',
-    popLampuKet: '', popLampu: '',
-    popKunciKet: '', popKunci: '',
+    popCatKet: '',
+    popCat: '',
+    popKonstruksiKet: '',
+    popKonstruksi: '',
+    popLampuKet: '',
+    popLampu: '',
+    popKunciKet: '',
+    popKunci: '',
 
     // Catatan
-    note: ''
+    popNote: '',
+    note: '',
   };
 
   const form = { ...defaultForm, ...(formData.mechanicalElect || {}) };
@@ -119,7 +149,7 @@ export const MechanicalElectScreen: React.FC = () => {
 
   const isAcUnitFilled = (ac: any) => {
     if (!ac) return false;
-    return Object.keys(ac).some((key) => {
+    return Object.keys(ac).some(key => {
       if (key === 'id') return false;
       const val = ac[key];
       return val !== undefined && val !== null && String(val).trim() !== '';
@@ -132,7 +162,10 @@ export const MechanicalElectScreen: React.FC = () => {
 
   const addAcRow = () => {
     const list = form.acList || [];
-    const nextId = list.length > 0 ? Math.max(...list.map((item: any) => item.id || 1)) + 1 : 1;
+    const nextId =
+      list.length > 0
+        ? Math.max(...list.map((item: any) => item.id || 1)) + 1
+        : 1;
     const newList = [
       ...list,
       {
@@ -187,7 +220,7 @@ export const MechanicalElectScreen: React.FC = () => {
   };
 
   const updateAcRow = (index: number, field: string, value: string) => {
-    const newList = [...form.acList];
+    const newList = [...(form.acList || [])];
     newList[index] = { ...newList[index], [field]: value };
     const count = getFilledAcCount(newList);
     updateFormData('mechanicalElect', {
@@ -201,9 +234,10 @@ export const MechanicalElectScreen: React.FC = () => {
     value: string,
     onSelect: (val: string) => void,
     options: string[] = ['OK', 'NOK', 'N/A'],
-    title?: string
+    title?: string,
+    placeholder: string = 'Pilih',
   ) => {
-    const displayText = value || 'Pilih';
+    const displayText = value || placeholder;
 
     return (
       <TouchableOpacity
@@ -223,9 +257,18 @@ export const MechanicalElectScreen: React.FC = () => {
           style={[
             styles.selectText,
             !value && styles.selectTextPlaceholder,
-            value === 'OK' && { color: Colors.success, fontWeight: '700' },
-            value === 'NOK' && { color: Colors.danger, fontWeight: '700' },
-            (value === 'N/A' || value === 'NA') && { color: Colors.warning, fontWeight: '700' },
+            (value === 'OK' || value === 'Baik' || value === 'Normal') && {
+              color: Colors.success,
+              fontWeight: '700',
+            },
+            (value === 'NOK' || value === 'Rusak' || value === 'Alarm') && {
+              color: Colors.danger,
+              fontWeight: '700',
+            },
+            (value === 'N/A' || value === 'NA') && {
+              color: Colors.warning,
+              fontWeight: '700',
+            },
           ]}
           numberOfLines={1}
         >
@@ -239,38 +282,39 @@ export const MechanicalElectScreen: React.FC = () => {
   const renderCheckRow = (
     label: string,
     key: string,
-    value: string,
-    onSelect: (val: string) => void,
-    ketValue: string,
-    onKetChange: (val: string) => void,
+    ketKey?: string,
     options: string[] = ['OK', 'NOK', 'N/A'],
-    dropdownWidth: number = 135
+    dropdownWidth: number = 165,
   ) => {
-    const isOpen = openDropdownKey === key;
+    const val = (form as any)[key] || '';
+    const ketVal = ketKey ? (form as any)[ketKey] || '' : '';
+
     return (
-      <View style={[styles.row, { marginBottom: Spacing.sm, zIndex: isOpen ? 1000 : 1 }]}>
-        <View style={{ width: dropdownWidth, zIndex: isOpen ? 1000 : 1 }}>
-          <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]} numberOfLines={1}>
+      <View style={styles.row}>
+        <View style={{ width: dropdownWidth }}>
+          <Text style={styles.inputLabel} numberOfLines={1}>
             {label}
           </Text>
           {renderDropdownSelect(
             key,
-            value || '',
-            onSelect,
+            val,
+            v => updateForm(key, v),
             options,
-            label
+            label,
           )}
         </View>
 
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <TextInput
-            style={styles.inputBox}
-            value={ketValue}
-            onChangeText={onKetChange}
-            placeholder="Keterangan..."
-            placeholderTextColor={Colors.textMuted}
-          />
-        </View>
+        {ketKey && (
+          <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+            <TextInput
+              style={styles.textInput}
+              value={ketVal}
+              onChangeText={v => updateForm(ketKey, v)}
+              placeholder="Keterangan..."
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+        )}
       </View>
     );
   };
@@ -287,231 +331,344 @@ export const MechanicalElectScreen: React.FC = () => {
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Card 1: Air Conditioner */}
-          <View style={[styles.card, { zIndex: openDropdownKey?.startsWith('ac') ? 1000 : 4 }]}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setAcExpanded(!acExpanded)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle}>Air Conditioner</Text>
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>Air Conditioner</Text>
+              <View
+                style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}
+              >
+                {(form.acList?.length || 1) > 1 && (
+                  <TouchableOpacity
+                    onPress={() =>
+                      removeAcRow(form.acList[form.acList.length - 1].id)
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={{
+                        color: Colors.danger,
+                        fontWeight: 'bold',
+                        fontSize: 13,
+                      }}
+                    >
+                      - Hapus AC
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={addAcRow} activeOpacity={0.7}>
+                  <Text
+                    style={{
+                      color: Colors.primary,
+                      fontWeight: 'bold',
+                      fontSize: 13,
+                    }}
+                  >
+                    + Tambah AC
+                  </Text>
+                </TouchableOpacity>
               </View>
-              {acExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {acExpanded && (
-              <View style={styles.cardBody}>
-                {renderCheckRow('SITE STATUS', 'acSiteStatus', form.acSiteStatus, (v) => updateForm('acSiteStatus', v), form.acSiteStatusKet, (v) => updateForm('acSiteStatusKet', v), ['Indoor', 'Outdoor', 'N/A'])}
+            <View style={styles.cardBody}>
+              {renderCheckRow(
+                'Site Status',
+                'acSiteStatus',
+                'acSiteStatusKet',
+                ['Indoor', 'Outdoor', 'N/A'],
+                165,
+              )}
 
-                <View style={[styles.row, { marginBottom: Spacing.sm }]}>
-                  <View style={{ width: 135 }}>
-                    <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>JUMLAH AC</Text>
-                    <View style={styles.lockedContainer}>
-                      <Text style={styles.lockedText}>
-                        {(() => {
-                          const count = getFilledAcCount(form.acList);
-                          return count > 0 ? count.toString() : '';
-                        })()}
-                      </Text>
-                      <Lock size={14} color={Colors.textMuted} />
-                    </View>
+              <View style={styles.row}>
+                <View style={{ width: 165 }}>
+                  <Text style={styles.inputLabel}>Jumlah AC</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text style={styles.lockedText}>
+                      {getFilledAcCount(form.acList) > 0
+                        ? getFilledAcCount(form.acList).toString()
+                        : ''}
+                    </Text>
+                    <Lock size={14} color={Colors.textMuted} />
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Merk AC</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={form.acMerk}
+                    onChangeText={val => updateForm('acMerk', val)}
+                    placeholder="Merk AC..."
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+
+              <View
+                style={[styles.titleDivider, { marginVertical: Spacing.sm }]}
+              />
+
+              {/* Matriks Pemeriksaan Parameter AC */}
+              {AC_CHECK_ITEMS.map(item => (
+                <View key={item.key} style={{ marginBottom: Spacing.md }}>
+                  <Text style={styles.inputLabel}>{item.label}</Text>
+
+                  {/* Baris Kotak Status AC #1, AC #2, dst */}
+                  <View style={styles.row}>
+                    {(form.acList || [{ id: 1 }]).map(
+                      (ac: any, acIdx: number) => {
+                        const val = ac[item.key] || '';
+                        return (
+                          <View key={acIdx} style={{ flex: 1 }}>
+                            {renderDropdownSelect(
+                              `ac_${acIdx}_${item.key}`,
+                              val,
+                              v => updateAcRow(acIdx, item.key, v),
+                              ['OK', 'NOK', 'N/A'],
+                              `Pilih Status ${item.label} (AC #${acIdx + 1})`,
+                              `AC #${acIdx + 1}`,
+                            )}
+                          </View>
+                        );
+                      },
+                    )}
                   </View>
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>MERK AC</Text>
+                  {/* Keterangan di Bawah Kotak AC #1-3 */}
+                  <View style={{ marginTop: 6 }}>
                     <TextInput
-                      style={styles.inputBox}
-                      value={form.acMerk}
-                      onChangeText={(val) => updateForm('acMerk', val)}
+                      style={styles.textInput}
+                      value={
+                        (form as any)[item.ketKey] ??
+                        (form.acList?.[0]?.[`${item.key}Ket`] || '')
+                      }
+                      onChangeText={val => {
+                        updateForm(item.ketKey, val);
+                        updateAcRow(0, `${item.key}Ket`, val);
+                      }}
+                      placeholder="Keterangan..."
+                      placeholderTextColor={Colors.textMuted}
                     />
                   </View>
                 </View>
-
-                {/* DAFTAR UNIT AC (Matriks Status per AC + 1 Kolom Keterangan per Item) */}
-                <View style={styles.acMatrixHeader}>
-                  <Text style={styles.acMatrixTitle}>Unit AC</Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {(form.acList?.length || 1) > 1 && (
-                      <TouchableOpacity
-                        onPress={() => removeAcRow(form.acList[form.acList.length - 1].id)}
-                        style={styles.acRemoveBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Trash2 color={Colors.danger} size={14} style={{ marginRight: 4 }} />
-                        <Text style={styles.acRemoveBtnText}>Hapus AC #{(form.acList?.length || 1)}</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity onPress={addAcRow} style={styles.acAddBtn} activeOpacity={0.7}>
-                      <Plus color={Colors.primary} size={14} style={{ marginRight: 4 }} />
-                      <Text style={styles.acAddBtnText}>Tambah AC</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {AC_CHECK_ITEMS.map((item) => (
-                  <View key={item.key} style={styles.acRowCard}>
-                    <Text style={styles.acParamLabel}>{item.label}</Text>
-
-                    {/* Baris Status Dropdown per Unit AC */}
-                    <View style={styles.acUnitsRow}>
-                      {(form.acList || [{ id: 1 }]).map((ac: any, acIdx: number) => (
-                        <View key={acIdx} style={[styles.acUnitBox, { minWidth: (form.acList?.length || 1) > 2 ? 80 : 100 }]}>
-                          <Text style={styles.acUnitTag}>AC #{acIdx + 1}</Text>
-                          {renderDropdownSelect(
-                            `ac_${acIdx}_${item.key}`,
-                            ac[item.key] || '',
-                            (v) => updateAcRow(acIdx, item.key, v),
-                            ['OK', 'NOK', 'N/A'],
-                            `${item.label} (AC #${acIdx + 1})`
-                          )}
-                        </View>
-                      ))}
-                    </View>
-
-                    {/* HANYA 1 KOLOM KETERANGAN UNTUK ITEM PEMERIKSAAN INI */}
-                    <View style={styles.acKetContainer}>
-                      <TextInput
-                        style={styles.acKetInput}
-                        value={form[item.ketKey] ?? (form.acList?.[0]?.[`${item.key}Ket`] || '')}
-                        onChangeText={(val) => {
-                          updateForm(item.ketKey, val);
-                          updateAcRow(0, `${item.key}Ket`, val);
-                        }}
-                        placeholder="Keterangan..."
-                        placeholderTextColor={Colors.textMuted}
-                      />
-                    </View>
-                  </View>
-                ))}
-              </View>
-            )}
+              ))}
+            </View>
           </View>
 
           {/* Card 2: Exhaust Fan */}
-          <View style={[styles.card, { zIndex: openDropdownKey?.startsWith('ex') ? 1000 : 3 }]}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setExhaustExpanded(!exhaustExpanded)}
-              activeOpacity={0.7}
-            >
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Exhaust Fan</Text>
               </View>
-              {exhaustExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {exhaustExpanded && (
-              <View style={styles.cardBody}>
-                <View style={{ marginBottom: Spacing.sm }}>
-                  <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>JUMLAH</Text>
+            <View style={styles.cardBody}>
+              <View style={[styles.row, { marginBottom: Spacing.sm }]}>
+                <View style={{ width: 165 }}>
+                  <Text style={styles.inputLabel}>Jumlah</Text>
                   <TextInput
-                    style={[styles.inputBox, { width: 135 }]}
+                    style={styles.textInput}
                     value={form.exJumlah}
-                    onChangeText={(val) => updateForm('exJumlah', val)}
+                    onChangeText={val => updateForm('exJumlah', val)}
                     keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={Colors.textMuted}
                   />
                 </View>
-
-                {renderCheckRow('STATUS', 'exStatus', form.exStatus, (v) => updateForm('exStatus', v), form.exStatusKet, (v) => updateForm('exStatusKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('SISTEM KERJA', 'exSystem', form.exSystem, (v) => updateForm('exSystem', v), form.exSystemKet, (v) => updateForm('exSystemKet', v), ['Backup', 'Main', 'N/A'])}
-                {renderCheckRow('CONTROLLER', 'exController', form.exController, (v) => updateForm('exController', v), form.exControllerKet, (v) => updateForm('exControllerKet', v), ['Analog', 'Digital', 'N/A'])}
+                <View style={{ flex: 1 }} />
               </View>
-            )}
+
+              {renderCheckRow(
+                'Status',
+                'exStatus',
+                'exStatusKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Sistem Kerja',
+                'exSystem',
+                'exSystemKet',
+                ['Backup', 'Main', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Controller',
+                'exController',
+                'exControllerKet',
+                ['Analog', 'Digital', 'N/A'],
+                165,
+              )}
+            </View>
           </View>
 
           {/* Card 3: Grounding */}
-          <View style={[styles.card, { zIndex: openDropdownKey?.startsWith('gr') ? 1000 : 2 }]}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setGroundingExpanded(!groundingExpanded)}
-              activeOpacity={0.7}
-            >
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Grounding</Text>
               </View>
-              {groundingExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {groundingExpanded && (
-              <View style={styles.cardBody}>
-                <View style={{ marginBottom: Spacing.sm }}>
-                  <Text style={[styles.inputLabel, { fontSize: 11, marginBottom: 4 }]}>PENGUKURAN GROUNDING</Text>
+            <View style={styles.cardBody}>
+              <View style={[styles.row, { marginBottom: Spacing.sm }]}>
+                <View style={{ width: 165 }}>
+                  <Text style={styles.inputLabel}>Pengukuran Grounding</Text>
                   <TextInput
-                    style={[styles.inputBox, { width: 135 }]}
+                    style={styles.textInput}
                     value={form.grPengukuran}
-                    onChangeText={(val) => updateForm('grPengukuran', val)}
+                    onChangeText={val => updateForm('grPengukuran', val)}
+                    placeholder="Nilai Ohm..."
+                    placeholderTextColor={Colors.textMuted}
                   />
                 </View>
-
-                {renderCheckRow('GROUNDING STATUS', 'grStatus', form.grStatus, (v) => updateForm('grStatus', v), form.grStatusKet, (v) => updateForm('grStatusKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('PENANGKAL PETIR', 'grPetir', form.grPetir, (v) => updateForm('grPetir', v), form.grPetirKet, (v) => updateForm('grPetirKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('BAR GROUNDING INDOOR', 'grBarIndoor', form.grBarIndoor, (v) => updateForm('grBarIndoor', v), form.grBarIndoorKet, (v) => updateForm('grBarIndoorKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('BAR GROUNDING TOWER', 'grBarTower', form.grBarTower, (v) => updateForm('grBarTower', v), form.grBarTowerKet, (v) => updateForm('grBarTowerKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('BAR SUMUR GROUNDING', 'grBarSumur', form.grBarSumur, (v) => updateForm('grBarSumur', v), form.grBarSumurKet, (v) => updateForm('grBarSumurKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('KABEL DOWN CONDUCTOR (BC50)', 'grKabel', form.grKabel, (v) => updateForm('grKabel', v), form.grKabelKet, (v) => updateForm('grKabelKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('KONEKSI BAUT', 'grKoneksi', form.grKoneksi, (v) => updateForm('grKoneksi', v), form.grKoneksiKet, (v) => updateForm('grKoneksiKet', v), ['OK', 'NOK', 'N/A'])}
+                <View style={{ flex: 1 }} />
               </View>
-            )}
+
+              {renderCheckRow(
+                'Grounding Status',
+                'grStatus',
+                'grStatusKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Penangkal Petir',
+                'grPetir',
+                'grPetirKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Bar Grounding Indoor',
+                'grBarIndoor',
+                'grBarIndoorKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Bar Grounding Tower',
+                'grBarTower',
+                'grBarTowerKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Bar Sumur Grounding',
+                'grBarSumur',
+                'grBarSumurKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Kabel Down Conductor (BC50)',
+                'grKabel',
+                'grKabelKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Koneksi Baut',
+                'grKoneksi',
+                'grKoneksiKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+            </View>
           </View>
 
           {/* Card 4: Status POP */}
-          <View style={[styles.card, { zIndex: openDropdownKey?.startsWith('pop') ? 1000 : 1 }]}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setStatusPopExpanded(!statusPopExpanded)}
-              activeOpacity={0.7}
-            >
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Status POP</Text>
               </View>
-              {statusPopExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {statusPopExpanded && (
-              <View style={styles.cardBody}>
-                {renderCheckRow('STATUS LOKASI', 'popLokasi', form.popLokasi, (v) => updateForm('popLokasi', v), form.popLokasiKet, (v) => updateForm('popLokasiKet', v), ['Shelter', 'Mini Shelter', 'ODC', 'PLC', 'Other', 'N/A'], 145)}
+            <View style={styles.cardBody}>
+              {renderCheckRow(
+                'Status Lokasi',
+                'popLokasi',
+                'popLokasiKet',
+                ['Shelter', 'Mini Shelter', 'ODC', 'PLC', 'Other', 'N/A'],
+                165,
+              )}
 
-                <View style={styles.inputGroupFull}>
-                  <Text style={styles.inputLabel}>DIMENSI RUANGAN/BANGUNAN</Text>
-                  <TextInput
-                    style={styles.inputBox}
-                    value={form.popLuas}
-                    onChangeText={(val) => updateForm('popLuas', val)}
-                  />
-                </View>
-
-                {renderCheckRow('KONDISI CAT', 'popCat', form.popCat, (v) => updateForm('popCat', v), form.popCatKet, (v) => updateForm('popCatKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('KONSTRUKSI BANGUNAN', 'popKonstruksi', form.popKonstruksi, (v) => updateForm('popKonstruksi', v), form.popKonstruksiKet, (v) => updateForm('popKonstruksiKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('LAMPU PENERANGAN', 'popLampu', form.popLampu, (v) => updateForm('popLampu', v), form.popLampuKet, (v) => updateForm('popLampuKet', v), ['OK', 'NOK', 'N/A'])}
-                {renderCheckRow('KUNCI PINTU PENGAMAN', 'popKunci', form.popKunci, (v) => updateForm('popKunci', v), form.popKunciKet, (v) => updateForm('popKunciKet', v), ['OK', 'NOK', 'N/A'])}
+              <View style={{ marginBottom: Spacing.sm }}>
+                <Text style={styles.inputLabel}>
+                  Dimensi Ruangan / Bangunan
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={form.popLuas}
+                  onChangeText={val => updateForm('popLuas', val)}
+                  placeholder="Contoh: 3m x 4m..."
+                  placeholderTextColor={Colors.textMuted}
+                />
               </View>
-            )}
+
+              {renderCheckRow(
+                'Kondisi Cat',
+                'popCat',
+                'popCatKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Konstruksi Bangunan',
+                'popKonstruksi',
+                'popKonstruksiKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Lampu Penerangan',
+                'popLampu',
+                'popLampuKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+              {renderCheckRow(
+                'Kunci Pintu Pengaman',
+                'popKunci',
+                'popKunciKet',
+                ['OK', 'NOK', 'N/A'],
+                165,
+              )}
+            </View>
           </View>
 
           {/* Card 5: Catatan */}
           <View style={styles.card}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>Catatan</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Catatan</Text>
+              </View>
             </View>
+            <View style={styles.titleDivider} />
+
             <View style={styles.cardBody}>
               <TextInput
-                style={[styles.inputBox, { height: 100, textAlignVertical: 'top' }]}
-                value={form.popNote}
-                onChangeText={(val) => updateForm('popNote', val)}
+                style={[
+                  styles.textInput,
+                  {
+                    height: 100,
+                    textAlignVertical: 'top',
+                    paddingVertical: 10,
+                  },
+                ]}
+                value={form.popNote || form.note}
+                onChangeText={val => {
+                  updateForm('popNote', val);
+                  updateForm('note', val);
+                }}
                 placeholder="Tambahkan catatan..."
                 placeholderTextColor={Colors.textMuted}
                 multiline
@@ -519,10 +676,21 @@ export const MechanicalElectScreen: React.FC = () => {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.saveButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
+          {/* Save Button */}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#3B82F6', '#2563EB']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.saveGradient}
+            >
+              <Text style={styles.saveButtonText}>Simpan & Selesai</Text>
+            </LinearGradient>
           </TouchableOpacity>
-
         </ScrollView>
       </View>
 
@@ -532,7 +700,7 @@ export const MechanicalElectScreen: React.FC = () => {
         options={modalPicker.options}
         selectedValue={modalPicker.selectedValue}
         onSelect={modalPicker.onSelect}
-        onClose={() => setModalPicker((prev) => ({ ...prev, visible: false }))}
+        onClose={() => setModalPicker(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );
@@ -543,35 +711,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: Spacing.md,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 80,
-  },
-  backText: {
-    ...Typography.body,
-    color: Colors.white,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    ...Typography.h4,
-    color: Colors.white,
-    fontWeight: 'bold',
-  },
   contentContainer: {
     flex: 1,
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
   },
   scrollContent: {
     padding: Spacing.lg,
@@ -590,6 +732,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.sm,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -598,58 +741,55 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
   },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginBottom: Spacing.md,
+  },
   cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    gap: Spacing.xs,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: Spacing.sm,
-  },
-  inputGroupFull: {
-    flex: 1,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 10,
     textTransform: 'uppercase',
+    marginBottom: 4,
   },
-  inputBox: {
+  textInput: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm + 2,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: Colors.background,
     color: Colors.text,
-    height: 44,
-    ...Typography.body,
+    height: 38,
+    fontSize: 13,
   },
   selectBox: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm + 2,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: Colors.background,
-    height: 44,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  selectBoxActive: {
-    borderColor: '#3B82F6',
-  },
   selectText: {
-    ...Typography.body,
+    fontSize: 13,
     color: Colors.text,
   },
   selectTextPlaceholder: {
@@ -659,269 +799,36 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm + 2,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 44,
+    height: 38,
   },
   lockedText: {
-    ...Typography.body,
+    fontSize: 13,
     color: Colors.textSecondary,
     fontWeight: '600',
-  },
-  acMatrixHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.md,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  acMatrixTitle: {
-    ...Typography.subtitle1,
-    color: Colors.text,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  acMatrixSubtitle: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    fontSize: 11,
-  },
-  acAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  acAddBtnText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  acRemoveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  acRemoveBtnText: {
-    ...Typography.caption,
-    color: Colors.danger,
-    fontWeight: '600',
-    fontSize: 11,
-  },
-  acRowCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.sm + 2,
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  acParamLabel: {
-    ...Typography.caption,
-    color: Colors.text,
-    fontWeight: 'bold',
-    fontSize: 12,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  acUnitsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs + 2,
-  },
-  acUnitBox: {
-    flex: 1,
-    minWidth: 100,
-  },
-  acUnitTag: {
-    ...Typography.caption,
-    color: Colors.white,
-    fontWeight: 'bold',
-    fontSize: 10.5,
-    marginBottom: 2,
-  },
-  acKetContainer: {
-    marginTop: 4,
-  },
-  acKetLabel: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    fontSize: 10,
-    marginBottom: 2,
-    textTransform: 'uppercase',
-  },
-  acKetInput: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: Colors.background,
-    color: Colors.text,
-    height: 38,
-    ...Typography.caption,
-    fontSize: 12,
-  },
-  segmentBtn: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surface,
-  },
-  segmentBtnActiveOk: {
-    backgroundColor: '#10B981', // Green for OK
-    borderColor: '#10B981',
-  },
-  segmentBtnActiveNok: {
-    backgroundColor: '#F43F5E', // Red for NOK
-    borderColor: '#F43F5E',
-  },
-  segmentBtnActiveNa: {
-    backgroundColor: '#EAB308', // Yellow for N/A
-    borderColor: '#EAB308',
-  },
-  segmentBtnActiveOther: {
-    backgroundColor: '#3B82F6', // Blue for Custom options (Main/Backup/Indoor/Shelter etc)
-    borderColor: '#3B82F6',
-  },
-  segmentText: {
-    color: Colors.textMuted,
-    ...Typography.caption,
-    fontWeight: 'bold',
-  },
-  segmentTextActive: {
-    color: Colors.white,
-    ...Typography.caption,
-    fontWeight: 'bold',
-  },
-  deleteBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.sm,
   },
   saveButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.md,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-    ...Shadow.md,
-  },
-  saveButtonText: {
-    ...Typography.subtitle1,
-    color: Colors.white,
-    fontWeight: 'bold',
-  },
-  photoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  photoUploadBoxWrapper: {
-    width: '47%',
-    position: 'relative',
-  },
-  photoUploadBox: {
-    width: '100%',
-    height: 100,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    backgroundColor: Colors.surfaceLight,
-    justifyContent: 'center',
-    alignItems: 'stretch',
-  },
-  photoUploadBoxAdd: {
-    width: '100%',
-    height: 100,
-    borderWidth: 1.5,
-    borderColor: Colors.glassBorder,
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-  },
-  uploadedImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  photoUploadText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  deletePhotoBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    ...Shadow.sm,
-  },
-  acTabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    padding: 4,
     marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    marginBottom: Spacing.xl,
+    ...Shadow.md,
   },
-  acTabBtn: {
-    flex: 1,
-    flexDirection: 'row',
+  saveGradient: {
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: BorderRadius.md,
   },
-  acTabBtnActive: {
-    backgroundColor: Colors.primary,
-    ...Shadow.sm,
-  },
-  acTabText: {
-    ...Typography.caption,
-    fontWeight: 'bold',
-    color: Colors.textMuted,
-  },
-  acTabTextActive: {
+  saveButtonText: {
+    ...Typography.button,
     color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });

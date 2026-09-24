@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, Image, Text, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  Image,
+  Text,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { Colors, Spacing, BorderRadius, Shadow } from '../../theme';
 
+import { formatImageUri } from '../../utils/helpers';
+import { resolveTelegramUri } from '../../services/telegramStorage';
 import { useInspectionStore } from '../../store/inspectionStore';
 
 interface DynamicPhotoCardProps {
@@ -26,20 +35,32 @@ export const DynamicPhotoCard: React.FC<DynamicPhotoCardProps> = ({
 }) => {
   const { getPhotoTimestamp } = useInspectionStore();
   const [aspectRatio, setAspectRatio] = useState<number>(4 / 3);
+  const [displayUri, setDisplayUri] = useState<string>(formatImageUri(uri));
   const displayDateStr = dateStr || (uri ? getPhotoTimestamp(uri) : '');
 
   useEffect(() => {
+    let isMounted = true;
     if (uri) {
-      Image.getSize(
-        uri,
-        (width, height) => {
-          if (width > 0 && height > 0) {
-            setAspectRatio(width / height);
-          }
-        },
-        () => {}
-      );
+      resolveTelegramUri(uri).then(resolved => {
+        if (!isMounted) return;
+        const formatted = formatImageUri(resolved);
+        setDisplayUri(formatted);
+        if (formatted) {
+          Image.getSize(
+            formatted,
+            (width, height) => {
+              if (width > 0 && height > 0 && isMounted) {
+                setAspectRatio(width / height);
+              }
+            },
+            () => {},
+          );
+        }
+      });
     }
+    return () => {
+      isMounted = false;
+    };
   }, [uri]);
 
   return (
@@ -49,7 +70,7 @@ export const DynamicPhotoCard: React.FC<DynamicPhotoCardProps> = ({
         onPress={onPress}
         activeOpacity={0.85}
       >
-        <Image source={{ uri }} style={styles.uploadedImage} />
+        <Image source={{ uri: displayUri }} style={styles.uploadedImage} />
         {label ? (
           <View style={styles.topLabelOverlay}>
             <Text style={styles.topLabelText} numberOfLines={1}>
@@ -59,7 +80,11 @@ export const DynamicPhotoCard: React.FC<DynamicPhotoCardProps> = ({
         ) : null}
         {(displayDateStr || coordsStr || addressStr) && (
           <View style={styles.timestampBadgeOverlay}>
-            {displayDateStr ? <Text style={styles.timestampOverlayText}>Tgl/Jam: {displayDateStr}</Text> : null}
+            {displayDateStr ? (
+              <Text style={styles.timestampOverlayText}>
+                Tgl/Jam: {displayDateStr}
+              </Text>
+            ) : null}
             {coordsStr ? (
               <Text style={styles.timestampOverlayTextSub} numberOfLines={1}>
                 Koordinat: {coordsStr}

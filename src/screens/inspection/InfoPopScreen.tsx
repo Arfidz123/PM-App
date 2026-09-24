@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, CheckSquare, Square } from 'lucide-react-native';
+import { CheckSquare, Square } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
 import database from '../../database';
@@ -17,16 +17,12 @@ import { Asset } from '../../database/models';
 import { Header } from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { cleanPopId, cleanPopName } from '../../utils/helpers';
+import { findPopMasterRecord } from '../../database/popMasterData';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const TIPE_POP_OPTIONS = [
-  'Super Backbone',
-  'Backbone',
-  'Distribusi',
-  'Akses',
-];
+const TIPE_POP_OPTIONS = ['Super Backbone', 'Backbone', 'Distribusi', 'Akses'];
 
 export const InfoPopScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -43,18 +39,29 @@ export const InfoPopScreen: React.FC = () => {
   } = useInspectionStore();
 
   const [asset, setAsset] = useState<Asset | null>(null);
-  const [infoExpanded, setInfoExpanded] = useState(true);
-  const [tipeExpanded, setTipeExpanded] = useState(true);
-  const [fotoExpanded, setFotoExpanded] = useState(true);
 
   const form = formData.infoPop || {};
-  const [selectedTipe, setSelectedTipe] = useState<string[]>(form.tipePop || []);
+  const master =
+    findPopMasterRecord(activePopId) || findPopMasterRecord(activePopName);
+
+  const [selectedTipe, setSelectedTipe] = useState<string[]>(
+    form.tipePop && form.tipePop.length > 0 ? form.tipePop : [],
+  );
   const [idPM, setIdPM] = useState(form.idPM || '');
   const [timPLN, setTimPLN] = useState(form.timPLN || '');
   const [timSerpo, setTimSerpo] = useState(form.timSerpo || '');
-  const [namaManual, setNamaManual] = useState(form.namaPop || cleanPopName(activePopName || '') || '');
-  const [alamatManual, setAlamatManual] = useState(form.alamat || activePopLocation || '');
-  const [koordinatManual, setKoordinatManual] = useState(form.koordinat || '');
+  const [namaManual, setNamaManual] = useState(
+    form.namaPop || master?.name || cleanPopName(activePopName || '') || '',
+  );
+  const [alamatManual, setAlamatManual] = useState(
+    form.alamat || master?.location || activePopLocation || '',
+  );
+  const [koordinatManual, setKoordinatManual] = useState(
+    form.koordinat ||
+      (master?.latitude && master?.longitude
+        ? `${master.latitude}, ${master.longitude}`
+        : ''),
+  );
 
   useEffect(() => {
     loadAssetData();
@@ -64,27 +71,27 @@ export const InfoPopScreen: React.FC = () => {
     if (!activePopId) return;
     try {
       const assets = await database.get<Asset>('assets').query().fetch();
-      const currentAsset = assets.find((a) => a.assetCode === activePopId);
+      const currentAsset = assets.find(a => a.assetCode === activePopId);
 
       if (currentAsset) {
         setAsset(currentAsset);
         if (!form.namaPop) setNamaManual(cleanPopName(currentAsset.name));
         if (!form.alamat) setAlamatManual(currentAsset.location);
         if (!form.koordinat) {
-          const coordsStr = (currentAsset.latitude && currentAsset.longitude)
-            ? `${currentAsset.latitude}, ${currentAsset.longitude}`
-            : '';
+          const coordsStr =
+            currentAsset.latitude && currentAsset.longitude
+              ? `${currentAsset.latitude}, ${currentAsset.longitude}`
+              : '';
           setKoordinatManual(coordsStr);
           handleUpdateField('koordinat', coordsStr);
         }
 
         try {
           const specs = JSON.parse(currentAsset.specifications || '{}');
-          if (specs.tipe_pop && Array.isArray(specs.tipe_pop) && !form.tipePop) {
-            setSelectedTipe(specs.tipe_pop);
-          }
-          if (specs.alamat_manual && !form.alamat) setAlamatManual(specs.alamat_manual);
-          if (specs.koordinat_manual && !form.koordinat) setKoordinatManual(specs.koordinat_manual);
+          if (specs.alamat_manual && !form.alamat)
+            setAlamatManual(specs.alamat_manual);
+          if (specs.koordinat_manual && !form.koordinat)
+            setKoordinatManual(specs.koordinat_manual);
         } catch (e) {
           console.log('Error parsing specifications', e);
         }
@@ -104,7 +111,7 @@ export const InfoPopScreen: React.FC = () => {
   const toggleTipe = (tipe: string) => {
     let newSelected = [...selectedTipe];
     if (newSelected.includes(tipe)) {
-      newSelected = newSelected.filter((t) => t !== tipe);
+      newSelected = newSelected.filter(t => t !== tipe);
     } else {
       newSelected.push(tipe);
     }
@@ -116,7 +123,11 @@ export const InfoPopScreen: React.FC = () => {
     <View style={styles.container}>
       <Header
         title="Info POP"
-        subtitle={activePopName ? `POP: ${cleanPopName(activePopName)}` : 'Detail Informasi POP'}
+        subtitle={
+          activePopName
+            ? `POP: ${cleanPopName(activePopName)}`
+            : 'Detail Informasi POP'
+        }
         onBack={() => navigation.goBack()}
       />
 
@@ -127,159 +138,151 @@ export const InfoPopScreen: React.FC = () => {
         >
           {/* Card 1: Info POP */}
           <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setInfoExpanded(!infoExpanded)}
-              activeOpacity={0.7}
-            >
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Info POP</Text>
               </View>
-              {infoExpanded ? (
-                <ChevronUp color={Colors.textMuted} size={20} />
-              ) : (
-                <ChevronDown color={Colors.textMuted} size={20} />
-              )}
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {infoExpanded && (
-              <View style={styles.cardBody}>
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>ID PM</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={idPM}
-                    onChangeText={(val) => {
-                      setIdPM(val);
-                      handleUpdateField('idPM', val);
-                    }}
-                    placeholder="Masukkan ID PM"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>ID POP</Text>
-                  <Text style={styles.dataValueBold}>{activePopId ? cleanPopId(activePopId) : '-'}</Text>
-                </View>
-
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Nama POP</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={namaManual}
-                    onChangeText={(val) => {
-                      setNamaManual(val);
-                      handleUpdateField('namaPop', val);
-                      setActivePop(activePopId, val, alamatManual);
-                    }}
-                    placeholder="Masukkan nama POP"
-                    placeholderTextColor={Colors.textMuted}
-                    multiline
-                  />
-                </View>
-
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Alamat</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={alamatManual}
-                    onChangeText={(val) => {
-                      setAlamatManual(val);
-                      handleUpdateField('alamat', val);
-                    }}
-                    placeholder="Masukkan alamat manual"
-                    placeholderTextColor={Colors.textMuted}
-                    multiline
-                  />
-                </View>
-
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Koordinat</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={koordinatManual}
-                    onChangeText={(val) => {
-                      setKoordinatManual(val);
-                      handleUpdateField('koordinat', val);
-                    }}
-                    placeholder="Koordinat GPS"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
-
-                <View style={styles.dataRow}>
-                  <Text style={styles.dataLabel}>Tim PLN ICON PLUS</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={timPLN}
-                    onChangeText={(val) => {
-                      setTimPLN(val);
-                      handleUpdateField('timPLN', val);
-                    }}
-                    placeholder="Nama Tim PLN"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
-
-                <View style={[styles.dataRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-                  <Text style={styles.dataLabel}>Tim SERPO</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    value={timSerpo}
-                    onChangeText={(val) => {
-                      setTimSerpo(val);
-                      handleUpdateField('timSerpo', val);
-                    }}
-                    placeholder="Nama Tim Serpo"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                </View>
+            <View style={styles.cardBody}>
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>ID PM</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={idPM}
+                  onChangeText={val => {
+                    setIdPM(val);
+                    handleUpdateField('idPM', val);
+                  }}
+                  placeholder="Masukkan ID PM"
+                  placeholderTextColor={Colors.textMuted}
+                />
               </View>
-            )}
+
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>ID POP</Text>
+                <Text style={styles.dataValueBold}>
+                  {activePopId ? cleanPopId(activePopId) : '-'}
+                </Text>
+              </View>
+
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Nama POP</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={namaManual}
+                  onChangeText={val => {
+                    setNamaManual(val);
+                    handleUpdateField('namaPop', val);
+                    setActivePop(activePopId, val, alamatManual);
+                  }}
+                  placeholder="Masukkan nama POP"
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                />
+              </View>
+
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Alamat</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={alamatManual}
+                  onChangeText={val => {
+                    setAlamatManual(val);
+                    handleUpdateField('alamat', val);
+                  }}
+                  placeholder="Masukkan alamat manual"
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                />
+              </View>
+
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Koordinat</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={koordinatManual}
+                  onChangeText={val => {
+                    setKoordinatManual(val);
+                    handleUpdateField('koordinat', val);
+                  }}
+                  placeholder="Koordinat GPS"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+
+              <View style={styles.dataRow}>
+                <Text style={styles.dataLabel}>Tim PLN ICON PLUS</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={timPLN}
+                  onChangeText={val => {
+                    setTimPLN(val);
+                    handleUpdateField('timPLN', val);
+                  }}
+                  placeholder="Nama Tim PLN"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.dataRow,
+                  { borderBottomWidth: 0, paddingBottom: 0 },
+                ]}
+              >
+                <Text style={styles.dataLabel}>Tim SERPO</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={timSerpo}
+                  onChangeText={val => {
+                    setTimSerpo(val);
+                    handleUpdateField('timSerpo', val);
+                  }}
+                  placeholder="Nama Tim Serpo"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+            </View>
           </View>
 
           {/* Card 2: Tipe POP */}
           <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setTipeExpanded(!tipeExpanded)}
-              activeOpacity={0.7}
-            >
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Tipe POP</Text>
               </View>
-              {tipeExpanded ? (
-                <ChevronUp color={Colors.textMuted} size={20} />
-              ) : (
-                <ChevronDown color={Colors.textMuted} size={20} />
-              )}
-            </TouchableOpacity>
+            </View>
+            <View style={styles.titleDivider} />
 
-            {tipeExpanded && (
-              <View style={styles.cardBody}>
-                {TIPE_POP_OPTIONS.map((tipe, index) => {
-                  const isChecked = selectedTipe.includes(tipe);
-                  return (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.checkboxRow}
-                      onPress={() => toggleTipe(tipe)}
-                      activeOpacity={0.7}
+            <View style={styles.cardBody}>
+              {TIPE_POP_OPTIONS.map((tipe, index) => {
+                const isChecked = selectedTipe.includes(tipe);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.checkboxRow}
+                    onPress={() => toggleTipe(tipe)}
+                    activeOpacity={0.7}
+                  >
+                    {isChecked ? (
+                      <CheckSquare color={Colors.primary} size={22} />
+                    ) : (
+                      <Square color={Colors.border} size={22} />
+                    )}
+                    <Text
+                      style={[
+                        styles.checkboxLabel,
+                        isChecked && { fontWeight: 'bold' },
+                      ]}
                     >
-                      {isChecked ? (
-                        <CheckSquare color={Colors.primary} size={22} />
-                      ) : (
-                        <Square color={Colors.border} size={22} />
-                      )}
-                      <Text style={[styles.checkboxLabel, isChecked && { fontWeight: 'bold' }]}>
-                        {tipe}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+                      {tipe}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
 
           {/* Action Button */}
@@ -321,6 +324,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing.xs,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -329,43 +333,51 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
   },
-  cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.glassBorder,
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
+  cardBody: {},
   dataRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: Colors.glassBorder,
   },
   dataLabel: {
-    ...Typography.bodySmall,
-    color: Colors.textMuted,
+    ...Typography.body,
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: '500',
     flex: 1,
   },
   dataValueBold: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: 'bold',
+    fontWeight: '600',
     flex: 2,
-    textAlign: 'right',
+    textAlign: 'left',
+    paddingLeft: 8,
   },
   textInput: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
-    fontWeight: 'bold',
+    fontWeight: '600',
     flex: 2,
-    textAlign: 'right',
+    textAlign: 'left',
     paddingVertical: 4,
     paddingHorizontal: 0,
+    paddingLeft: 8,
   },
   checkboxRow: {
     flexDirection: 'row',
@@ -376,7 +388,9 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
+    fontWeight: '500',
     marginLeft: Spacing.md,
   },
   photoGrid: {

@@ -29,7 +29,13 @@ import {
   Info,
   HelpCircle,
 } from 'lucide-react-native';
-import {Colors, Typography, Spacing, BorderRadius, FontFamily} from '../../theme';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  FontFamily,
+} from '../../theme';
 
 // ─── Types ───────────────────────────────────────────────────
 export type AlertType = 'success' | 'error' | 'warning' | 'info' | 'confirm';
@@ -108,7 +114,7 @@ export const showAlert = (config: AlertConfig) => {
 };
 
 // ─── Provider ────────────────────────────────────────────────
-export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
+export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [visible, setVisible] = useState(false);
@@ -186,7 +192,7 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
   const buttons: AlertButton[] =
     config?.buttons && config.buttons.length > 0
       ? config.buttons
-      : [{text: 'OK', style: 'default'}];
+      : [{ text: 'OK', style: 'default' }];
 
   return (
     <AlertContext.Provider value={show}>
@@ -196,9 +202,10 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
         transparent
         animationType="none"
         statusBarTranslucent
-        onRequestClose={() => dismiss()}>
+        onRequestClose={() => dismiss()}
+      >
         <TouchableWithoutFeedback onPress={() => dismiss()}>
-          <Animated.View style={[styles.overlay, {opacity: overlayAnim}]}>
+          <Animated.View style={[styles.overlay, { opacity: overlayAnim }]}>
             <TouchableWithoutFeedback onPress={() => {}}>
               <Animated.View
                 style={[
@@ -214,7 +221,8 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                     ],
                     opacity: scaleAnim,
                   },
-                ]}>
+                ]}
+              >
                 {/* Icon Circle */}
                 <Animated.View
                   style={[
@@ -231,12 +239,14 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                       ],
                       opacity: iconBounceAnim,
                     },
-                  ]}>
+                  ]}
+                >
                   <View
                     style={[
                       styles.iconCircle,
-                      {backgroundColor: variant.iconBg},
-                    ]}>
+                      { backgroundColor: variant.iconBg },
+                    ]}
+                  >
                     <IconComponent
                       color={variant.iconColor}
                       size={32}
@@ -259,7 +269,8 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                   style={[
                     styles.buttonRow,
                     buttons.length === 1 && styles.buttonRowSingle,
-                  ]}>
+                  ]}
+                >
                   {buttons.map((btn, idx) => {
                     const isCancel = btn.style === 'cancel';
                     const isDestructive = btn.style === 'destructive';
@@ -272,10 +283,11 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                           style={[
                             styles.button,
                             styles.cancelButton,
-                            isSingle ? styles.singleButton : {flex: 1},
+                            isSingle ? styles.singleButton : { flex: 1 },
                           ]}
                           activeOpacity={0.7}
-                          onPress={() => dismiss(btn.onPress)}>
+                          onPress={() => dismiss(btn.onPress)}
+                        >
                           <Text style={styles.cancelButtonText}>
                             {btn.text}
                           </Text>
@@ -292,15 +304,17 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
                         key={idx}
                         style={[
                           styles.button,
-                          isSingle ? styles.singleButton : {flex: 1},
+                          isSingle ? styles.singleButton : { flex: 1 },
                         ]}
                         activeOpacity={0.8}
-                        onPress={() => dismiss(btn.onPress)}>
+                        onPress={() => dismiss(btn.onPress)}
+                      >
                         <LinearGradient
                           colors={gradientColors}
-                          start={{x: 0, y: 0}}
-                          end={{x: 1, y: 1}}
-                          style={styles.gradientButton}>
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.gradientButton}
+                        >
                           <Text style={styles.gradientButtonText}>
                             {btn.text}
                           </Text>
@@ -322,7 +336,7 @@ export const AlertProvider: React.FC<{children: React.ReactNode}> = ({
 export const useAlert = (): ShowAlertFn => useContext(AlertContext);
 
 // ─── Styles ──────────────────────────────────────────────────
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = Math.min(SCREEN_WIDTH - 48, 360);
 
 const styles = StyleSheet.create({
@@ -345,7 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     // Shadow
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 12},
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.4,
     shadowRadius: 24,
     elevation: 20,

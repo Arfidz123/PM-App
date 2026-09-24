@@ -13,13 +13,31 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Clock, Zap, Camera, FileText, Trash2, Image as ImageIcon, Lock } from 'lucide-react-native';
+import {
+  ChevronDown,
+  ChevronLeft,
+  Clock,
+  Zap,
+  Camera,
+  FileText,
+  Trash2,
+  Image as ImageIcon,
+  Lock,
+} from 'lucide-react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, showAlert, DropdownModalPicker } from '../../components/common';
+import {
+  Header,
+  showAlert,
+  DropdownModalPicker,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
+import {
+  requestCameraPermission,
+  getLiveCoordinatesString,
+  getCurrentFormattedTimestamp,
+} from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -40,14 +58,8 @@ export const KwhMeterScreen: React.FC = () => {
     title: '',
     options: [],
     selectedValue: '',
-    onSelect: () => {},
+    onSelect: () => { },
   });
-
-  // Accordion state
-  const [panelExpanded, setPanelExpanded] = useState(true);
-  const [cosExpanded, setCosExpanded] = useState(true);
-  const [kabelExpanded, setKabelExpanded] = useState(true);
-  const [standExpanded, setStandExpanded] = useState(true);
 
   // Entrance animations
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -64,25 +76,62 @@ export const KwhMeterScreen: React.FC = () => {
   }, []);
 
   const handleSavePressIn = () => {
-    Animated.spring(saveButtonAnim, { toValue: 0.96, friction: 4, tension: 200, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 0.96,
+      friction: 4,
+      tension: 200,
+      useNativeDriver: true,
+    }).start();
   };
   const handleSavePressOut = () => {
-    Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 150,
+      useNativeDriver: true,
+    }).start();
   };
 
-  const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
+  const {
+    formData,
+    updateFormData,
+    addPhotoBySection,
+    removePhotoBySection,
+    currentLocation,
+    activePopLocation,
+    getPhotoTimestamp,
+    getPhotoCoordinates,
+  } = useInspectionStore();
   const kwhData = formData.kwhMeter || {};
 
   const infoPop = formData.infoPop || {};
-  const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
-  const addressStr = (infoPop.alamat && infoPop.alamat.trim() !== '') ? infoPop.alamat : (activePopLocation || currentLocation?.address || '-');
+  const coordsStr =
+    infoPop.koordinat ||
+    (currentLocation
+      ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}`
+      : '');
+  const addressStr =
+    infoPop.alamat && infoPop.alamat.trim() !== ''
+      ? infoPop.alamat
+      : activePopLocation || currentLocation?.address || '-';
   const now = new Date();
-  const dateStr = `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
+  const dateStr = `${now.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })} ${now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} WITA`;
 
   const handleTakePhoto = async () => {
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      showAlert({type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.'});
+      showAlert({
+        type: 'error',
+        title: 'Izin Kamera Ditolak',
+        message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.',
+      });
       return;
     }
     launchCamera(
@@ -95,10 +144,16 @@ export const KwhMeterScreen: React.FC = () => {
         saveToPhotos: false,
         includeBase64: false,
       },
-      async (response) => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini'});
+          showAlert({
+            type: 'error',
+            title: 'Kamera Error',
+            message:
+              response.errorMessage ||
+              'Gagal membuka kamera pada perangkat ini',
+          });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -106,10 +161,15 @@ export const KwhMeterScreen: React.FC = () => {
           if (uri) {
             const liveCoords = await getLiveCoordinatesString();
             const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('kwhMeter', uri, photoTs, liveCoords || undefined);
+            addPhotoBySection(
+              'kwhMeter',
+              uri,
+              photoTs,
+              liveCoords || undefined,
+            );
           }
         }
-      }
+      },
     );
   };
 
@@ -122,10 +182,14 @@ export const KwhMeterScreen: React.FC = () => {
         quality: 0.7,
         includeBase64: false,
       },
-      async (response) => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
-          showAlert({type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri'});
+          showAlert({
+            type: 'error',
+            title: 'Galeri Error',
+            message: response.errorMessage || 'Gagal membuka galeri',
+          });
           return;
         }
         if (response.assets && response.assets.length > 0) {
@@ -133,10 +197,15 @@ export const KwhMeterScreen: React.FC = () => {
           if (uri) {
             const liveCoords = await getLiveCoordinatesString();
             const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('kwhMeter', uri, photoTs, liveCoords || undefined);
+            addPhotoBySection(
+              'kwhMeter',
+              uri,
+              photoTs,
+              liveCoords || undefined,
+            );
           }
         }
-      }
+      },
     );
   };
   const powerSystemData = formData.powerSystem || {};
@@ -145,19 +214,25 @@ export const KwhMeterScreen: React.FC = () => {
     updateFormData('kwhMeter', { [field]: value });
   };
 
-  const syncWithPowerSystem = (kwhField: string, psField: string, value: string) => {
+  const syncWithPowerSystem = (
+    kwhField: string,
+    psField: string,
+    value: string,
+  ) => {
     updateField(kwhField, value);
     updateFormData('powerSystem', { [psField]: value });
   };
 
   const phasaDropdownOpen = kwhData.phasaDropdownOpen ?? false;
-  const setPhasaDropdownOpen = (v: boolean) => updateField('phasaDropdownOpen', v);
+  const setPhasaDropdownOpen = (v: boolean) =>
+    updateField('phasaDropdownOpen', v);
 
   const cosDropdownOpen = kwhData.cosDropdownOpen ?? false;
   const setCosDropdownOpen = (v: boolean) => updateField('cosDropdownOpen', v);
 
   const aresterDropdownOpen = kwhData.aresterDropdownOpen ?? false;
-  const setAresterDropdownOpen = (v: boolean) => updateField('aresterDropdownOpen', v);
+  const setAresterDropdownOpen = (v: boolean) =>
+    updateField('aresterDropdownOpen', v);
 
   const cosValue = kwhData.cosValue ?? 'Ada';
   const setCosValue = (v: string) => updateField('cosValue', v);
@@ -166,62 +241,49 @@ export const KwhMeterScreen: React.FC = () => {
   const setAresterValue = (v: string) => updateField('aresterValue', v);
 
   const idCustomer = powerSystemData.idPelanggan ?? kwhData.idCustomer ?? '';
-  const setIdCustomer = (v: string) => syncWithPowerSystem('idCustomer', 'idPelanggan', v);
+  const setIdCustomer = (v: string) =>
+    syncWithPowerSystem('idCustomer', 'idPelanggan', v);
 
-  const phasa = (powerSystemData.phasaCatuan ?? kwhData.phasa ?? '1').replace(/(phase|phasa)\s*/i, '').trim() || '1';
-  const setPhasa = (v: string) => syncWithPowerSystem('phasa', 'phasaCatuan', v);
+  const phasa = (powerSystemData.phasaCatuan ?? kwhData.phasa ?? '')
+    .replace(/(phase|phasa)\s*/i, '')
+    .trim();
+  const setPhasa = (v: string) =>
+    syncWithPowerSystem('phasa', 'phasaCatuan', v);
 
   const daya = powerSystemData.dayaListrik ?? kwhData.daya ?? '';
   const setDaya = (v: string) => syncWithPowerSystem('daya', 'dayaListrik', v);
 
-  const mcbR = powerSystemData.arusPhasaR ?? kwhData.mcbR ?? '';
-  const setMcbR = (v: string) => syncWithPowerSystem('mcbR', 'arusPhasaR', v);
+  const mcbR = kwhData.mcbR ?? '';
+  const setMcbR = (v: string) => updateField('mcbR', v);
 
-  const mcbS = powerSystemData.arusPhasaS ?? kwhData.mcbS ?? '';
-  const setMcbS = (v: string) => syncWithPowerSystem('mcbS', 'arusPhasaS', v);
+  const mcbS = kwhData.mcbS ?? '';
+  const setMcbS = (v: string) => updateField('mcbS', v);
 
-  const mcbT = powerSystemData.arusPhasaT ?? kwhData.mcbT ?? '';
-  const setMcbT = (v: string) => syncWithPowerSystem('mcbT', 'arusPhasaT', v);
+  const mcbT = kwhData.mcbT ?? '';
+  const setMcbT = (v: string) => updateField('mcbT', v);
 
-  // Form state - Pengukuran
+  // Form state - Pengukuran (Mengikuti Tegangan Catuan & Total Arus Terpakai dari Power System - Terkunci)
   const rn = powerSystemData.teganganR_N ?? kwhData.rn ?? '';
-  const setRn = (v: string) => syncWithPowerSystem('rn', 'teganganR_N', v);
-
   const rAmpere = powerSystemData.arusPhasaR ?? kwhData.rAmpere ?? '';
-  const setRAmpere = (v: string) => syncWithPowerSystem('rAmpere', 'arusPhasaR', v);
-
   const sn = powerSystemData.teganganS_N ?? kwhData.sn ?? '';
-  const setSn = (v: string) => syncWithPowerSystem('sn', 'teganganS_N', v);
-
   const sAmpere = powerSystemData.arusPhasaS ?? kwhData.sAmpere ?? '';
-  const setSAmpere = (v: string) => syncWithPowerSystem('sAmpere', 'arusPhasaS', v);
-
   const tn = powerSystemData.teganganT_N ?? kwhData.tn ?? '';
-  const setTn = (v: string) => syncWithPowerSystem('tn', 'teganganT_N', v);
-
   const tAmpere = powerSystemData.arusPhasaT ?? kwhData.tAmpere ?? '';
-  const setTAmpere = (v: string) => syncWithPowerSystem('tAmpere', 'arusPhasaT', v);
+  const gnVoltage =
+    powerSystemData.teganganG_N ?? kwhData.gnVoltage ?? kwhData.ngVoltage ?? '';
 
-  const ngVoltage = powerSystemData.teganganG_N ?? kwhData.ngVoltage ?? '';
-  const setNgVoltage = (v: string) => syncWithPowerSystem('ngVoltage', 'teganganG_N', v);
-
-  const renderLockedField = (label: string, value: string, unit?: string, placeholder = '—', hasUnitSpacer = false) => (
-    <View style={styles.inputGroup}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={[styles.lockedContainer, { flex: 1 }]}>
-          <Text style={[styles.lockedText, !value && styles.lockedPlaceholder]}>
-            {value || placeholder}
-          </Text>
-        </View>
-        {unit ? (
-          <Text style={styles.measurementUnit}>{unit}</Text>
-        ) : hasUnitSpacer ? (
-          <View style={styles.measurementUnit} />
-        ) : null}
-      </View>
-    </View>
-  );
+  useEffect(() => {
+    updateFormData('kwhMeter', {
+      rn,
+      sn,
+      tn,
+      gnVoltage,
+      ngVoltage: gnVoltage,
+      rAmpere,
+      sAmpere,
+      tAmpere,
+    });
+  }, [rn, sn, tn, gnVoltage, rAmpere, sAmpere, tAmpere]);
 
   // Form state - Kabel Output
   const warnaR = kwhData.warnaR ?? '';
@@ -269,9 +331,12 @@ export const KwhMeterScreen: React.FC = () => {
   const suhuG = kwhData.suhuG ?? '';
   const setSuhuG = (v: string) => updateField('suhuG', v);
 
-  // Form state - Comment
-  const comment = kwhData.comment ?? '';
-  const setComment = (v: string) => updateField('comment', v);
+  // Form state - Comment / Catatan
+  const comment = kwhData.catatan || kwhData.comment || '';
+  const setComment = (v: string) => {
+    updateField('comment', v);
+    updateField('catatan', v);
+  };
 
   return (
     <View style={styles.container}>
@@ -299,268 +364,517 @@ export const KwhMeterScreen: React.FC = () => {
         >
           {/* Card 1: Panel KWH Meter */}
           <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setPanelExpanded(!panelExpanded)}
-              activeOpacity={0.7}
-            >
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Panel KWH Meter</Text>
               </View>
-              {panelExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
-
-            {panelExpanded && (
-              <View style={[styles.cardBody, { zIndex: 10 }]}>
-
-                <View style={styles.row}>
-                  {renderLockedField('ID Customer', idCustomer)}
-                </View>
-                <View style={styles.row}>
-                  {renderLockedField('Phasa', phasa || '1', undefined, '—', true)}
-                  {renderLockedField('Daya', daya, 'VA')}
-                </View>
-
-                <View style={styles.divider} />
-
-                <Text style={styles.subHeading}>KAPASITAS MCB</Text>
-
-                <View style={styles.row}>
-                  {renderLockedField('R', mcbR, 'A')}
-                  {renderLockedField('S', mcbS, 'A')}
-                  {renderLockedField('T', mcbT, 'A')}
-                </View>
-
-                <View style={styles.divider} />
-
-                <Text style={styles.subHeading}>PENGUKURAN</Text>
-
-                <View style={styles.row}>
-                  {renderLockedField('Tegangan R-N', rn, 'V')}
-                  {renderLockedField('R', rAmpere, 'A')}
-                </View>
-
-                <View style={styles.row}>
-                  {renderLockedField('Tegangan S-N', sn, 'V')}
-                  {renderLockedField('S', sAmpere, 'A')}
-                </View>
-
-                <View style={styles.row}>
-                  {renderLockedField('Tegangan T-N', tn, 'V')}
-                  {renderLockedField('T', tAmpere, 'A')}
-                </View>
-
-                <View style={styles.row}>
-                  {renderLockedField('Tegangan N-G', ngVoltage, 'V')}
-                  <View style={styles.inputGroup} />
+            </View>
+            <View style={styles.titleDivider} />
+            <View style={[styles.cardBody, { zIndex: 10 }]}>
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>ID Pelanggan</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={idCustomer}
+                    onChangeText={setIdCustomer}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
                 </View>
               </View>
-            )}
+              <View style={[styles.row, { marginBottom: 0 }]}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa</Text>
+                  <TouchableOpacity
+                    style={styles.selectBox}
+                    onPress={() => {
+                      setModalPicker({
+                        visible: true,
+                        title: 'Pilih Phasa',
+                        options: ['1', '3'],
+                        selectedValue: phasa,
+                        onSelect: val => setPhasa(val),
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.selectText,
+                        !phasa && styles.selectTextPlaceholder,
+                      ]}
+                    >
+                      {phasa || 'Pilih'}
+                    </Text>
+                    <ChevronDown color={Colors.textMuted} size={16} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Daya listrik</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={daya}
+                    onChangeText={setDaya}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
           </View>
 
-          {/* Card 2: COS & Arester */}
-          <View style={[styles.card, { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 }]}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setCosExpanded(!cosExpanded)}
-              activeOpacity={0.7}
-            >
+          {/* Card 2: Kapasitas MCB */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Kapasitas MCB</Text>
+              </View>
+            </View>
+            <View style={styles.titleDivider} />
+            <View style={styles.cardBody}>
+              <View style={[styles.row, { marginBottom: 0 }]}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa R</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={mcbR}
+                    onChangeText={setMcbR}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa S</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={mcbS}
+                    onChangeText={setMcbS}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>Phasa T</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={mcbT}
+                    onChangeText={setMcbT}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Card 3: Pengukuran */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Pengukuran</Text>
+              </View>
+            </View>
+            <View style={styles.titleDivider} />
+            <View style={styles.cardBody}>
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tegangan R-N</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !rn && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {rn || '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa R</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !rAmpere && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {rAmpere ? `${rAmpere} A` : '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tegangan S-N</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !sn && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {sn || '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa S</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !sAmpere && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {sAmpere ? `${sAmpere} A` : '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tegangan T-N</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !tn && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {tn || '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Phasa T</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !tAmpere && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {tAmpere ? `${tAmpere} A` : '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+              </View>
+
+              <View style={[styles.row, { marginBottom: 0 }]}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Tegangan G-N</Text>
+                  <View style={styles.lockedContainer}>
+                    <Text
+                      style={[
+                        styles.lockedText,
+                        !gnVoltage && styles.lockedPlaceholder,
+                      ]}
+                    >
+                      {gnVoltage || '—'}
+                    </Text>
+                    <Lock size={13} color={Colors.textMuted} />
+                  </View>
+                </View>
+                <View style={styles.inputGroup} />
+              </View>
+            </View>
+          </View>
+
+          {/* Card 4: COS & Arester */}
+          <View
+            style={[
+              styles.card,
+              { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 },
+            ]}
+          >
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>COS & Arester</Text>
               </View>
-              {cosExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
-
-            {cosExpanded && (
-              <View style={[styles.cardBody, { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 }]}>
-                <View style={[styles.row, { zIndex: 100 }]}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>COS</Text>
-                    <TouchableOpacity
-                      style={styles.selectBox}
-                      onPress={() => {
-                        setModalPicker({
-                          visible: true,
-                          title: 'Pilih Status COS',
-                          options: ['Ada', 'Tidak Ada'],
-                          selectedValue: cosValue,
-                          onSelect: (val) => setCosValue(val),
-                        });
-                      }}
-                      activeOpacity={0.7}
+            </View>
+            <View style={styles.titleDivider} />
+            <View
+              style={[
+                styles.cardBody,
+                { zIndex: cosDropdownOpen || aresterDropdownOpen ? 1000 : 5 },
+              ]}
+            >
+              <View style={[styles.row, { zIndex: 100 }]}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>COS</Text>
+                  <TouchableOpacity
+                    style={styles.selectBox}
+                    onPress={() => {
+                      setModalPicker({
+                        visible: true,
+                        title: 'Pilih Status COS',
+                        options: ['Ada', 'Tidak Ada'],
+                        selectedValue: cosValue,
+                        onSelect: val => setCosValue(val),
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.selectText,
+                        !cosValue && styles.selectTextPlaceholder,
+                      ]}
                     >
-                      <Text style={[styles.selectText, !cosValue && styles.selectTextPlaceholder]}>
-                        {cosValue || 'Pilih'}
-                      </Text>
-                      <ChevronDown color={Colors.textMuted} size={16} />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>ARESTER</Text>
-                    <TouchableOpacity
-                      style={styles.selectBox}
-                      onPress={() => {
-                        setModalPicker({
-                          visible: true,
-                          title: 'Pilih Status ARESTER',
-                          options: ['Ada', 'Tidak Ada'],
-                          selectedValue: aresterValue,
-                          onSelect: (val) => setAresterValue(val),
-                        });
-                      }}
-                      activeOpacity={0.7}
+                      {cosValue || 'Pilih'}
+                    </Text>
+                    <ChevronDown color={Colors.textMuted} size={16} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>ARESTER</Text>
+                  <TouchableOpacity
+                    style={styles.selectBox}
+                    onPress={() => {
+                      setModalPicker({
+                        visible: true,
+                        title: 'Pilih Status ARESTER',
+                        options: ['Ada', 'Tidak Ada'],
+                        selectedValue: aresterValue,
+                        onSelect: val => setAresterValue(val),
+                      });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.selectText,
+                        !aresterValue && styles.selectTextPlaceholder,
+                      ]}
                     >
-                      <Text style={[styles.selectText, !aresterValue && styles.selectTextPlaceholder]}>
-                        {aresterValue || 'Pilih'}
-                      </Text>
-                      <ChevronDown color={Colors.textMuted} size={16} />
-                    </TouchableOpacity>
-                  </View>
+                      {aresterValue || 'Pilih'}
+                    </Text>
+                    <ChevronDown color={Colors.textMuted} size={16} />
+                  </TouchableOpacity>
                 </View>
               </View>
-            )}
+            </View>
           </View>
 
-          {/* Card 3: Kabel Output KWH */}
+          {/* Card 5: Kabel Output KWH */}
           <View style={styles.card}>
-            <TouchableOpacity
-              style={styles.cardHeader}
-              onPress={() => setKabelExpanded(!kabelExpanded)}
-              activeOpacity={0.7}
-            >
+            <View style={styles.cardHeader}>
               <View style={styles.cardTitleRow}>
                 <Text style={styles.cardTitle}>Kabel Output KWH</Text>
               </View>
-              {kabelExpanded ?
-                <ChevronUp color={Colors.textMuted} size={20} /> :
-                <ChevronDown color={Colors.textMuted} size={20} />
-              }
-            </TouchableOpacity>
-
-            {kabelExpanded && (
-              <View style={styles.cardBody}>
-                <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>WARNA R</Text>
-                    <TextInput style={styles.inputBox} value={warnaR} onChangeText={setWarnaR} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasR} onChangeText={setLuasR} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>mm²</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuR} onChangeText={setSuhuR} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>°C</Text>
-                    </View>
-                  </View>
+            </View>
+            <View style={styles.titleDivider} />
+            <View style={styles.cardBody}>
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WARNA R</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={warnaR}
+                    onChangeText={setWarnaR}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
                 </View>
-
-                <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>WARNA S</Text>
-                    <TextInput style={styles.inputBox} value={warnaS} onChangeText={setWarnaS} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasS} onChangeText={setLuasS} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>mm²</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuS} onChangeText={setSuhuS} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>°C</Text>
-                    </View>
-                  </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>LUAS</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={luasR}
+                    onChangeText={setLuasR}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
                 </View>
-
-                <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>WARNA T</Text>
-                    <TextInput style={styles.inputBox} value={warnaT} onChangeText={setWarnaT} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasT} onChangeText={setLuasT} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>mm²</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuT} onChangeText={setSuhuT} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>°C</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={styles.row}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>WARNA N</Text>
-                    <TextInput style={styles.inputBox} value={warnaN} onChangeText={setWarnaN} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasN} onChangeText={setLuasN} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>mm²</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuN} onChangeText={setSuhuN} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>°C</Text>
-                    </View>
-                  </View>
-                </View>
-
-                <View style={[styles.row, { marginBottom: 0 }]}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>WARNA G</Text>
-                    <TextInput style={styles.inputBox} value={warnaG} onChangeText={setWarnaG} />
-                  </View>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>LUAS</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={luasG} onChangeText={setLuasG} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>mm²</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.inputGroup, { marginRight: 0 }]}>
-                    <Text style={styles.inputLabel}>SUHU</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TextInput style={[styles.inputBox, { flex: 1 }]} value={suhuG} onChangeText={setSuhuG} keyboardType="numeric" />
-                      <Text style={styles.measurementUnit}>°C</Text>
-                    </View>
-                  </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>SUHU</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={suhuR}
+                    onChangeText={setSuhuR}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
                 </View>
               </View>
-            )}
+
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WARNA S</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={warnaS}
+                    onChangeText={setWarnaS}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>LUAS</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={luasS}
+                    onChangeText={setLuasS}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>SUHU</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={suhuS}
+                    onChangeText={setSuhuS}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WARNA T</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={warnaT}
+                    onChangeText={setWarnaT}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>LUAS</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={luasT}
+                    onChangeText={setLuasT}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>SUHU</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={suhuT}
+                    onChangeText={setSuhuT}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WARNA N</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={warnaN}
+                    onChangeText={setWarnaN}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>LUAS</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={luasN}
+                    onChangeText={setLuasN}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>SUHU</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={suhuN}
+                    onChangeText={setSuhuN}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.row, { marginBottom: 0 }]}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>WARNA G</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={warnaG}
+                    onChangeText={setWarnaG}
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>LUAS</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={luasG}
+                    onChangeText={setLuasG}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+                <View style={[styles.inputGroup, { marginRight: 0 }]}>
+                  <Text style={styles.inputLabel}>SUHU</Text>
+                  <TextInput
+                    style={styles.inputBox}
+                    value={suhuG}
+                    onChangeText={setSuhuG}
+                    keyboardType="numeric"
+                    placeholder="—"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+              </View>
+            </View>
           </View>
 
-          {/* Catatan Section */}
+          {/* Card: Catatan */}
           <View style={styles.card}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>Catatan</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Catatan</Text>
+              </View>
             </View>
+            <View style={styles.titleDivider} />
             <View style={styles.cardBody}>
               <TextInput
-                style={[styles.inputBox, { height: 100, textAlignVertical: 'top' }]}
+                style={[
+                  styles.inputBox,
+                  {
+                    height: 100,
+                    textAlignVertical: 'top',
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                  },
+                ]}
                 value={comment}
                 onChangeText={setComment}
                 placeholder="Tambahkan catatan..."
@@ -576,11 +890,11 @@ export const KwhMeterScreen: React.FC = () => {
               onPress={() => navigation.goBack()}
               onPressIn={handleSavePressIn}
               onPressOut={handleSavePressOut}
-              activeOpacity={1}>
+              activeOpacity={1}
+            >
               <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
             </TouchableOpacity>
           </Animated.View>
-
         </Animated.ScrollView>
       </View>
 
@@ -590,7 +904,7 @@ export const KwhMeterScreen: React.FC = () => {
         options={modalPicker.options}
         selectedValue={modalPicker.selectedValue}
         onSelect={modalPicker.onSelect}
-        onClose={() => setModalPicker((prev) => ({ ...prev, visible: false }))}
+        onClose={() => setModalPicker(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );
@@ -656,13 +970,19 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    marginTop: 0,
+    paddingTop: 0,
   },
   sectionSubtitle: {
     ...Typography.caption,
@@ -687,16 +1007,17 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: 'bold',
     flex: 1,
-    textAlign: 'right',
+    textAlign: 'left',
     padding: 0,
     margin: 0,
   },
   subHeading: {
-    ...Typography.caption,
+    ...Typography.h4,
     color: Colors.text,
+    fontSize: 15,
     fontWeight: 'bold',
+    lineHeight: 22,
     marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
   },
   gridRow: {
     flexDirection: 'row',
@@ -731,7 +1052,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.textMuted,
+    fontSize: 10,
+    color: Colors.textSecondary,
     fontWeight: 'bold',
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -744,9 +1066,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: Colors.background,
-    height: 44,
+    height: 38,
   },
   selectBoxActive: {
     borderColor: '#3B82F6',
@@ -755,7 +1077,7 @@ const styles = StyleSheet.create({
   },
   dropdownMenu: {
     position: 'absolute',
-    top: 44, // Height of the selectBox
+    top: 38, // Height of the selectBox
     left: 0,
     right: 0,
     backgroundColor: Colors.surface,
@@ -783,8 +1105,8 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   selectText: {
-    ...Typography.body,
     color: Colors.text,
+    fontSize: 13,
   },
   selectTextPlaceholder: {
     color: Colors.textMuted,
@@ -794,11 +1116,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     backgroundColor: Colors.background,
     color: Colors.text,
-    height: 44,
-    ...Typography.body,
+    height: 38,
+    fontSize: 13,
+    textAlign: 'left',
   },
   commentContainer: {
     marginBottom: Spacing.lg,
@@ -919,15 +1242,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    height: 44,
+    height: 38,
   },
   lockedText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
+    color: Colors.text,
+    fontSize: 13,
     fontWeight: '600',
   },
   lockedPlaceholder: {

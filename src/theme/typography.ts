@@ -3,7 +3,7 @@
  * Using Inter font family for modern, clean look
  */
 
-import {TextStyle} from 'react-native';
+import { TextStyle } from 'react-native';
 
 export const FontFamily = {
   regular: 'Inter-Regular',

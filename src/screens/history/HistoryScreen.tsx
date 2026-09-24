@@ -3,11 +3,10 @@
  * Premium list of all past inspections with search, filters, and grouped dates
  */
 
-import React, {useState, useCallback, useEffect, useRef} from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
@@ -16,36 +15,47 @@ import {
   SectionList,
   StatusBar,
 } from 'react-native';
-import {useNavigation, useFocusEffect} from '@react-navigation/native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {
-  FileText,
   Inbox,
   Clock,
   Calendar,
   Search,
-  ChevronRight,
-  CheckCircle2,
-  XCircle,
   FileCheck,
-  TrendingUp,
   MapPin,
   Cloud,
   CloudOff,
+  ChevronRight,
+  TrendingUp,
+  XCircle,
 } from 'lucide-react-native';
 
-import {Colors, Typography, Spacing, BorderRadius, Shadow, FontFamily} from '../../theme';
-import {StatusBadge} from '../../components/common';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadow,
+  FontFamily,
+} from '../../theme';
+import { StatusBadge } from '../../components/common';
 import database from '../../database';
-import {Inspection, Asset} from '../../database/models';
-import {restoreInspectionsFromSupabase, syncInspectionsToSupabase} from '../../services/syncService';
-import {formatDate, getRelativeTime, cleanPopId, cleanPopName} from '../../utils/helpers';
-import type {RootStackParamList} from '../../types';
+import { Inspection, Asset } from '../../database/models';
+import {
+  restoreInspectionsFromFirebase,
+  syncInspectionsToFirebase,
+} from '../../services/syncService';
+import {
+  formatDate,
+  getRelativeTime,
+  cleanPopId,
+  cleanPopName,
+} from '../../utils/helpers';
+import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-
 
 interface InspectionWithAsset extends Inspection {
   assetName?: string;
@@ -58,7 +68,7 @@ interface SectionData {
   data: InspectionWithAsset[];
 }
 
-const {width} = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Helpers
 const getDateGroup = (timestamp: number): string => {
@@ -66,7 +76,11 @@ const getDateGroup = (timestamp: number): string => {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86400000);
-  const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dateOnly = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
 
   if (dateOnly.getTime() === today.getTime()) return 'Hari Ini';
   if (dateOnly.getTime() === yesterday.getTime()) return 'Kemarin';
@@ -77,7 +91,7 @@ const getDateGroup = (timestamp: number): string => {
   if (diffDays < 7) return 'Minggu Ini';
   if (diffDays < 30) return 'Bulan Ini';
 
-  return date.toLocaleDateString('id-ID', {month: 'long', year: 'numeric'});
+  return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 };
 
 const getStatusAccentColor = (status: string): string => {
@@ -130,17 +144,29 @@ const InspectionCard: React.FC<{
             }),
           },
         ],
-      }}>
+      }}
+    >
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={onPress}
-        style={inspectionCardStyles.cardTouchable}>
-        <View style={[inspectionCardStyles.cardAccent, {backgroundColor: accentColor}]} />
+        style={inspectionCardStyles.cardTouchable}
+      >
+        <View
+          style={[
+            inspectionCardStyles.cardAccent,
+            { backgroundColor: accentColor },
+          ]}
+        />
         <View style={inspectionCardStyles.cardInner}>
           <View style={inspectionCardStyles.cardTopRow}>
             <View style={inspectionCardStyles.cardTitleBlock}>
-              <Text style={inspectionCardStyles.cardAssetCode}>{cleanPopId(item.assetCode || '')}</Text>
-              <Text style={inspectionCardStyles.cardAssetName} numberOfLines={1}>
+              <Text style={inspectionCardStyles.cardAssetCode}>
+                {cleanPopId(item.assetCode || '')}
+              </Text>
+              <Text
+                style={inspectionCardStyles.cardAssetName}
+                numberOfLines={1}
+              >
                 {cleanPopName(item.assetName || '')}
               </Text>
             </View>
@@ -148,7 +174,11 @@ const InspectionCard: React.FC<{
           </View>
           {item.assetLocation ? (
             <View style={inspectionCardStyles.locationRow}>
-              <MapPin size={12} color={Colors.textMuted} style={{marginRight: 4}} />
+              <MapPin
+                size={12}
+                color={Colors.textMuted}
+                style={{ marginRight: 4 }}
+              />
               <Text style={inspectionCardStyles.locationText} numberOfLines={1}>
                 {item.assetLocation}
               </Text>
@@ -157,38 +187,68 @@ const InspectionCard: React.FC<{
           <View style={inspectionCardStyles.cardDivider} />
           <View style={inspectionCardStyles.cardBottomRow}>
             <View style={inspectionCardStyles.metaChip}>
-              <Calendar size={12} color={Colors.textMuted} style={{marginRight: 4}} />
-              <Text style={inspectionCardStyles.metaChipText}>{formatDate(item.inspectionDate)}</Text>
+              <Calendar
+                size={12}
+                color={Colors.textMuted}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={inspectionCardStyles.metaChipText}>
+                {formatDate(item.inspectionDate)}
+              </Text>
             </View>
             {item.isSynced ? (
               <View style={inspectionCardStyles.syncCloudChip}>
-                <Cloud size={11} color="#059669" style={{marginRight: 3}} />
-                <Text style={inspectionCardStyles.syncCloudChipText}>Cloud</Text>
+                <Cloud size={11} color="#059669" style={{ marginRight: 3 }} />
+                <Text style={inspectionCardStyles.syncCloudChipText}>
+                  Cloud
+                </Text>
               </View>
             ) : (
               <View style={inspectionCardStyles.syncLocalChip}>
-                <CloudOff size={11} color="#D97706" style={{marginRight: 3}} />
-                <Text style={inspectionCardStyles.syncLocalChipText}>Lokal</Text>
+                <CloudOff
+                  size={11}
+                  color="#D97706"
+                  style={{ marginRight: 3 }}
+                />
+                <Text style={inspectionCardStyles.syncLocalChipText}>
+                  Lokal
+                </Text>
               </View>
             )}
             {item.pdfPath ? (
               <View style={inspectionCardStyles.pdfChip}>
-                <FileCheck size={12} color={Colors.success} style={{marginRight: 3}} />
+                <FileCheck
+                  size={12}
+                  color={Colors.success}
+                  style={{ marginRight: 3 }}
+                />
                 <Text style={inspectionCardStyles.pdfChipText}>PDF</Text>
               </View>
             ) : null}
           </View>
           <View style={inspectionCardStyles.typeRow}>
-            <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-              {item.updatedAt && item.createdAt && (new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime() > 60000) ? (
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+            >
+              {item.updatedAt &&
+              item.createdAt &&
+              new Date(item.updatedAt).getTime() -
+                new Date(item.createdAt).getTime() >
+                60000 ? (
                 <View style={inspectionCardStyles.editedTag}>
                   <Text style={inspectionCardStyles.editedTagText}>Diedit</Text>
                 </View>
               ) : null}
             </View>
             <View style={inspectionCardStyles.timeAgoRow}>
-              <Clock size={11} color={Colors.textMuted} style={{marginRight: 3}} />
-              <Text style={inspectionCardStyles.timeAgoText}>{getRelativeTime(item.inspectionDate)}</Text>
+              <Clock
+                size={11}
+                color={Colors.textMuted}
+                style={{ marginRight: 3 }}
+              />
+              <Text style={inspectionCardStyles.timeAgoText}>
+                {getRelativeTime(item.inspectionDate)}
+              </Text>
             </View>
           </View>
         </View>
@@ -257,65 +317,106 @@ export const HistoryScreen: React.FC = () => {
 
   const loadInspections = async () => {
     try {
-      // Automatically sync unsynced local inspections and restore cloud backup silently
-      syncInspectionsToSupabase()
-        .then(() => restoreInspectionsFromSupabase())
-        .catch((err) => {
-          console.warn('Silent cloud sync/restore error:', err);
-        });
+      const fetchLocal = async () => {
+        const allInspections = await database
+          .get<Inspection>('inspections')
+          .query()
+          .fetch();
 
-      const allInspections = await database
-        .get<Inspection>('inspections')
-        .query()
-        .fetch();
-      const allAssets = await database.get<Asset>('assets').query().fetch();
-
-      const assetMap = new Map(allAssets.map((a: Asset) => [(a as any).id, a]));
-      // Also map by assetCode for inspections saved with assetCode as assetId
-      const assetCodeMap = new Map(allAssets.map((a: Asset) => [a.assetCode, a]));
-
-      const enriched: InspectionWithAsset[] = allInspections
-        .filter((insp: Inspection) => insp.status === 'completed')
-        .map((insp: Inspection) => {
-          const asset = assetMap.get(insp.assetId) || assetCodeMap.get(insp.assetId);
-
-          let parsedFormData: any = {};
-          if (insp.formData) {
+        // Auto-heal items with Telegram/Cloud PDF URL that were stuck as unsynced
+        allInspections.forEach(async insp => {
+          if (
+            !insp.isSynced &&
+            insp.pdfPath &&
+            (insp.pdfPath.startsWith('http://') ||
+              insp.pdfPath.startsWith('https://'))
+          ) {
             try {
-              parsedFormData = typeof insp.formData === 'string' ? JSON.parse(insp.formData) : insp.formData;
+              await database.write(async () => {
+                await insp.update(i => {
+                  i.isSynced = true;
+                });
+              });
             } catch (e) {}
           }
+        });
 
-          const fallbackName = parsedFormData?.infoPop?.namaPop || parsedFormData?.infoPop?.popName || (insp.assetId !== 'unknown' ? insp.assetId : 'POP');
-          const fallbackLocation = parsedFormData?.infoPop?.lokasi || parsedFormData?.infoPop?.alamat || '';
+        const allAssets = await database.get<Asset>('assets').query().fetch();
 
-          return Object.assign(Object.create(Object.getPrototypeOf(insp)), insp, {
-            assetName: (asset as any)?.name || fallbackName,
-            assetCode: (asset as any)?.assetCode || insp.assetId || 'N/A',
-            assetLocation: (asset as any)?.location || fallbackLocation,
-          });
+        const assetMap = new Map(
+          allAssets.map((a: Asset) => [(a as any).id, a]),
+        );
+        const assetCodeMap = new Map(
+          allAssets.map((a: Asset) => [a.assetCode, a]),
+        );
+
+        const enriched: InspectionWithAsset[] = allInspections
+          .filter((insp: Inspection) => insp.status === 'completed')
+          .map((insp: Inspection) => {
+            const asset =
+              assetMap.get(insp.assetId) || assetCodeMap.get(insp.assetId);
+
+            let parsedFormData: any = {};
+            if (insp.formData) {
+              try {
+                parsedFormData =
+                  typeof insp.formData === 'string'
+                    ? JSON.parse(insp.formData)
+                    : insp.formData;
+              } catch (e) {}
+            }
+
+            const fallbackName =
+              parsedFormData?.infoPop?.namaPop ||
+              parsedFormData?.infoPop?.popName ||
+              (insp.assetId !== 'unknown' ? insp.assetId : 'POP');
+            const fallbackLocation =
+              parsedFormData?.infoPop?.lokasi ||
+              parsedFormData?.infoPop?.alamat ||
+              '';
+
+            return Object.assign(
+              Object.create(Object.getPrototypeOf(insp)),
+              insp,
+              {
+                assetName: (asset as any)?.name || fallbackName,
+                assetCode: (asset as any)?.assetCode || insp.assetId || 'N/A',
+                assetLocation: (asset as any)?.location || fallbackLocation,
+              },
+            );
+          })
+          .sort((a: any, b: any) => b.inspectionDate - a.inspectionDate);
+
+        setStats({
+          total: enriched.length,
+          completed: enriched.length,
+          inProgress: 0,
+          draft: 0,
+        });
+
+        setInspections(enriched);
+        applyFilters(enriched, searchQuery);
+      };
+
+      // Load local database immediately
+      await fetchLocal();
+
+      // Silent background restore from Firestore
+      restoreInspectionsFromFirebase()
+        .then(result => {
+          if (result && result.restoredCount > 0) {
+            fetchLocal();
+          }
         })
-        .sort((a: any, b: any) => b.inspectionDate - a.inspectionDate);
-
-      // Calculate stats
-      setStats({
-        total: enriched.length,
-        completed: enriched.length,
-        inProgress: 0,
-        draft: 0,
-      });
-
-      setInspections(enriched);
-      applyFilters(enriched, searchQuery);
+        .catch(err => {
+          console.warn('Silent restore from Firestore notice:', err);
+        });
     } catch (error) {
       console.error('Error loading inspections:', error);
     }
   };
 
-  const applyFilters = (
-    list: InspectionWithAsset[],
-    query: string,
-  ) => {
+  const applyFilters = (list: InspectionWithAsset[], query: string) => {
     let result = list;
 
     // Search filter
@@ -332,8 +433,6 @@ export const HistoryScreen: React.FC = () => {
     setFilteredInspections(result);
   };
 
-
-
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     applyFilters(inspections, query);
@@ -349,10 +448,8 @@ export const HistoryScreen: React.FC = () => {
       groups[group].push(insp);
     });
 
-    return Object.entries(groups).map(([title, data]) => ({title, data}));
+    return Object.entries(groups).map(([title, data]) => ({ title, data }));
   };
-
-
 
   const renderInspectionCard = ({
     item,
@@ -376,7 +473,7 @@ export const HistoryScreen: React.FC = () => {
     );
   };
 
-  const renderSectionHeader = ({section}: {section: SectionData}) => (
+  const renderSectionHeader = ({ section }: { section: SectionData }) => (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionDot} />
       <Text style={styles.sectionTitle}>{section.title}</Text>
@@ -389,7 +486,8 @@ export const HistoryScreen: React.FC = () => {
     <View style={styles.emptyContainer}>
       <LinearGradient
         colors={['rgba(59, 130, 246, 0.15)', 'rgba(59, 130, 246, 0.05)']}
-        style={styles.emptyGlow}>
+        style={styles.emptyGlow}
+      >
         <View style={styles.emptyIconCircle}>
           <Inbox size={44} color={Colors.primary} strokeWidth={1.5} />
         </View>
@@ -401,12 +499,14 @@ export const HistoryScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.emptyButton}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate('MainTabs')}>
+        onPress={() => navigation.navigate('MainTabs')}
+      >
         <LinearGradient
           colors={[Colors.primary, Colors.primaryDark]}
-          start={{x: 0, y: 0}}
-          end={{x: 1, y: 1}}
-          style={styles.emptyButtonGradient}>
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.emptyButtonGradient}
+        >
           <Text style={styles.emptyButtonText}>Mulai Maintenance</Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -417,7 +517,10 @@ export const HistoryScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.backgroundSecondary} />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={Colors.backgroundSecondary}
+      />
 
       {/* ─── Header ─── */}
       <Animated.View
@@ -434,12 +537,14 @@ export const HistoryScreen: React.FC = () => {
               },
             ],
           },
-        ]}>
+        ]}
+      >
         <LinearGradient
           colors={[Colors.backgroundSecondary, Colors.background]}
-          start={{x: 0, y: 0}}
-          end={{x: 0, y: 1}}
-          style={styles.headerGradient}>
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.headerGradient}
+        >
           {/* Title row */}
           <View style={styles.headerTitleRow}>
             <View>
@@ -451,8 +556,6 @@ export const HistoryScreen: React.FC = () => {
               <Text style={styles.headerBadgeText}>{stats.total}</Text>
             </View>
           </View>
-
-
         </LinearGradient>
       </Animated.View>
 
@@ -471,12 +574,11 @@ export const HistoryScreen: React.FC = () => {
               },
             ],
           },
-        ]}>
+        ]}
+      >
         <View
-          style={[
-            styles.searchBar,
-            isSearchFocused && styles.searchBarFocused,
-          ]}>
+          style={[styles.searchBar, isSearchFocused && styles.searchBarFocused]}
+        >
           <Search
             size={18}
             color={isSearchFocused ? Colors.primary : Colors.textMuted}
@@ -498,8 +600,6 @@ export const HistoryScreen: React.FC = () => {
         </View>
       </Animated.View>
 
-
-
       {/* ─── Inspection List ─── */}
       <Animated.View
         style={[
@@ -507,7 +607,8 @@ export const HistoryScreen: React.FC = () => {
           {
             opacity: listAnim,
           },
-        ]}>
+        ]}
+      >
         <SectionList
           sections={sections}
           renderItem={renderInspectionCard}
@@ -517,7 +618,7 @@ export const HistoryScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           stickySectionHeadersEnabled={false}
           ListEmptyComponent={renderEmptyState}
-          ListFooterComponent={<View style={{height: 120}} />}
+          ListFooterComponent={<View style={{ height: 120 }} />}
         />
       </Animated.View>
     </View>
@@ -631,8 +732,6 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.sm,
     paddingVertical: 0,
   },
-
-
 
   // ─── Section Headers ───
   sectionHeader: {

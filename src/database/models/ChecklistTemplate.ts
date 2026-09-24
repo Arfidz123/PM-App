@@ -2,16 +2,22 @@
  * ChecklistTemplate Model - WatermelonDB
  */
 
-import {Model} from '@nozbe/watermelondb';
-import {field, text, date, readonly, children} from '@nozbe/watermelondb/decorators';
-import type {AssetCategory} from '../../types';
+import { Model } from '@nozbe/watermelondb';
+import {
+  field,
+  text,
+  date,
+  readonly,
+  children,
+} from '@nozbe/watermelondb/decorators';
+import type { AssetCategory } from '../../types';
 
 export default class ChecklistTemplate extends Model {
   static table = 'checklist_templates';
 
   static associations = {
-    checklist_items: {type: 'has_many' as const, foreignKey: 'template_id'},
-    assets: {type: 'has_many' as const, foreignKey: 'checklist_template_id'},
+    checklist_items: { type: 'has_many' as const, foreignKey: 'template_id' },
+    assets: { type: 'has_many' as const, foreignKey: 'checklist_template_id' },
   };
 
   @text('name') name!: string;

@@ -2,16 +2,27 @@
  * Asset Model - WatermelonDB
  */
 
-import {Model} from '@nozbe/watermelondb';
-import {field, text, date, readonly, relation, children, json} from '@nozbe/watermelondb/decorators';
-import type {AssetCategory, AssetStatus} from '../../types';
+import { Model } from '@nozbe/watermelondb';
+import {
+  field,
+  text,
+  date,
+  readonly,
+  relation,
+  children,
+  json,
+} from '@nozbe/watermelondb/decorators';
+import type { AssetCategory, AssetStatus } from '../../types';
 
 export default class Asset extends Model {
   static table = 'assets';
 
   static associations = {
-    inspections: {type: 'has_many' as const, foreignKey: 'asset_id'},
-    checklist_templates: {type: 'belongs_to' as const, key: 'checklist_template_id'},
+    inspections: { type: 'has_many' as const, foreignKey: 'asset_id' },
+    checklist_templates: {
+      type: 'belongs_to' as const,
+      key: 'checklist_template_id',
+    },
   };
 
   @text('asset_code') assetCode!: string;
@@ -33,7 +44,8 @@ export default class Asset extends Model {
   @readonly @date('updated_at') updatedAt!: Date;
 
   @children('inspections') inspections: any;
-  @relation('checklist_templates', 'checklist_template_id') checklistTemplate: any;
+  @relation('checklist_templates', 'checklist_template_id')
+  checklistTemplate: any;
 
   /** Parse specifications JSON */
   get specs(): Record<string, string> {

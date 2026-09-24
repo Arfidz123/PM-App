@@ -175,7 +175,9 @@ export async function requestCameraPermission(): Promise<boolean> {
   const { PermissionsAndroid, Platform } = require('react-native');
   if (Platform.OS === 'android') {
     try {
-      const hasPermission = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
+      const hasPermission = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+      );
       if (hasPermission) return true;
 
       const granted = await PermissionsAndroid.request(
@@ -205,7 +207,7 @@ export async function requestLocationPermission(): Promise<boolean> {
   if (Platform.OS === 'android') {
     try {
       const hasPermission = await PermissionsAndroid.check(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
       );
       if (hasPermission) return true;
 
@@ -213,7 +215,8 @@ export async function requestLocationPermission(): Promise<boolean> {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Izin GPS / Lokasi',
-          message: 'Aplikasi memerlukan izin lokasi GPS untuk menentukan posisi POP terdekat.',
+          message:
+            'Aplikasi memerlukan izin lokasi GPS untuk menentukan posisi POP terdekat.',
           buttonNeutral: 'Nanti',
           buttonNegative: 'Batal',
           buttonPositive: 'Izinkan',
@@ -231,7 +234,10 @@ export async function requestLocationPermission(): Promise<boolean> {
 /**
  * Reverse geocode latitude and longitude to full address string
  */
-export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<string | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
@@ -240,18 +246,25 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
       {
         headers: { 'User-Agent': 'CMMSApp/1.0 (Android)' },
         signal: controller.signal,
-      }
+      },
     );
     clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data && data.address) {
         const a = data.address;
-        const street = a.road || a.pedestrian || a.path || a.building || a.amenity || '';
-        const village = a.village || a.suburb || a.neighbourhood || a.hamlet || a.quarter || '';
+        const street =
+          a.road || a.pedestrian || a.path || a.building || a.amenity || '';
+        const village =
+          a.village ||
+          a.suburb ||
+          a.neighbourhood ||
+          a.hamlet ||
+          a.quarter ||
+          '';
         const district = a.city_district || a.subdistrict || a.county || '';
         const city = a.city || a.town || a.regency || '';
-        
+
         const parts = [street, village, district, city].filter(Boolean);
         if (parts.length > 0) return parts.join(', ');
       }
@@ -265,7 +278,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
       const timeoutId2 = setTimeout(() => controller2.abort(), 4000);
       const res2 = await fetch(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=id`,
-        { signal: controller2.signal }
+        { signal: controller2.signal },
       );
       clearTimeout(timeoutId2);
       if (res2.ok) {
@@ -273,7 +286,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
         const parts = [
           data2.locality || data2.city,
           data2.principalSubdivision,
-          data2.countryName
+          data2.countryName,
         ].filter(Boolean);
         if (parts.length > 0) return parts.join(', ');
       }
@@ -287,7 +300,11 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
 /**
  * Fetch high accuracy real-time GPS location + Reverse Geocoded Full Address
  */
-export async function fetchCurrentLocation(): Promise<{ lat: number; lng: number; address?: string } | null> {
+export async function fetchCurrentLocation(): Promise<{
+  lat: number;
+  lng: number;
+  address?: string;
+} | null> {
   const Geolocation = require('@react-native-community/geolocation').default;
   const hasPermission = await requestLocationPermission();
   if (!hasPermission) return null;
@@ -295,9 +312,10 @@ export async function fetchCurrentLocation(): Promise<{ lat: number; lng: number
   const getPos = (highAcc: boolean) =>
     new Promise<{ lat: number; lng: number }>((resolve, reject) => {
       Geolocation.getCurrentPosition(
-        (pos: any) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos: any) =>
+          resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         (err: any) => reject(err),
-        { enableHighAccuracy: highAcc, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: highAcc, timeout: 8000, maximumAge: 0 },
       );
     });
 
@@ -330,13 +348,17 @@ export async function getLiveCoordinatesString(): Promise<string | null> {
   const hasPermission = await requestLocationPermission();
   if (!hasPermission) return null;
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     Geolocation.getCurrentPosition(
       (pos: any) => {
-        resolve(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+        resolve(
+          `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(
+            5,
+          )}`,
+        );
       },
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 },
     );
   });
 }
@@ -346,7 +368,14 @@ export async function getLiveCoordinatesString(): Promise<string | null> {
  */
 export function getCurrentFormattedTimestamp(): string {
   const now = new Date();
-  return `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
+  return `${now.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })} ${now.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })} WITA`;
 }
 
 /**
@@ -362,19 +391,48 @@ export async function sharePdfFile(
     throw new Error('Path PDF tidak valid');
   }
 
+  // On Android, use native PdfDownloader which handles local files, remote URLs, and telegram:// URIs
   if (Platform.OS === 'android' && NativeModules.PdfDownloader?.sharePdf) {
     await NativeModules.PdfDownloader.sharePdf(
       filePath,
       title || 'Bagikan PDF',
       message || '',
     );
-  } else {
-    await Share.share({
-      url: filePath,
-      title: title || 'Bagikan PDF',
-      message: message || '',
-    });
+    return;
   }
+
+  let targetUrl = filePath;
+  if (targetUrl.startsWith('telegram://')) {
+    try {
+      const { resolveTelegramUri } = require('../services/telegramStorage');
+      const resolved = await resolveTelegramUri(targetUrl);
+      if (resolved) {
+        targetUrl = resolved;
+      }
+    } catch (e) {}
+  }
+
+  await Share.share({
+    url: targetUrl,
+    title: title || 'Bagikan PDF',
+    message: message ? `${message}\n${targetUrl}` : targetUrl,
+  });
 }
 
-
+/**
+ * Formats image URI for React Native Image & WebView on Android
+ */
+export const formatImageUri = (uri?: string): string => {
+  if (!uri) return '';
+  const cleanUri = uri.trim();
+  if (
+    cleanUri.startsWith('http://') ||
+    cleanUri.startsWith('https://') ||
+    cleanUri.startsWith('data:') ||
+    cleanUri.startsWith('file://') ||
+    cleanUri.startsWith('content://')
+  ) {
+    return cleanUri;
+  }
+  return `file://${cleanUri}`;
+};

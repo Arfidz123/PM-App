@@ -12,7 +12,7 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
-import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -56,11 +56,16 @@ export const Button: React.FC<ButtonProps> = ({
       ]}
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.7}>
+      activeOpacity={0.7}
+    >
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'ghost' || variant === 'outline' ? Colors.primary : Colors.white}
+          color={
+            variant === 'ghost' || variant === 'outline'
+              ? Colors.primary
+              : Colors.white
+          }
         />
       ) : (
         <>
@@ -70,9 +75,10 @@ export const Button: React.FC<ButtonProps> = ({
               styles.text,
               styles[`text_${variant}`],
               styles[`text_${size}`],
-              icon ? {marginLeft: Spacing.sm} : undefined,
+              icon ? { marginLeft: Spacing.sm } : undefined,
               textStyle,
-            ]}>
+            ]}
+          >
             {title}
           </Text>
         </>

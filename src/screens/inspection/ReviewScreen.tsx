@@ -1,6 +1,20 @@
 /**
  * Review Screen
  * Review inspection data before final submission
+ * Sections order:
+ * 1. Cover
+ * 2. Power System
+ * 3. Mechanical Electrical
+ * 4. External Alarm
+ * 5. Genset
+ * 6. FOT IP
+ * 7. FOT DWDM
+ * 8. KWH
+ * 9. ACPDB
+ * 10. DCPDB
+ * 11. Recti
+ * 12. Batrei
+ * 13. Dokumentasi
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9,14 +23,13 @@ import {
   Text,
   ScrollView,
   StyleSheet,
-  TextInput,
-  Image,
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
+import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
 import { Header, Card, Button, StatusBadge } from '../../components/common';
-import { useInspectionStore, ChecklistEntry } from '../../store/inspectionStore';
+import { useInspectionStore } from '../../store/inspectionStore';
 import database from '../../database';
 import { Asset } from '../../database/models';
 import { getCategoryIcon } from '../../utils/helpers';
@@ -24,13 +37,36 @@ import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const SectionDetail = ({ title, data }: { title: string, data: Record<string, string | number | undefined | null> }) => {
-  const entries = Object.entries(data).filter(([_, v]) => v !== undefined && v !== null && v !== '');
+const SectionHeaderBadge = ({
+  number,
+  title,
+}: {
+  number: number;
+  title: string;
+}) => (
+  <View style={styles.sectionHeaderRow}>
+    <View style={styles.numberBadge}>
+      <Text style={styles.numberBadgeText}>{number}</Text>
+    </View>
+    <Text style={styles.mainSectionTitle}>{title}</Text>
+  </View>
+);
+
+const SectionDetail = ({
+  title,
+  data,
+}: {
+  title?: string;
+  data: Record<string, string | number | undefined | null>;
+}) => {
+  const entries = Object.entries(data).filter(
+    ([_, v]) => v !== undefined && v !== null && v !== '',
+  );
   if (entries.length === 0) return null;
 
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.subSection}>
+      {title ? <Text style={styles.subSectionTitle}>{title}</Text> : null}
       {entries.map(([key, value]) => (
         <View key={key} style={styles.resultRow}>
           <View style={styles.resultLeft}>
@@ -46,8 +82,11 @@ const SectionDetail = ({ title, data }: { title: string, data: Record<string, st
 export const ReviewScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const { inspectionId } = route.params;
+  const { inspectionId } = route.params || {};
   const {
+    activePopId,
+    activePopName,
+    activePopLocation,
     currentAssetId,
     checklistEntries,
     photos,
@@ -70,459 +109,727 @@ export const ReviewScreen: React.FC = () => {
     navigation.navigate('Signature', { inspectionId });
   };
 
+  const ps = formData.powerSystem || {};
+  const me = formData.mechanicalElect || {};
+  const ea = formData.external_alarm || formData.externalAlarm || {};
+  const gs = formData.genset || {};
+  const fotIp = formData.fot_ip || {};
+  const fotDwdm = formData.fot_dwdm || {};
+  const kwh = formData.kwhMeter || {};
+  const acpdb = formData.acpdb || {};
+  const dcpdb = formData.dcpdb || {};
+  const rect = formData.rectifier || {};
+  const battery = formData.battery || {};
+  const infoPop = formData.infoPop || {};
+
   return (
     <View style={styles.container}>
       <Header
         title="Review"
-        subtitle="Periksa kembali sebelum submit"
+        subtitle="Periksa kembali hasil inspeksi sebelum submit"
         onBack={() => navigation.goBack()}
       />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        style={styles.scrollView}>
-        {/* Asset Summary */}
-        {asset && (
-          <Card style={styles.assetSummary}>
-            <View style={styles.assetRow}>
-              <Text style={styles.assetIcon}>
-                {getCategoryIcon(asset.category)}
-              </Text>
-              <View style={styles.assetInfo}>
-                <Text style={styles.assetCode}>{asset.assetCode}</Text>
-                <Text style={styles.assetName}>{asset.name}</Text>
-                <Text style={styles.assetLocation}>📍 {asset.location}</Text>
-              </View>
-            </View>
-          </Card>
-        )}
-
-        {/* Power System Detailed Summary */}
-        {formData.powerSystem && (() => {
-          const ps = formData.powerSystem;
-          return (
-            <>
-              {/* Catuan Utama */}
-              <SectionDetail
-                title="POWER SYSTEM: CATUAN UTAMA"
-                data={{
-                  'PLN': ps.tipePln || 'Distribusi',
-                  'ID Pelanggan': ps.idPelanggan,
-                  'Daya Listrik (kVA)': ps.dayaListrik,
-                  'Phasa': ps.phasaCatuan,
-                  'Pengukuran KWH': ps.pengukuranKwh,
-                  'Bulan Ini': ps.bulanIni,
-                }}
-              />
-
-              {/* Genset */}
-              {(ps.gensetAda || (formData.genset && Object.values(formData.genset).some(Boolean))) ? (
-                <SectionDetail
-                  title="GENSET"
-                  data={{
-                    'Genset': formData.genset?.gensetAda || ps.gensetAda || 'Tidak Ada',
-                    'Merk Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.merkGenset : '') || (ps.gensetAda === 'Ada' ? ps.merkGenset : '') || '',
-                    'Serial Number': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.snGenset : '') || (ps.gensetAda === 'Ada' ? ps.snGenset : '') || '',
-                    'Jenis Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.jenisGenset : '') || (ps.gensetAda === 'Ada' ? ps.jenisGenset : '') || '',
-                    'Tipe Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.tipeGenset : '') || (ps.gensetAda === 'Ada' ? ps.tipeGenset : '') || '',
-                    'Kapasitas Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.kapasitasGenset : '') || (ps.gensetAda === 'Ada' ? ps.kapasitasGenset : '') || '',
-                    'Phasa Genset': (formData.genset?.gensetAda === 'Ada' ? formData.genset?.phasaGenset : '') || (ps.gensetAda === 'Ada' ? ps.phasaGenset : '') || '',
-                    'COS Genset': formData.genset?.cosGenset || ps.cosGenset || '',
-                    'Kondisi Genset': formData.genset?.kondisiGenset || '',
-                  }}
-                />
-              ) : null}
-
-              {/* Tegangan & Tegangan Acuan (Tolak Ukur) */}
-              <SectionDetail
-                title="POWER SYSTEM: TEGANGAN & ACUAN"
-                data={{
-                  'Tegangan R-N': ps.teganganR_N ? `${ps.teganganR_N} V (Acuan: ${ps.teganganR_N_TU || '220 ± 10%'})` : '',
-                  'Tegangan S-N': ps.teganganS_N ? `${ps.teganganS_N} V (Acuan: ${ps.teganganS_N_TU || '220 ± 10%'})` : '',
-                  'Tegangan T-N': ps.teganganT_N ? `${ps.teganganT_N} V (Acuan: ${ps.teganganT_N_TU || '220 ± 10%'})` : '',
-                  'Tegangan R-T': ps.teganganR_T ? `${ps.teganganR_T} V (Acuan: ${ps.teganganR_T_TU || '400 ± 10%'})` : '',
-                  'Tegangan S-T': ps.teganganS_T ? `${ps.teganganS_T} V (Acuan: ${ps.teganganS_T_TU || '400 ± 10%'})` : '',
-                  'Tegangan R-S': ps.teganganR_S ? `${ps.teganganR_S} V (Acuan: ${ps.teganganR_S_TU || '400 ± 10%'})` : '',
-                  'Tegangan G-N': ps.teganganG_N ? `${ps.teganganG_N} V ${ps.teganganG_N_TU ? `(Acuan: ${ps.teganganG_N_TU})` : ''}` : '',
-                }}
-              />
-
-              {/* Total Arus Terpakai & Stabilizer */}
-              <SectionDetail
-                title="POWER SYSTEM: TOTAL ARUS TERPAKAI & STABILIZER"
-                data={{
-                  'Phasa (A)': ps.phasaArus || ps.phasaCatuan,
-                  'Frekuensi': ps.frekuensi ? `${ps.frekuensi} Hz` : '',
-                  'Arus Phasa R': ps.arusPhasaR || ps.arusR ? `${ps.arusPhasaR || ps.arusR} A` : '',
-                  'Arus Phasa S': ps.arusPhasaS || ps.arusS ? `${ps.arusPhasaS || ps.arusS} A` : '',
-                  'Arus Phasa T': ps.arusPhasaT || ps.arusT ? `${ps.arusPhasaT || ps.arusT} A` : '',
-                  'Arus Netral (N)': ps.arusPhasaN || ps.arusN ? `${ps.arusPhasaN || ps.arusN} A` : '',
-                  'Stabilizer Kapasitas': ps.stabilizerKapasitas ? `${ps.stabilizerKapasitas} kVA` : '',
-                  'Stabilizer Jumlah': ps.stabilizerJumlah,
-                }}
-              />
-
-              {/* Visual Check & Kabinet */}
-              <SectionDetail
-                title="POWER SYSTEM: VISUAL & CHECK KABINET"
-                data={{
-                  'Cek Kabel': ps.cekKabel ? `${ps.cekKabel} ${ps.cekKabelKet ? `(${ps.cekKabelKet})` : ''}` : '',
-                  'Cek Baut Terminal': ps.cekBautTerminal ? `${ps.cekBautTerminal} ${ps.cekBautTerminalKet ? `(${ps.cekBautTerminalKet})` : ''}` : '',
-                  'Cek Baut MCB/MCCB': ps.cekBautMCB ? `${ps.cekBautMCB} ${ps.cekBautMCBKet ? `(${ps.cekBautMCBKet})` : ''}` : '',
-                  'Indikator Lamp': ps.indikatorLamp ? `${ps.indikatorLamp} ${ps.indikatorLampKet ? `(${ps.indikatorLampKet})` : ''}` : '',
-                  'COS Genset': ps.cosGenset ? `${ps.cosGenset} ${ps.cosGensetKet ? `(${ps.cosGensetKet})` : ''}` : '',
-                  'Rect 1 - Kebersihan Rack': ps.rect1KebersihanRack ? `${ps.rect1KebersihanRack} ${ps.rect1KebersihanRackKet ? `(${ps.rect1KebersihanRackKet})` : ''}` : '',
-                  'Rect 1 - Cek Baut Kabinet': ps.rect1CekBautKabinet ? `${ps.rect1CekBautKabinet} ${ps.rect1CekBautKabinetKet ? `(${ps.rect1CekBautKabinetKet})` : ''}` : '',
-                  'Rect 2 - Kebersihan Rack': ps.rect2KebersihanRack ? `${ps.rect2KebersihanRack} ${ps.rect2KebersihanRackKet ? `(${ps.rect2KebersihanRackKet})` : ''}` : '',
-                  'Rect 2 - Cek Baut Kabinet': ps.rect2CekBautKabinet ? `${ps.rect2CekBautKabinet} ${ps.rect2CekBautKabinetKet ? `(${ps.rect2CekBautKabinetKet})` : ''}` : '',
-                  'Rect 3 - Kebersihan Rack': ps.rect3KebersihanRack ? `${ps.rect3KebersihanRack} ${ps.rect3KebersihanRackKet ? `(${ps.rect3KebersihanRackKet})` : ''}` : '',
-                  'Rect 3 - Cek Baut Kabinet': ps.rect3CekBautKabinet ? `${ps.rect3CekBautKabinet} ${ps.rect3CekBautKabinetKet ? `(${ps.rect3CekBautKabinetKet})` : ''}` : '',
-                }}
-              />
-
-              {/* Description Rectifier 1, 2, 3 */}
-              {[1, 2, 3].map((num) => {
-                const key = `rect${num}`;
-                if (!ps[`${key}Merk`] && !ps[`${key}Tipe`] && !ps[`${key}SN`]) return null;
-                return (
-                  <SectionDetail
-                    key={num}
-                    title={`DESCRIPTION RECTIFIER #${num}`}
-                    data={{
-                      'Input AC (Phasa)': ps[`${key}InputAC`],
-                      'Merk': ps[`${key}Merk`],
-                      'Tipe': ps[`${key}Tipe`],
-                      'Kapasitas Slot': ps[`${key}KapasitasSlot`],
-                      'Serial Number': ps[`${key}SN`],
-                      'Tipe Modul': ps[`${key}TipeModul`],
-                      'Modul Terpasang': ps[`${key}ModulJml`],
-                      'Kap. Modul (A)': ps[`${key}KapasitasModul`],
-                      'Arus Beban (A)': ps[`${key}ArusBeban`],
-                      'Teg. Input (V)': ps[`${key}TegInput`],
-                      'Teg. Floating (V)': ps[`${key}TegFloating`],
-                      'Teg. Equalizing (V)': ps[`${key}TegEqualizing`],
-                      'LVD Threshold (V)': ps[`${key}Lvd`],
-                      'Boost Charge': ps[`${key}Boost`],
-                      'Utilisasi (%)': ps[`${key}Utilisasi`],
-                    }}
-                  />
-                );
-              })}
-
-              {/* Beban ACPDB */}
-              {(() => {
-                const list = (formData.acpdb && (formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb)) || ps.acpdbBeban || ps.bebanAcpdb;
-                if (!list || list.length === 0) return null;
-                return (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>BEBAN ACPDB ({list.length} MCB)</Text>
-                    {list.map((item: any, idx: number) => (
-                      <Card key={idx} style={{ marginBottom: Spacing.sm }}>
-                        <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                          MCB #{idx + 1} - Kapasitas: {item.kapasitas ? item.kapasitas + ' A' : '-'}{item.merk ? ` | Merk: ${item.merk}` : ''} | Phasa: {item.phasa || item.labelMcb || '-'}
-                        </Text>
-                        {item.peruntukan ? <Text style={styles.resultValue}>Peruntukan: {item.peruntukan}</Text> : null}
-                        <Text style={{ ...Typography.caption, marginTop: 4, color: Colors.primary }}>
-                          Phasa {item.phasa || '-'} — Beban: {item.beban || '-'} | Arus: {item.arus || '-'}{item.suhuKabel ? ` | Suhu: ${item.suhuKabel}` : ''}
-                        </Text>
-                      </Card>
-                    ))}
-                  </View>
-                );
-              })()}
-
-              {/* Beban DCPDB */}
-              {(() => {
-                const list = (formData.dcpdb && (formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb)) || ps.dcpdbBeban || ps.bebanDcpdb;
-                if (!list || list.length === 0) return null;
-                return (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>BEBAN DCPDB ({list.length} MCB)</Text>
-                    {list.map((item: any, idx: number) => (
-                      <Card key={idx} style={{ marginBottom: Spacing.sm }}>
-                        <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                          MCB #{idx + 1} - Kapasitas: {item.kapasitas ? item.kapasitas + ' A' : '-'}{item.merk ? ` | Merk: ${item.merk}` : ''} | Phasa: {item.phasa || item.labelMcb || item.dcpdb || '-'}
-                        </Text>
-                        {item.peruntukan ? <Text style={styles.resultValue}>Peruntukan: {item.peruntukan}</Text> : null}
-                        <Text style={{ ...Typography.caption, marginTop: 4, color: Colors.primary }}>
-                          Phasa {item.phasa || item.dcpdb || '-'} — Beban: {item.beban || item.dcpdb1Beban || '-'} | Arus: {item.arus || item.dcpdb1Arus || '-'}{item.suhuKabel ? ` | Suhu: ${item.suhuKabel}` : ''}
-                        </Text>
-                      </Card>
-                    ))}
-                  </View>
-                );
-              })()}
-
-              {/* Beban Rectifier */}
-              {(() => {
-                const list = ps.rectifierBeban || ps.bebanRectifier;
-                if (!list || list.length === 0) return null;
-                return (
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>BEBAN RECTIFIER ({list.length} MCB)</Text>
-                    {list.map((item: any, idx: number) => {
-                      const r1Kap = item.rect1KapMcb || item.r1Kap;
-                      const r1Arus = item.rect1Arus || item.r1Arus;
-                      const r1Nama = item.rect1NamaNe || item.r1Nama;
-
-                      const r2Kap = item.rect2KapMcb || item.r2Kap;
-                      const r2Arus = item.rect2Arus || item.r2Arus;
-                      const r2Nama = item.rect2NamaNe || item.r2Nama;
-
-                      const r3Kap = item.rect3KapMcb || item.r3Kap;
-                      const r3Arus = item.rect3Arus || item.r3Arus;
-                      const r3Nama = item.rect3NamaNe || item.r3Nama;
-
-                      return (
-                        <Card key={idx} style={{ marginBottom: Spacing.sm }}>
-                          <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                            MCB #{idx + 1}
-                          </Text>
-                          {r1Kap ? <Text style={styles.resultValue}>Rect 1: Kap {r1Kap} | Arus {r1Arus || '-'}A | NE: {r1Nama || '-'}</Text> : null}
-                          {r2Kap ? <Text style={styles.resultValue}>Rect 2: Kap {r2Kap} | Arus {r2Arus || '-'}A | NE: {r2Nama || '-'}</Text> : null}
-                          {r3Kap ? <Text style={styles.resultValue}>Rect 3: Kap {r3Kap} | Arus {r3Arus || '-'}A | NE: {r3Nama || '-'}</Text> : null}
-                        </Card>
-                      );
-                    })}
-                  </View>
-                );
-              })()}
-
-              {/* Grounding System */}
-              <SectionDetail
-                title="POWER SYSTEM: GROUNDING SYSTEM"
-                data={{
-                  'System Grounding': ps.systemGrounding,
-                  'Catatan Grounding': ps.grCatatan,
-                }}
-              />
-
-              {/* Pengecekan Arrester */}
-              <SectionDetail
-                title="POWER SYSTEM: PENGECEKAN ARRESTER"
-                data={{
-                  'Phasa R': `KWH: ${ps.kwhBoxR || ps.arresterKwhR || '-'} | ACPDB: ${ps.acpdbR || ps.arresterAcpdbR || '-'} | Rect: ${ps.rectifierR || ps.arresterRectifierR || '-'}${ps.arresterKetR ? ` (Ket: ${ps.arresterKetR})` : ''}`,
-                  'Phasa S': `KWH: ${ps.kwhBoxS || ps.arresterKwhS || '-'} | ACPDB: ${ps.acpdbS || ps.arresterAcpdbS || '-'} | Rect: ${ps.rectifierS || ps.arresterRectifierS || '-'}${ps.arresterKetS ? ` (Ket: ${ps.arresterKetS})` : ''}`,
-                  'Phasa T': `KWH: ${ps.kwhBoxT || ps.arresterKwhT || '-'} | ACPDB: ${ps.acpdbT || ps.arresterAcpdbT || '-'} | Rect: ${ps.rectifierT || ps.arresterRectifierT || '-'}${ps.arresterKetT ? ` (Ket: ${ps.arresterKetT})` : ''}`,
-                  'Phasa N': `KWH: ${ps.kwhBoxN || ps.arresterKwhN || '-'} | ACPDB: ${ps.acpdbN || ps.arresterAcpdbN || '-'} | Rect: ${ps.rectifierN || ps.arresterRectifierN || '-'}${ps.arresterKetN ? ` (Ket: ${ps.arresterKetN})` : ''}`,
-                }}
-              />
-            </>
-          );
-        })()}
-
-        {/* Rectifier Summary */}
-        {formData.rectifier && (
-          <SectionDetail
-            title="RECTIFIER"
-            data={{
-              'Merk Rectifier': formData.rectifier.merkRectifier,
-              'Tipe': formData.rectifier.tipe,
-              'Modul Terpasang': formData.rectifier.modulTerpasang,
-            }}
-          />
-        )}
-
-        {/* Battery Summary Detailed */}
-        {formData.battery && formData.battery.banks && formData.battery.banks.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>BATTERY ({formData.battery.banks.length} Bank)</Text>
-            {formData.battery.banks.map((bank: any, index: number) => (
-              <Card key={bank.id || index} style={{ marginBottom: Spacing.sm }}>
-                <Text style={{ ...Typography.subtitle2, marginBottom: Spacing.xs, color: Colors.text }}>
-                  Bank #{index + 1} - {bank.kondisi || 'OK'}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {/* ================= 1. COVER ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={1} title="COVER / INFO POP" />
+          <Card style={styles.cardWrapper}>
+            {asset && (
+              <View style={styles.assetRow}>
+                <Text style={styles.assetIcon}>
+                  {getCategoryIcon(asset.category)}
                 </Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Merk</Text><Text style={styles.resultValue}>{bank.merk || '-'}</Text></View>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Tipe</Text><Text style={styles.resultValue}>{bank.tipe || '-'}</Text></View>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>Kapasitas</Text><Text style={styles.resultValue}>{bank.kapasitas ? `${bank.kapasitas} AH` : '-'}</Text></View>
-                  <View style={{ width: '50%', marginBottom: 4 }}><Text style={styles.resultLabel}>V Total</Text><Text style={styles.resultValue}>{bank.vTotal ? `${bank.vTotal} V` : '-'}</Text></View>
-                  <View style={{ width: '100%', marginBottom: 4 }}><Text style={styles.resultLabel}>SN</Text><Text style={styles.resultValue}>{bank.sn || '-'}</Text></View>
+                <View style={styles.assetInfo}>
+                  <Text style={styles.assetCode}>{asset.assetCode}</Text>
+                  <Text style={styles.assetName}>{asset.name}</Text>
+                  <Text style={styles.assetLocation}>📍 {asset.location}</Text>
                 </View>
-              </Card>
-            ))}
-          </View>
-        )}
-
-        {/* External Alarm Summary */}
-        {(formData.external_alarm || formData.externalAlarm) && (() => {
-          const ea = formData.external_alarm || formData.externalAlarm || {};
-          return (
+              </View>
+            )}
             <SectionDetail
-              title="PREVENTIVE MAINTENANCE EXTERNAL ALARM"
+              data={{
+                'Kode POP': infoPop.kodePop || activePopId,
+                'Nama POP': infoPop.namaPop || activePopName,
+                'Alamat POP': infoPop.alamat || activePopLocation,
+                Koordinat: infoPop.koordinat,
+                'Tipe POP': Array.isArray(infoPop.tipePop)
+                  ? infoPop.tipePop.join(', ')
+                  : infoPop.tipePop,
+                Tanggal:
+                  infoPop.tanggal ||
+                  (formData.inspectionStartTime
+                    ? new Date(formData.inspectionStartTime).toLocaleDateString(
+                        'id-ID',
+                      )
+                    : undefined),
+                'Tim Serpo': infoPop.timSerpo,
+                'Tim PLN': infoPop.timPLN,
+                'PIC POP': infoPop.picPop,
+                'Catatan POP': infoPop.catatan,
+              }}
+            />
+          </Card>
+        </View>
+
+        {/* ================= 2. POWER SYSTEM ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={2} title="POWER SYSTEM" />
+          <Card style={styles.cardWrapper}>
+            {/* Catuan Utama */}
+            <SectionDetail
+              title="CATUAN UTAMA"
+              data={{
+                'Tipe PLN': ps.tipePln || '-',
+                'ID Pelanggan': ps.idPelanggan || kwh.idPelanggan,
+                'Daya Listrik (kVA)': ps.dayaListrik || kwh.dayaListrik,
+                Phasa: ps.phasaCatuan || kwh.phasa,
+                'Pengukuran KWH': ps.pengukuranKwh || kwh.pengukuranKwh,
+                'Stand Bulan Ini': ps.bulanIni || kwh.standAkhir,
+              }}
+            />
+
+            {/* Tegangan & Acuan */}
+            <SectionDetail
+              title="TEGANGAN & ACUAN"
+              data={{
+                'Tegangan R-N': ps.teganganR_N
+                  ? `${ps.teganganR_N} (Acuan: ${
+                      ps.teganganR_N_TU || '220 ± 10%'
+                    })`
+                  : '',
+                'Tegangan S-N': ps.teganganS_N
+                  ? `${ps.teganganS_N} (Acuan: ${
+                      ps.teganganS_N_TU || '220 ± 10%'
+                    })`
+                  : '',
+                'Tegangan T-N': ps.teganganT_N
+                  ? `${ps.teganganT_N} (Acuan: ${
+                      ps.teganganT_N_TU || '220 ± 10%'
+                    })`
+                  : '',
+                'Tegangan R-T': ps.teganganR_T
+                  ? `${ps.teganganR_T} (Acuan: ${
+                      ps.teganganR_T_TU || '400 ± 10%'
+                    })`
+                  : '',
+                'Tegangan S-T': ps.teganganS_T
+                  ? `${ps.teganganS_T} (Acuan: ${
+                      ps.teganganS_T_TU || '400 ± 10%'
+                    })`
+                  : '',
+                'Tegangan R-S': ps.teganganR_S
+                  ? `${ps.teganganR_S} (Acuan: ${
+                      ps.teganganR_S_TU || '400 ± 10%'
+                    })`
+                  : '',
+                'Tegangan G-N': ps.teganganG_N
+                  ? `${ps.teganganG_N} ${
+                      ps.teganganG_N_TU ? `(Acuan: ${ps.teganganG_N_TU})` : ''
+                    }`
+                  : '',
+              }}
+            />
+
+            {/* Total Arus & Stabilizer */}
+            <SectionDetail
+              title="TOTAL ARUS & STABILIZER"
+              data={{
+                Phasa: ps.phasaArus || ps.phasaCatuan,
+                Frekuensi: ps.frekuensi ? `${ps.frekuensi} Hz` : '',
+                'Arus Phasa R': ps.arusPhasaR || ps.arusR || '',
+                'Arus Phasa S': ps.arusPhasaS || ps.arusS || '',
+                'Arus Phasa T': ps.arusPhasaT || ps.arusT || '',
+                'Stabilizer Kapasitas': ps.stabilizerKapasitas || '',
+                'Stabilizer Jumlah': ps.stabilizerJumlah,
+              }}
+            />
+
+            {/* Visual Check */}
+            <SectionDetail
+              title="VISUAL & CHECK KABINET"
+              data={{
+                'Cek Kabel': ps.cekKabel
+                  ? `${ps.cekKabel} ${
+                      ps.cekKabelKet ? `(${ps.cekKabelKet})` : ''
+                    }`
+                  : '',
+                'Cek Baut Terminal': ps.cekBautTerminal
+                  ? `${ps.cekBautTerminal} ${
+                      ps.cekBautTerminalKet ? `(${ps.cekBautTerminalKet})` : ''
+                    }`
+                  : '',
+                'Cek Baut MCB/MCCB': ps.cekBautMCB
+                  ? `${ps.cekBautMCB} ${
+                      ps.cekBautMCBKet ? `(${ps.cekBautMCBKet})` : ''
+                    }`
+                  : '',
+                'Indikator Lamp': ps.indikatorLamp
+                  ? `${ps.indikatorLamp} ${
+                      ps.indikatorLampKet ? `(${ps.indikatorLampKet})` : ''
+                    }`
+                  : '',
+                'COS Genset': ps.cosGenset
+                  ? `${ps.cosGenset} ${
+                      ps.cosGensetKet ? `(${ps.cosGensetKet})` : ''
+                    }`
+                  : '',
+              }}
+            />
+
+            {/* Pengecekan Arrester */}
+            <SectionDetail
+              title="PENGECEKAN ARRESTER"
+              data={{
+                'Phasa R': `KWH: ${
+                  ps.kwhBoxR || ps.arresterKwhR || '-'
+                } | ACPDB: ${ps.acpdbR || ps.arresterAcpdbR || '-'} | Rect: ${
+                  ps.rectifierR || ps.arresterRectifierR || '-'
+                }${ps.arresterKetR ? ` (Ket: ${ps.arresterKetR})` : ''}`,
+                'Phasa S': `KWH: ${
+                  ps.kwhBoxS || ps.arresterKwhS || '-'
+                } | ACPDB: ${ps.acpdbS || ps.arresterAcpdbS || '-'} | Rect: ${
+                  ps.rectifierS || ps.arresterRectifierS || '-'
+                }${ps.arresterKetS ? ` (Ket: ${ps.arresterKetS})` : ''}`,
+                'Phasa T': `KWH: ${
+                  ps.kwhBoxT || ps.arresterKwhT || '-'
+                } | ACPDB: ${ps.acpdbT || ps.arresterAcpdbT || '-'} | Rect: ${
+                  ps.rectifierT || ps.arresterRectifierT || '-'
+                }${ps.arresterKetT ? ` (Ket: ${ps.arresterKetT})` : ''}`,
+                'Phasa N': `KWH: ${
+                  ps.kwhBoxN || ps.arresterKwhN || '-'
+                } | ACPDB: ${ps.acpdbN || ps.arresterAcpdbN || '-'} | Rect: ${
+                  ps.rectifierN || ps.arresterRectifierN || '-'
+                }${ps.arresterKetN ? ` (Ket: ${ps.arresterKetN})` : ''}`,
+              }}
+            />
+
+            {ps.catatan ? (
+              <SectionDetail
+                title="CATATAN POWER SYSTEM"
+                data={{ Catatan: ps.catatan }}
+              />
+            ) : null}
+          </Card>
+        </View>
+
+        {/* ================= 3. MECHANICAL ELECTRICAL ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={3} title="MECHANICAL ELECTRICAL" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="AIR CONDITIONER & EXHAUST"
+              data={{
+                'Jumlah AC':
+                  me.acJumlah ||
+                  (me.acList ? `${me.acList.length} Unit` : undefined),
+                'Jumlah Exhaust Fan': me.exJumlah,
+              }}
+            />
+
+            {me.acList && me.acList.length > 0 && (
+              <View style={{ marginBottom: Spacing.sm }}>
+                <Text style={styles.subSectionTitle}>
+                  UNIT AC ({me.acList.length} Unit)
+                </Text>
+                {me.acList.map((item: any, idx: number) => (
+                  <Card key={idx} style={styles.subCard}>
+                    <Text style={styles.subCardTitle}>
+                      AC #{idx + 1} - {item.merk || 'AC'}
+                    </Text>
+                    <Text style={styles.resultValue}>
+                      Tipe: {item.tipe || '-'} | PK: {item.pk || '-'} | Status:{' '}
+                      {item.kondisi || '-'}
+                    </Text>
+                    <Text style={styles.resultValue}>
+                      Suhu: {item.suhu || '-'} | Arus: {item.arus || '-'}
+                    </Text>
+                  </Card>
+                ))}
+              </View>
+            )}
+
+            <SectionDetail
+              title="GROUNDING & LOKASI POP"
+              data={{
+                'Status Lokasi POP': me.popLokasi
+                  ? `${me.popLokasi}${
+                      me.popLokasiKet ? ` (${me.popLokasiKet})` : ''
+                    }`
+                  : undefined,
+                'Dimensi POP': me.popLuas,
+                'Pengukuran Grounding': me.grPengukuran,
+                'Grounding Status': me.grStatus
+                  ? `${me.grStatus}${
+                      me.grStatusKet ? ` (${me.grStatusKet})` : ''
+                    }`
+                  : undefined,
+                'Penangkal Petir': me.grPetir
+                  ? `${me.grPetir}${me.grPetirKet ? ` (${me.grPetirKet})` : ''}`
+                  : undefined,
+                'System Grounding':
+                  me.systemGrounding || ps.systemGrounding || 'Single',
+                'Catatan Grounding': me.grCatatan || ps.grCatatan,
+                'Catatan ME': me.popNote || me.note,
+              }}
+            />
+          </Card>
+        </View>
+
+        {/* ================= 4. EXTERNAL ALARM ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={4} title="EXTERNAL ALARM" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="UJI SENSOR & KONFIGURASI ALARM"
               data={{
                 '1. Uji Konfigurasi': ea.uji1_status,
                 '2. Uji Sensor PLN OFF': ea.uji2_status,
                 '3. Uji Sensor Battery Fail': ea.uji3_status,
                 '4. Uji Sensor Rectifier Fail': ea.uji4_status,
                 '5. Uji Sensor Modul Rectifier': ea.uji5_status,
-                '6. Uji Sensor Temperature High': ea.uji6_status ? `${ea.uji6_status}${ea.uji6_suhuLokasi ? ` (Suhu: ${ea.uji6_suhuLokasi})` : ''}` : undefined,
+                '6. Uji Sensor Temperature High': ea.uji6_status
+                  ? `${ea.uji6_status}${
+                      ea.uji6_suhuLokasi ? ` (Suhu: ${ea.uji6_suhuLokasi})` : ''
+                    }`
+                  : undefined,
                 '7. Uji Sensor Smoke & Heat': ea.uji7_status,
-                '8. Uji Arrester / Grounding': ea.uji8_status,
+                '8. Uji Arrester & Grounding': ea.uji8_status,
                 '9. Uji Sensor Door Open': ea.uji9_status,
                 '10. Uji Sensor Genset Run': ea.uji10_status,
-                'Catatan Umum (NOTE)': ea.generalNote || ea.catatan,
+                'Catatan Umum': ea.generalNote || ea.catatan,
               }}
             />
-          );
-        })()}
+          </Card>
+        </View>
 
-        {/* Genset Summary (from CategoryForm if filled) */}
-        {formData.genset && (
-          <SectionDetail
-            title="GENSET (TAMBAHAN)"
-            data={{
-              'Ketersediaan': formData.genset.gensetAda,
-              'Merk': formData.genset.merkGenset,
-              'SN': formData.genset.snGenset,
-              'Jenis': formData.genset.jenisGenset,
-              'Tipe': formData.genset.tipeGenset,
-              'Kapasitas': formData.genset.kapasitasGenset ? `${formData.genset.kapasitasGenset} kVA` : undefined,
-              'Phasa': formData.genset.phasaGenset,
-              'Level BBM': formData.genset.levelBbm ? `${formData.genset.levelBbm} %` : undefined,
-              'Tegangan Aki': formData.genset.teganganAki ? `${formData.genset.teganganAki} V` : undefined,
-              'Kondisi Aki': formData.genset.kondisiAki,
-              'Level Oli': formData.genset.levelOli,
-              'Running Test': formData.genset.runningTest,
-              'Tegangan Output': formData.genset.teganganOutput ? `${formData.genset.teganganOutput} V` : undefined,
-              'Frekuensi': formData.genset.frekuensi ? `${formData.genset.frekuensi} Hz` : undefined,
-              'COS Genset': formData.genset.cosGenset,
-              'Catatan': formData.genset.catatan,
-            }}
-          />
-        )}
+        {/* ================= 5. GENSET ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={5} title="GENSET" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="SPESIFIKASI & SISTEM ATS"
+              data={{
+                Ketersediaan: gs.gensetAda || '-',
+                'Merk Genset': gs.merkGenset,
+                'Tipe Genset': gs.tipeGenset,
+                'Serial Number': gs.snGenset,
+                'Generator Merk': gs.generatorMerk,
+                'Engine Merk': gs.engineMerk || gs.engineMark,
+                Kapasitas: gs.kapasitasGenset
+                  ? `${gs.kapasitasGenset} kVA`
+                  : undefined,
+                Phasa: gs.phasaGenset,
+                'ATS Type': gs.atsType,
+                'ATS Controller': gs.atsController,
+                'ATS COS': gs.atsCos || gs.cosGenset,
+              }}
+            />
 
-        {/* FOT IP Summary */}
-        {formData.fot_ip && (
-          <SectionDetail
-            title="FOT IP"
-            data={{
-              'Lower Fan Tray - Prosedur 1.1': formData.fot_ip.procedures?.['1.1'] || formData.fot_ip.proc1_1,
-              'Lower Fan Tray - Prosedur 1.2': formData.fot_ip.procedures?.['1.2'] || formData.fot_ip.proc1_2,
-              'Lower Fan Tray - Prosedur 1.3': formData.fot_ip.procedures?.['1.3'] || formData.fot_ip.proc_1_3,
-              'Lower Fan Tray - Prosedur 1.4': formData.fot_ip.procedures?.['1.4'] || formData.fot_ip.proc_1_4,
-              'Lower Fan Tray - Prosedur 1.5': formData.fot_ip.procedures?.['1.5'] || formData.fot_ip.proc_1_5,
-              'Lower Fan Tray - Prosedur 1.6': formData.fot_ip.procedures?.['1.6'] || formData.fot_ip.proc_1_6,
-              'Lower Fan Tray - Prosedur 1.7': formData.fot_ip.procedures?.['1.7'] || formData.fot_ip.proc_1_7,
-              'Lower Fan Tray - Prosedur 1.8': formData.fot_ip.procedures?.['1.8'] || formData.fot_ip.proc_1_8,
-              'Lower Fan Tray - Prosedur 1.9': formData.fot_ip.procedures?.['1.9'] || formData.fot_ip.proc_1_9,
-              'Lower Fan Tray - Prosedur 1.10': formData.fot_ip.procedures?.['1.10'] || formData.fot_ip.proc_1_10,
-              'Chassis Air Filter - Prosedur 1.1': formData.fot_ip.procedures?.['caf_1.1'],
-              'Chassis Air Filter - Prosedur 1.2': formData.fot_ip.procedures?.['caf_1.2'],
-              'Chassis Air Filter - Prosedur 1.3': formData.fot_ip.procedures?.['caf_1.3'],
-              'Chassis Air Filter - Prosedur 1.4': formData.fot_ip.procedures?.['caf_1.4'],
-              'Chassis Air Filter - Prosedur 1.5': formData.fot_ip.procedures?.['caf_1.5'],
-              'Chassis Air Filter - Prosedur 1.6': formData.fot_ip.procedures?.['caf_1.6'],
-              'Chassis Air Filter - Prosedur 1.7': formData.fot_ip.procedures?.['caf_1.7'],
-              'Chassis Air Filter - Prosedur 1.8': formData.fot_ip.procedures?.['caf_1.8'],
-              'Chassis Air Filter - Prosedur 1.9': formData.fot_ip.procedures?.['caf_1.9'],
-              'Chassis Air Filter - Prosedur 1.10': formData.fot_ip.procedures?.['caf_1.10'],
-              'Chassis Air Filter - Prosedur 3.1': formData.fot_ip.procedures?.['caf_3.1'],
-              'Chassis Air Filter - Prosedur 3.2': formData.fot_ip.procedures?.['caf_3.2'],
-              'Chassis Air Filter - Prosedur 3.3': formData.fot_ip.procedures?.['caf_3.3'],
-            }}
-          />
-        )}
+            <SectionDetail
+              title="FUEL SYSTEM & TANGKI"
+              data={{
+                'Tangki Utama': gs.tangkiUtama
+                  ? `${gs.tangkiUtama}${
+                      gs.tangkiUtamaKet ? ` (${gs.tangkiUtamaKet})` : ''
+                    }`
+                  : '',
+                'Tangki Eksternal': gs.tangkiEksternal
+                  ? `${gs.tangkiEksternal}${
+                      gs.tangkiEksternalKet ? ` (${gs.tangkiEksternalKet})` : ''
+                    }`
+                  : '',
+                'Pipa Solar': gs.pipaSolar
+                  ? `${gs.pipaSolar}${
+                      gs.pipaSolarKet ? ` (${gs.pipaSolarKet})` : ''
+                    }`
+                  : '',
+                'Pompa Solar': gs.pompaSolar,
+                'Sisa BBM Bulan Lalu':
+                  gs.sisaBbmPengecekanBulanLalu ||
+                  gs.sisaBbmPengecekkanBulanLalu,
+                'Sisa BBM Bulan Sekarang':
+                  gs.sisaBbmPengecekanBulanSekarang ||
+                  gs.sisaBbmPengecekkanBulanSekarang,
+                'Level BBM': gs.levelBbm
+                  ? `${gs.levelBbm} %`
+                  : gs.levelIndikatorTangkiBensin,
+              }}
+            />
 
-        {/* FOT DWDM Summary */}
-        {formData.fot_dwdm && (
-          <SectionDetail
-            title="FOT DWDM"
-            data={
-              formData.fot_dwdm.procedures
-                ? {
-                    'Anti Dust Screen - Prosedur 1.1': formData.fot_dwdm.procedures?.['1.1'],
-                    'Anti Dust Screen - Prosedur 1.2': formData.fot_dwdm.procedures?.['1.2'],
-                    'Anti Dust Screen - Prosedur 1.3': formData.fot_dwdm.procedures?.['1.3'],
-                    'Anti Dust Screen - Prosedur 1.4': formData.fot_dwdm.procedures?.['1.4'],
-                    'Fan Unit - Prosedur 2.1': formData.fot_dwdm.procedures?.['2.1'],
-                    'Fan Unit - Prosedur 2.2': formData.fot_dwdm.procedures?.['2.2'],
-                    'Fan Unit - Prosedur 2.3': formData.fot_dwdm.procedures?.['2.3'],
-                    'Fan Unit - Prosedur 2.4': formData.fot_dwdm.procedures?.['2.4'],
-                    'Fan Unit - Prosedur 2.5': formData.fot_dwdm.procedures?.['2.5'],
-                    'Fan Unit - Prosedur 2.6': formData.fot_dwdm.procedures?.['2.6'],
-                    'Fan Unit - Prosedur 2.7': formData.fot_dwdm.procedures?.['2.7'],
-                    'Fan Unit - Prosedur 2.8': formData.fot_dwdm.procedures?.['2.8'],
-                    'Fan Unit - Prosedur 2.9': formData.fot_dwdm.procedures?.['2.9'],
-                    'Equipment Unit - Prosedur 3.1': formData.fot_dwdm.procedures?.['3.1'],
-                    'Equipment Unit - Prosedur 3.2': formData.fot_dwdm.procedures?.['3.2'],
-                    'Equipment Unit - Prosedur 3.3': formData.fot_dwdm.procedures?.['3.3'],
-                  }
-                : {
-                    'Site ID': formData.fot_dwdm.siteId,
-                    'Vendor': formData.fot_dwdm.vendor,
-                    'Model Chassis': formData.fot_dwdm.modelChassis,
-                    'SN': formData.fot_dwdm.sn,
-                    'Posisi Rack': formData.fot_dwdm.posisiRack,
-                    'Status Power': formData.fot_dwdm.statusPower,
-                    'Tegangan Input': formData.fot_dwdm.teganganInput ? `${formData.fot_dwdm.teganganInput} V` : undefined,
-                    'Lampu Alarm': formData.fot_dwdm.lampuAlarm,
-                    'Fan & Filter': formData.fot_dwdm.fanFilter,
-                    'Optical Power': formData.fot_dwdm.opticalPower,
-                    'Kerapian ODF': formData.fot_dwdm.kerapianOdf,
-                    'Catatan': formData.fot_dwdm.catatan,
-                  }
-            }
-          />
-        )}
+            <SectionDetail
+              title="PENGUKURAN TEGANGAN & ARUS GENSET"
+              data={{
+                'Tegangan R-N': gs.teganganR_N,
+                'Tegangan S-N': gs.teganganS_N,
+                'Tegangan T-N': gs.teganganT_N,
+                'Tegangan G-N': gs.teganganG_N,
+                'Arus Phasa R': gs.arusPhasaR,
+                'Arus Phasa S': gs.arusPhasaS,
+                'Arus Phasa T': gs.arusPhasaT,
+                Frekuensi: gs.frekuensi ? `${gs.frekuensi} Hz` : '',
+                'Running Test': gs.runningTest,
+                'Catatan Genset': gs.catatanGenset || gs.catatan,
+              }}
+            />
+          </Card>
+        </View>
 
-        {/* ACPDB Summary */}
-        {formData.acpdb && (
-          <SectionDetail
-            title="ACPDB"
-            data={{
-              'Total Beban MCB': (formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb)
-                ? `${(formData.acpdb.acpdbBeban || formData.acpdb.bebanAcpdb).length} MCB`
-                : undefined,
-              'Status Arester': formData.acpdb.aresterAda,
-              'Tipe Arester': formData.acpdb.aresterTipe,
-              'Warna Indikator': formData.acpdb.aresterWarnaIndikator,
-              'Catatan': formData.acpdb.catatan,
-            }}
-          />
-        )}
+        {/* ================= 6. FOT IP ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={6} title="FOT IP" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="PROSEDUR PEMBERSIHAN FOT IP"
+              data={{
+                'Lower Fan Tray (1.1 - 1.2)':
+                  fotIp.procedures?.['1.1'] || fotIp.proc1_1
+                    ? 'Sudah Dilakukan'
+                    : undefined,
+                'Lower Fan Tray (1.3 - 1.10)':
+                  fotIp.procedures?.['1.3'] || fotIp.proc_1_3
+                    ? 'Sudah Dilakukan'
+                    : undefined,
+                'Chassis Air Filter (1.1 - 1.10)': fotIp.procedures?.['caf_1.1']
+                  ? 'Sudah Dilakukan'
+                  : undefined,
+                'Chassis Air Filter (3.1 - 3.3)': fotIp.procedures?.['caf_3.1']
+                  ? 'Sudah Dilakukan'
+                  : undefined,
+                'Catatan FOT IP': fotIp.catatan,
+              }}
+            />
+          </Card>
+        </View>
 
-        {/* DCPDB Summary */}
-        {formData.dcpdb && (
-          <SectionDetail
-            title="DCPDB"
-            data={{
-              'Total Beban MCB': (formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb)
-                ? `${(formData.dcpdb.dcpdbBeban || formData.dcpdb.bebanDcpdb).length} MCB`
-                : undefined,
-              'Status Arester': formData.dcpdb.aresterAda,
-              'Tipe Arester': formData.dcpdb.aresterTipe,
-              'Warna Indikator': formData.dcpdb.aresterWarnaIndikator,
-              'Catatan': formData.dcpdb.catatan,
-            }}
-          />
-        )}
+        {/* ================= 7. FOT DWDM ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={7} title="FOT DWDM" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="PROSEDUR & SPESIFIKASI DWDM"
+              data={{
+                'Site ID': fotDwdm.siteId,
+                Vendor: fotDwdm.vendor,
+                'Model Chassis': fotDwdm.modelChassis,
+                'Serial Number': fotDwdm.sn,
+                'Posisi Rack': fotDwdm.posisiRack,
+                'Status Power': fotDwdm.statusPower,
+                'Anti Dust Screen (1.1 - 1.4)': fotDwdm.procedures?.['1.1']
+                  ? 'Sudah Dilakukan'
+                  : undefined,
+                'Fan Unit (2.1 - 2.9)': fotDwdm.procedures?.['2.1']
+                  ? 'Sudah Dilakukan'
+                  : undefined,
+                'Equipment Unit (3.1 - 3.3)': fotDwdm.procedures?.['3.1']
+                  ? 'Sudah Dilakukan'
+                  : undefined,
+                'Catatan FOT DWDM': fotDwdm.catatan,
+              }}
+            />
+          </Card>
+        </View>
 
-        {/* Checklist Summary */}
-        {checklistEntries && checklistEntries.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CHECKLIST</Text>
-            {checklistEntries.map((entry, index) => (
-              <View key={index} style={styles.resultRow}>
-                <View style={styles.resultLeft}>
-                  <Text style={styles.resultLabel}>{entry.label}</Text>
-                  <Text style={styles.resultValue}>{entry.value || '-'}</Text>
+        {/* ================= 8. KWH ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={8} title="KWH" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="PENGUKURAN STAND KWH METER"
+              data={{
+                'ID Pelanggan': kwh.idPelanggan || ps.idPelanggan,
+                'Daya Listrik (kVA)': kwh.dayaListrik || ps.dayaListrik,
+                Phasa: kwh.phasa || ps.phasaCatuan,
+                'Stand Awal (Bulan Lalu)': kwh.standAwal || kwh.bulanLalu,
+                'Stand Akhir (Bulan Ini)':
+                  kwh.standAkhir || kwh.bulanIni || ps.bulanIni,
+                'Pemakaian KWH':
+                  kwh.pengukuranKwh || ps.pengukuranKwh || kwh.pemakaian,
+                'KWH Box': kwh.kwhBox,
+                'MCB KWH': kwh.mcbKwh,
+                'Arrester KWH': kwh.arresterKwh,
+                'Comments / Catatan': kwh.comment || kwh.catatan,
+              }}
+            />
+          </Card>
+        </View>
+
+        {/* ================= 9. ACPDB ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={9} title="ACPDB" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="STATUS ARESTER & KELISTRIKAN ACPDB"
+              data={{
+                'Status Arester': acpdb.aresterAda,
+                'Tipe Arester': acpdb.aresterTipe,
+                'Warna Indikator': acpdb.aresterWarnaIndikator,
+                'Catatan ACPDB': acpdb.catatan,
+              }}
+            />
+
+            {(() => {
+              const list =
+                acpdb.acpdbBeban ||
+                acpdb.bebanAcpdb ||
+                ps.acpdbBeban ||
+                ps.bebanAcpdb ||
+                [];
+              if (!list || list.length === 0) return null;
+              return (
+                <View style={{ marginTop: Spacing.sm }}>
+                  <Text style={styles.subSectionTitle}>
+                    DAFTAR BEBAN MCB ACPDB ({list.length} MCB)
+                  </Text>
+                  {list.map((item: any, idx: number) => (
+                    <Card key={idx} style={styles.subCard}>
+                      <Text style={styles.subCardTitle}>
+                        MCB #{idx + 1} - {item.merk ? `${item.merk} ` : ''}(
+                        {item.kapasitas || '-'})
+                      </Text>
+                      <Text style={styles.resultValue}>
+                        Phasa: {item.phasa || item.labelMcb || '-'} | Beban:{' '}
+                        {item.beban || '-'} | Arus: {item.arus || '-'}
+                      </Text>
+                      {item.peruntukan ? (
+                        <Text style={styles.resultValue}>
+                          Peruntukan: {item.peruntukan}
+                        </Text>
+                      ) : null}
+                    </Card>
+                  ))}
                 </View>
-                {entry.status && <StatusBadge status={entry.status} />}
-              </View>
-            ))}
-          </View>
-        )}
+              );
+            })()}
+          </Card>
+        </View>
 
-        {/* Notes */}
-        {notes ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>CATATAN</Text>
-            <View style={styles.resultRow}>
-              <Text style={styles.resultValue}>{notes}</Text>
-            </View>
-          </View>
-        ) : null}
+        {/* ================= 10. DCPDB ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={10} title="DCPDB" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              title="STATUS ARESTER & KELISTRIKAN DCPDB"
+              data={{
+                'Status Arester': dcpdb.aresterAda,
+                'Tipe Arester': dcpdb.aresterTipe,
+                'Warna Indikator': dcpdb.aresterWarnaIndikator,
+                'Catatan DCPDB': dcpdb.catatan,
+              }}
+            />
+
+            {(() => {
+              const list =
+                dcpdb.dcpdbBeban ||
+                dcpdb.bebanDcpdb ||
+                ps.dcpdbBeban ||
+                ps.bebanDcpdb ||
+                [];
+              if (!list || list.length === 0) return null;
+              return (
+                <View style={{ marginTop: Spacing.sm }}>
+                  <Text style={styles.subSectionTitle}>
+                    DAFTAR BEBAN MCB DCPDB ({list.length} MCB)
+                  </Text>
+                  {list.map((item: any, idx: number) => (
+                    <Card key={idx} style={styles.subCard}>
+                      <Text style={styles.subCardTitle}>
+                        MCB #{idx + 1} - {item.merk ? `${item.merk} ` : ''}(
+                        {item.kapasitas || '-'})
+                      </Text>
+                      <Text style={styles.resultValue}>
+                        Phasa:{' '}
+                        {item.phasa || item.labelMcb || item.dcpdb || '-'} |
+                        Beban: {item.beban || item.dcpdb1Beban || '-'} | Arus:{' '}
+                        {item.arus || item.dcpdb1Arus || '-'}
+                      </Text>
+                      {item.peruntukan ? (
+                        <Text style={styles.resultValue}>
+                          Peruntukan: {item.peruntukan}
+                        </Text>
+                      ) : null}
+                    </Card>
+                  ))}
+                </View>
+              );
+            })()}
+          </Card>
+        </View>
+
+        {/* ================= 11. RECTI ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={11} title="RECTI" />
+          <Card style={styles.cardWrapper}>
+            {(() => {
+              const rectList = rect.rectifiers || [];
+              if (rectList.length > 0) {
+                return rectList.map((r: any, idx: number) => (
+                  <SectionDetail
+                    key={idx}
+                    title={`RECTIFIER #${idx + 1}`}
+                    data={{
+                      Merk: r.merk,
+                      Tipe: r.tipe,
+                      'Serial Number': r.sn,
+                      'Tipe Modul': r.tipeModul,
+                      'Modul Terpasang': r.jmlModul,
+                      'Kapasitas Slot': r.jmlSlot,
+                      'Arus Beban': r.arusBeban
+                        ? `${r.arusBeban} A`
+                        : undefined,
+                      'Tegangan Input': r.tegInput
+                        ? `${r.tegInput} V`
+                        : undefined,
+                      'Tegangan Floating': r.tegFloating
+                        ? `${r.tegFloating} V`
+                        : undefined,
+                      'Tegangan Equalizing': r.tegEqualizing
+                        ? `${r.tegEqualizing} V`
+                        : undefined,
+                      'LVD Threshold': r.lvd,
+                    }}
+                  />
+                ));
+              }
+
+              return (
+                <SectionDetail
+                  title="RECTIFIER"
+                  data={{
+                    Merk: rect.merk || ps.rect1Merk,
+                    Tipe: rect.tipe || ps.rect1Tipe,
+                    'Serial Number': rect.sn || ps.rect1SN,
+                    'Arus Beban': rect.arusBeban || ps.rect1ArusBeban,
+                    'Tegangan Input': rect.tegInput || ps.rect1TegInput,
+                    'Tegangan Floating':
+                      rect.tegFloating || ps.rect1TegFloating,
+                    'Catatan Rectifier': rect.catatan,
+                  }}
+                />
+              );
+            })()}
+
+            {/* Beban Rectifier */}
+            {(() => {
+              const bebanList =
+                rect.rectifierBeban ||
+                rect.bebanRectifier ||
+                ps.rectifierBeban ||
+                ps.bebanRectifier ||
+                [];
+              if (!bebanList || bebanList.length === 0) return null;
+              return (
+                <View style={{ marginTop: Spacing.sm }}>
+                  <Text style={styles.subSectionTitle}>
+                    BEBAN RECTIFIER ({bebanList.length} MCB)
+                  </Text>
+                  {bebanList.map((item: any, idx: number) => (
+                    <Card key={idx} style={styles.subCard}>
+                      <Text style={styles.subCardTitle}>
+                        MCB #{idx + 1} - Kapasitas: {item.kapasitas || '-'}
+                      </Text>
+                      <Text style={styles.resultValue}>
+                        {item.beban ? `Beban: ${item.beban} | ` : ''}Arus: {item.arus || '-'}
+                      </Text>
+                      {item.namaNe ? (
+                        <Text style={styles.resultValue}>
+                          Nama NE: {item.namaNe}
+                        </Text>
+                      ) : null}
+                    </Card>
+                  ))}
+                </View>
+              );
+            })()}
+          </Card>
+        </View>
+
+        {/* ================= 12. BATREI ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={12} title="BATREI" />
+          <Card style={styles.cardWrapper}>
+            {battery.banks && battery.banks.length > 0 ? (
+              <View>
+                <Text style={styles.subSectionTitle}>
+                  BANK BATERAI ({battery.banks.length} Bank)
+                </Text>
+                {battery.banks.map((bank: any, index: number) => (
+                  <Card key={index} style={styles.subCard}>
+                    <Text style={styles.subCardTitle}>
+                      Bank #{index + 1} - Kondisi: {bank.kondisi || 'OK'}
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                      <View style={{ width: '50%', marginBottom: 4 }}>
+                        <Text style={styles.resultLabel}>Merk</Text>
+                        <Text style={styles.resultValue}>
+                          {bank.merk || '-'}
+                        </Text>
+                      </View>
+                      <View style={{ width: '50%', marginBottom: 4 }}>
+                        <Text style={styles.resultLabel}>Tipe</Text>
+                        <Text style={styles.resultValue}>
+                          {bank.tipe || '-'}
+                        </Text>
+                      </View>
+                      <View style={{ width: '50%', marginBottom: 4 }}>
+                        <Text style={styles.resultLabel}>Kapasitas</Text>
+                        <Text style={styles.resultValue}>
+                          {bank.kapasitas || '-'}
+                        </Text>
+                      </View>
+                      <View style={{ width: '50%', marginBottom: 4 }}>
+                        <Text style={styles.resultLabel}>V Total</Text>
+                        <Text style={styles.resultValue}>
+                          {bank.vTotal || '-'}
+                        </Text>
+                      </View>
+                      <View style={{ width: '100%', marginBottom: 4 }}>
+                        <Text style={styles.resultLabel}>Serial Number</Text>
+                        <Text style={styles.resultValue}>{bank.sn || '-'}</Text>
+                      </View>
+                    </View>
+                  </Card>
+                ))}
+              </View>
+            ) : (
+              <SectionDetail
+                title="BATERAI"
+                data={{
+                  Status: 'Belum ada data bank baterai',
+                }}
+              />
+            )}
+            {battery.catatan ? (
+              <SectionDetail
+                title="CATATAN BATERAI"
+                data={{ Catatan: battery.catatan }}
+              />
+            ) : null}
+          </Card>
+        </View>
+
+        {/* ================= 13. DOKUMENTASI ================= */}
+        <View style={styles.sectionContainer}>
+          <SectionHeaderBadge number={13} title="DOKUMENTASI" />
+          <Card style={styles.cardWrapper}>
+            <SectionDetail
+              data={{
+                'Total Foto Terunggah':
+                  photos && photos.length > 0
+                    ? `${photos.length} Foto`
+                    : '0 Foto',
+                'Catatan Dokumentasi':
+                  formData.dokumentasi?.catatan ||
+                  notes ||
+                  'Tidak ada catatan tambahan',
+              }}
+            />
+          </Card>
+        </View>
 
         {/* Step indicator */}
         <View style={styles.stepIndicator}>
@@ -556,18 +863,60 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
   },
-  assetSummary: {
+  scrollContent: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['3xl'],
+  },
+  sectionContainer: {
     marginBottom: Spacing.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  numberBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
+  },
+  numberBadgeText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  mainSectionTitle: {
+    ...Typography.subtitle1,
+    color: Colors.text,
+    fontWeight: '800',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  cardWrapper: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Shadow.sm,
   },
   assetRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
   assetIcon: {
-    fontSize: 36,
+    fontSize: 32,
     marginRight: Spacing.base,
   },
   assetInfo: {
@@ -575,45 +924,66 @@ const styles = StyleSheet.create({
   },
   assetCode: {
     ...Typography.overline,
-    color: Colors.info,
+    color: Colors.primary,
+    fontWeight: '700',
   },
   assetName: {
     ...Typography.h4,
     color: Colors.text,
     marginTop: 2,
+    fontWeight: '700',
   },
   assetLocation: {
     ...Typography.caption,
     color: Colors.textSecondary,
     marginTop: 2,
   },
-  section: {
-    marginBottom: Spacing.lg,
-  },
-  sectionTitle: {
-    ...Typography.overline,
-    color: Colors.textSecondary,
+  subSection: {
     marginBottom: Spacing.md,
+  },
+  subSectionTitle: {
+    ...Typography.caption,
+    color: Colors.primaryLight || '#60A5FA',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: Spacing.xs,
+  },
+  subCard: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginBottom: Spacing.xs,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  subCardTitle: {
+    ...Typography.subtitle2,
+    color: Colors.text,
+    fontWeight: '700',
+    fontSize: 13,
+    marginBottom: 2,
   },
   resultRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: 6,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.glassBorder,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   resultLeft: {
     flex: 1,
-    paddingRight: Spacing.md,
   },
   resultLabel: {
-    ...Typography.bodySmall,
-    color: Colors.text,
-  },
-  resultValue: {
     ...Typography.caption,
     color: Colors.textSecondary,
+    fontSize: 12,
+  },
+  resultValue: {
+    ...Typography.bodySmall,
+    color: Colors.text,
+    fontWeight: '600',
     marginTop: 2,
   },
   stepIndicator: {
@@ -645,4 +1015,3 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
 });
-

@@ -1,18 +1,23 @@
-/**
- * Inspection Model - WatermelonDB
- * Represents a completed or in-progress PM inspection
- */
-
-import {Model} from '@nozbe/watermelondb';
-import {field, text, date, readonly, relation, children} from '@nozbe/watermelondb/decorators';
-import type {InspectionType, InspectionStatus} from '../../types';
+import { Model } from '@nozbe/watermelondb';
+import {
+  field,
+  text,
+  date,
+  readonly,
+  relation,
+  children,
+} from '@nozbe/watermelondb/decorators';
+import type { InspectionType, InspectionStatus } from '../../types';
 
 export default class Inspection extends Model {
   static table = 'inspections';
 
   static associations = {
-    assets: {type: 'belongs_to' as const, key: 'asset_id'},
-    inspection_items: {type: 'has_many' as const, foreignKey: 'inspection_id'},
+    assets: { type: 'belongs_to' as const, key: 'asset_id' },
+    inspection_items: {
+      type: 'has_many' as const,
+      foreignKey: 'inspection_id',
+    },
   };
 
   @text('asset_id') assetId!: string;

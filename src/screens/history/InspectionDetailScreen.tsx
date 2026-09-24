@@ -3,7 +3,7 @@
  * Premium view of complete inspection details with animated sections
  */
 
-import React, {useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,8 @@ import {
   Animated,
   StatusBar,
 } from 'react-native';
-import {useNavigation, useRoute} from '@react-navigation/native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   MapPin,
@@ -30,16 +30,29 @@ import {
   Edit3,
   Cloud,
   CloudOff,
+  Trash2,
 } from 'lucide-react-native';
 
-import {Colors, Typography, Spacing, BorderRadius, Shadow, FontFamily} from '../../theme';
-import {Button, StatusBadge, showAlert} from '../../components/common';
+import {
+  Colors,
+  Typography,
+  Spacing,
+  BorderRadius,
+  Shadow,
+  FontFamily,
+} from '../../theme';
+import { Button, StatusBadge, showAlert } from '../../components/common';
 import database from '../../database';
-import {Inspection, InspectionItem, Asset} from '../../database/models';
-import {useInspectionStore} from '../../store/inspectionStore';
-import {formatDate, cleanPopId, cleanPopName, sharePdfFile} from '../../utils/helpers';
-import type {RootStackParamList} from '../../types';
-import {TouchableOpacity} from 'react-native';
+import { Inspection, InspectionItem, Asset } from '../../database/models';
+import { useInspectionStore } from '../../store/inspectionStore';
+import {
+  formatDate,
+  cleanPopId,
+  cleanPopName,
+  sharePdfFile,
+} from '../../utils/helpers';
+import type { RootStackParamList } from '../../types';
+import { TouchableOpacity } from 'react-native';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -59,7 +72,7 @@ const getStatusIcon = (status: string) => {
 export const InspectionDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<any>();
-  const {inspectionId} = route.params;
+  const { inspectionId } = route.params;
 
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [items, setItems] = useState<InspectionItem[]>([]);
@@ -73,8 +86,18 @@ export const InspectionDetailScreen: React.FC = () => {
   useEffect(() => {
     loadData();
     Animated.stagger(200, [
-      Animated.spring(headerAnim, {toValue: 1, friction: 8, tension: 40, useNativeDriver: true}),
-      Animated.spring(contentAnim, {toValue: 1, friction: 8, tension: 40, useNativeDriver: true}),
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.spring(contentAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
     ]).start();
   }, [inspectionId]);
 
@@ -101,20 +124,46 @@ export const InspectionDetailScreen: React.FC = () => {
         .fetch();
       const filtered = inspItems
         .filter((i: InspectionItem) => i.inspectionId === inspectionId)
-        .sort((a: InspectionItem, b: InspectionItem) => a.sortOrder - b.sortOrder);
+        .sort(
+          (a: InspectionItem, b: InspectionItem) => a.sortOrder - b.sortOrder,
+        );
       setItems(filtered);
 
       // Try to find asset by WatermelonDB id first, then by assetCode
       let assetData: Asset | null = null;
       try {
-        assetData = await database
-          .get<Asset>('assets')
-          .find(insp.assetId);
+        assetData = await database.get<Asset>('assets').find(insp.assetId);
       } catch {
         // Fallback: find by assetCode
         const allAssets = await database.get<Asset>('assets').query().fetch();
-        assetData = allAssets.find((a: Asset) => a.assetCode === insp.assetId) || null;
+        assetData =
+          allAssets.find((a: Asset) => a.assetCode === insp.assetId) || null;
       }
+
+      if (!assetData) {
+        let popName = insp.assetId !== 'unknown' ? insp.assetId : 'POP';
+        let popLocation = '';
+        if (insp.formData) {
+          try {
+            const parsed =
+              typeof insp.formData === 'string'
+                ? JSON.parse(insp.formData)
+                : insp.formData;
+            if (parsed.infoPop?.namaPop) popName = parsed.infoPop.namaPop;
+            if (parsed.infoPop?.alamat) popLocation = parsed.infoPop.alamat;
+          } catch (e) { }
+        }
+        assetData = {
+          id: insp.assetId,
+          assetCode: insp.assetId,
+          name: popName,
+          location: popLocation,
+          category: 'POP',
+          status: 'active',
+          type: 'POP',
+        } as any;
+      }
+
       setAsset(assetData);
     } catch (error) {
       console.error('Error loading inspection detail:', error);
@@ -127,15 +176,22 @@ export const InspectionDetailScreen: React.FC = () => {
         await sharePdfFile(
           inspection.pdfPath,
           `PM Report - ${asset?.assetCode || 'POP'}`,
-          `Laporan PM untuk ${asset?.name || asset?.assetCode || 'POP'} - ${formatDate(
-            inspection.inspectionDate,
-          )}`,
+          `Laporan PM untuk ${asset?.name || asset?.assetCode || 'POP'
+          } - ${formatDate(inspection.inspectionDate)}`,
         );
       } catch (error) {
-        showAlert({type: 'error', title: 'Error', message: 'Gagal membagikan PDF'});
+        showAlert({
+          type: 'error',
+          title: 'Error',
+          message: 'Gagal membagikan PDF',
+        });
       }
     } else {
-      showAlert({type: 'info', title: 'Info', message: 'PDF belum tersedia untuk laporan ini'});
+      showAlert({
+        type: 'info',
+        title: 'Info',
+        message: 'PDF belum tersedia untuk laporan ini',
+      });
     }
   };
 
@@ -144,13 +200,17 @@ export const InspectionDetailScreen: React.FC = () => {
     showAlert({
       type: 'confirm',
       title: 'Edit Laporan PM',
-      message: `Anda akan membuka formulir inspeksi "${cleanPopName(asset?.name || asset?.assetCode || 'POP')}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
+      message: `Anda akan membuka formulir inspeksi "${cleanPopName(
+        asset?.name || asset?.assetCode || 'POP',
+      )}" untuk melakukan perubahan data atau foto. Lanjutkan?`,
       buttons: [
         { text: 'Batal', style: 'cancel' },
         {
           text: 'Edit Sekarang',
           onPress: () => {
-            useInspectionStore.getState().loadExistingInspection(inspection, asset);
+            useInspectionStore
+              .getState()
+              .loadExistingInspection(inspection, asset);
             navigation.navigate('MainTabs');
           },
         },
@@ -158,7 +218,7 @@ export const InspectionDetailScreen: React.FC = () => {
     });
   };
 
-  if (!inspection || !asset) {
+  if (!inspection) {
     return (
       <View style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -171,13 +231,15 @@ export const InspectionDetailScreen: React.FC = () => {
   const isEdited =
     inspection.updatedAt &&
     inspection.createdAt &&
-    new Date(inspection.updatedAt).getTime() - new Date(inspection.createdAt).getTime() > 60000;
+    new Date(inspection.updatedAt).getTime() -
+    new Date(inspection.createdAt).getTime() >
+    60000;
 
   const statusCounts = {
-    ok: items.filter((i) => i.status === 'ok').length,
-    warning: items.filter((i) => i.status === 'warning').length,
-    critical: items.filter((i) => i.status === 'critical').length,
-    na: items.filter((i) => i.status === 'na').length,
+    ok: items.filter(i => i.status === 'ok').length,
+    warning: items.filter(i => i.status === 'warning').length,
+    critical: items.filter(i => i.status === 'critical').length,
+    na: items.filter(i => i.status === 'na').length,
   };
 
   return (
@@ -187,19 +249,29 @@ export const InspectionDetailScreen: React.FC = () => {
       {/* Premium Header */}
       <LinearGradient
         colors={['#3B82F6', '#1E40AF']}
-        start={{x: 0, y: 0}}
-        end={{x: 1, y: 1}}
-        style={styles.headerGradient}>
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
         {/* Back button */}
         <Animated.View
           style={{
             opacity: headerAnim,
-            transform: [{translateX: headerAnim.interpolate({inputRange: [0, 1], outputRange: [-20, 0]})}],
-          }}>
+            transform: [
+              {
+                translateX: headerAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 0],
+                }),
+              },
+            ],
+          }}
+        >
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => navigation.goBack()}
-            activeOpacity={0.7}>
+            activeOpacity={0.7}
+          >
             <ChevronLeft color={Colors.white} size={22} />
           </TouchableOpacity>
         </Animated.View>
@@ -210,31 +282,59 @@ export const InspectionDetailScreen: React.FC = () => {
             styles.headerContent,
             {
               opacity: headerAnim,
-              transform: [{translateY: headerAnim.interpolate({inputRange: [0, 1], outputRange: [20, 0]})}],
+              transform: [
+                {
+                  translateY: headerAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
             },
-          ]}>
-          <Text style={styles.headerOverline}>{cleanPopId(asset.assetCode || '')}</Text>
-          <Text style={styles.headerTitle}>{cleanPopName(asset.name || '')}</Text>
+          ]}
+        >
+          <Text style={styles.headerOverline}>
+            {cleanPopId(asset?.assetCode || '')}
+          </Text>
+          <Text style={styles.headerTitle}>
+            {cleanPopName(asset?.name || '')}
+          </Text>
           <View style={styles.headerLocationRow}>
-            <MapPin size={13} color="rgba(255,255,255,0.7)" style={{marginRight: 4}} />
-            <Text style={styles.headerLocation}>{asset.location}</Text>
+            <MapPin
+              size={13}
+              color="rgba(255,255,255,0.7)"
+              style={{ marginRight: 4 }}
+            />
+            <Text style={styles.headerLocation}>{asset?.location || '-'}</Text>
           </View>
 
           {/* Meta chips */}
           <View style={styles.headerChips}>
             <View style={styles.chip}>
-              <Calendar size={12} color={Colors.white} style={{marginRight: 4}} />
-              <Text style={styles.chipText}>{formatDate(inspection.inspectionDate)}</Text>
+              <Calendar
+                size={12}
+                color={Colors.white}
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.chipText}>
+                {formatDate(inspection.inspectionDate)}
+              </Text>
             </View>
             {inspection.isSynced ? (
               <View style={[styles.chip, styles.chipCloud]}>
-                <Cloud size={12} color="#6EE7B7" style={{marginRight: 4}} />
+                <Cloud size={12} color="#6EE7B7" style={{ marginRight: 4 }} />
                 <Text style={styles.chipCloudText}>Tersimpan di Cloud</Text>
               </View>
             ) : (
               <View style={[styles.chip, styles.chipLocal]}>
-                <CloudOff size={12} color="#FDE68A" style={{marginRight: 4}} />
-                <Text style={styles.chipLocalText}>Tersimpan di HP (Lokal)</Text>
+                <CloudOff
+                  size={12}
+                  color="#FDE68A"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.chipLocalText}>
+                  Tersimpan di HP (Lokal)
+                </Text>
               </View>
             )}
             {isEdited ? (
@@ -251,14 +351,21 @@ export const InspectionDetailScreen: React.FC = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={styles.scrollContent}
+      >
         <Animated.View
           style={{
             opacity: contentAnim,
-            transform: [{translateY: contentAnim.interpolate({inputRange: [0, 1], outputRange: [30, 0]})}],
-          }}>
-
-
+            transform: [
+              {
+                translateY: contentAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [30, 0],
+                }),
+              },
+            ],
+          }}
+        >
           {/* Checklist Results */}
           {items.length > 0 && (
             <View style={styles.section}>
@@ -276,10 +383,16 @@ export const InspectionDetailScreen: React.FC = () => {
                     </View>
                     <View style={styles.resultContent}>
                       <Text style={styles.resultLabel}>{item.label}</Text>
-                      <Text style={styles.resultValue}>{item.displayValue}</Text>
+                      <Text style={styles.resultValue}>
+                        {item.displayValue}
+                      </Text>
                       {item.notes ? (
                         <View style={styles.resultNotesRow}>
-                          <FileText size={11} color={Colors.textMuted} style={{marginRight: 4}} />
+                          <FileText
+                            size={11}
+                            color={Colors.textMuted}
+                            style={{ marginRight: 4 }}
+                          />
                           <Text style={styles.resultNotes}>{item.notes}</Text>
                         </View>
                       ) : null}
@@ -314,13 +427,19 @@ export const InspectionDetailScreen: React.FC = () => {
               <TouchableOpacity
                 style={styles.editBtn}
                 activeOpacity={0.85}
-                onPress={handleEditInspection}>
+                onPress={handleEditInspection}
+              >
                 <LinearGradient
                   colors={['#F59E0B', '#D97706']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.editBtnGradient}>
-                  <Edit3 size={20} color={Colors.white} style={{marginRight: 8}} />
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.editBtnGradient}
+                >
+                  <Edit3
+                    size={20}
+                    color={Colors.white}
+                    style={{ marginRight: 8 }}
+                  />
                   <Text style={styles.editBtnText}>Edit Laporan</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -332,14 +451,20 @@ export const InspectionDetailScreen: React.FC = () => {
                 style={styles.reviewPdfBtn}
                 activeOpacity={0.85}
                 onPress={() =>
-                  navigation.navigate('HistoryReviewPdf', {inspectionId})
-                }>
+                  navigation.navigate('HistoryReviewPdf', { inspectionId })
+                }
+              >
                 <LinearGradient
                   colors={['#10B981', '#059669']}
-                  start={{x: 0, y: 0}}
-                  end={{x: 1, y: 1}}
-                  style={styles.reviewPdfBtnGradient}>
-                  <Eye size={20} color={Colors.white} style={{marginRight: 8}} />
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.reviewPdfBtnGradient}
+                >
+                  <Eye
+                    size={20}
+                    color={Colors.white}
+                    style={{ marginRight: 8 }}
+                  />
                   <Text style={styles.reviewPdfBtnText}>Lihat Review PDF</Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -348,26 +473,33 @@ export const InspectionDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.shareBtn}
               activeOpacity={0.8}
-              onPress={handleSharePDF}>
+              onPress={handleSharePDF}
+            >
               <LinearGradient
-                colors={[Colors.primary, Colors.primaryDark]}
-                start={{x: 0, y: 0}}
-                end={{x: 1, y: 1}}
-                style={styles.shareBtnGradient}>
-                <Share2 size={18} color={Colors.white} style={{marginRight: 8}} />
-                <Text style={styles.shareBtnText}>Bagikan PDF</Text>
+                colors={['#64748B', '#475569']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.shareBtnGradient}
+              >
+                <Share2
+                  size={18}
+                  color={Colors.white}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.shareBtnText}>Bagikan Laporan</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.backTextBtn}
               activeOpacity={0.7}
-              onPress={() => navigation.goBack()}>
+              onPress={() => navigation.goBack()}
+            >
               <Text style={styles.backTextBtnLabel}>Kembali ke Riwayat</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={{height: 40}} />
+          <View style={{ height: 40 }} />
         </Animated.View>
       </ScrollView>
     </View>

@@ -103,10 +103,10 @@ function buildHTMLReport(data: PDFInspectionData): string {
         item.status === 'ok'
           ? 'OK'
           : item.status === 'warning'
-            ? 'PERHATIAN'
-            : item.status === 'critical'
-              ? 'KRITIS'
-              : 'N/A';
+          ? 'PERHATIAN'
+          : item.status === 'critical'
+          ? 'KRITIS'
+          : 'N/A';
 
       let displayValue = item.value;
       if (item.type === 'pass_fail') {
@@ -118,7 +118,9 @@ function buildHTMLReport(data: PDFInspectionData): string {
 
       return `
         <tr style="border-bottom:1px solid #2A3A4A;">
-          <td style="padding:10px 12px;color:#7F8C9B;width:30px;">${index + 1}</td>
+          <td style="padding:10px 12px;color:#7F8C9B;width:30px;">${
+            index + 1
+          }</td>
           <td style="padding:10px 12px;">${item.label}</td>
           <td style="padding:10px 12px;text-align:center;font-weight:500;">${displayValue}</td>
           <td style="padding:10px 12px;text-align:center;">
@@ -126,7 +128,9 @@ function buildHTMLReport(data: PDFInspectionData): string {
               ${statusLabel}
             </span>
           </td>
-          <td style="padding:10px 12px;color:#7F8C9B;font-size:11px;">${item.notes || '-'}</td>
+          <td style="padding:10px 12px;color:#7F8C9B;font-size:11px;">${
+            item.notes || '-'
+          }</td>
         </tr>
       `;
     })
@@ -335,14 +339,15 @@ function buildHTMLReport(data: PDFInspectionData): string {
               <div class="info-value">${data.asset.serialNumber}</div>
             </div>
           </div>
-          ${specsHtml
-      ? `
+          ${
+            specsHtml
+              ? `
             <table style="margin-top:10px;">
               <thead><tr><th>Spesifikasi</th><th>Nilai</th></tr></thead>
               <tbody>${specsHtml}</tbody>
             </table>`
-      : ''
-    }
+              : ''
+          }
         </div>
 
         <!-- Inspection Info -->
@@ -359,7 +364,9 @@ function buildHTMLReport(data: PDFInspectionData): string {
             </div>
             <div class="info-item">
               <div class="info-label">Tipe</div>
-              <div class="info-value">${inspectionTypeLabels[data.type] || data.type}</div>
+              <div class="info-value">${
+                inspectionTypeLabels[data.type] || data.type
+              }</div>
             </div>
             <div class="info-item">
               <div class="info-label">Total Item</div>
@@ -377,11 +384,15 @@ function buildHTMLReport(data: PDFInspectionData): string {
               <div class="label" style="color:#2ECC71;">OK</div>
             </div>
             <div class="summary-card" style="background:rgba(243,156,18,0.1);">
-              <div class="count" style="color:#F39C12;">${statusCounts.warning}</div>
+              <div class="count" style="color:#F39C12;">${
+                statusCounts.warning
+              }</div>
               <div class="label" style="color:#F39C12;">Perhatian</div>
             </div>
             <div class="summary-card" style="background:rgba(231,76,60,0.1);">
-              <div class="count" style="color:#E74C3C;">${statusCounts.critical}</div>
+              <div class="count" style="color:#E74C3C;">${
+                statusCounts.critical
+              }</div>
               <div class="label" style="color:#E74C3C;">Kritis</div>
             </div>
             <div class="summary-card" style="background:rgba(127,140,155,0.1);">
@@ -411,14 +422,15 @@ function buildHTMLReport(data: PDFInspectionData): string {
         </div>
 
         <!-- Notes -->
-        ${data.notes
-      ? `
+        ${
+          data.notes
+            ? `
         <div class="section">
           <div class="section-title">Catatan / Remarks</div>
           <div class="notes-box">${data.notes}</div>
         </div>`
-      : ''
-    }
+            : ''
+        }
 
         <!-- Footer with Signature -->
         <div class="footer">

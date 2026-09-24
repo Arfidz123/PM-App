@@ -3,7 +3,7 @@
  * Text input with label, error state, and icons
  */
 
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   TextInput,
@@ -12,7 +12,7 @@ import {
   ViewStyle,
   TextInputProps,
 } from 'react-native';
-import {Colors, Typography, Spacing, BorderRadius} from '../../theme';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -52,12 +52,13 @@ export const Input: React.FC<InputProps> = ({
           styles.inputContainer,
           isFocused && styles.inputFocused,
           error ? styles.inputError : undefined,
-        ]}>
+        ]}
+      >
         {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
         <TextInput
           style={[
             styles.input,
-            leftIcon ? {paddingLeft: 0} : undefined,
+            leftIcon ? { paddingLeft: 0 } : undefined,
             style,
           ]}
           placeholderTextColor={Colors.textMuted}

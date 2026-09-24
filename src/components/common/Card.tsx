@@ -4,13 +4,8 @@
  */
 
 import React from 'react';
-import {
-  View,
-  TouchableOpacity,
-  StyleSheet,
-  ViewStyle,
-} from 'react-native';
-import {Colors, Spacing, BorderRadius, Shadow} from '../../theme';
+import { View, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { Colors, Spacing, BorderRadius, Shadow } from '../../theme';
 
 interface CardProps {
   children: React.ReactNode;
@@ -36,10 +31,7 @@ export const Card: React.FC<CardProps> = ({
 
   if (onPress) {
     return (
-      <TouchableOpacity
-        style={cardStyle}
-        onPress={onPress}
-        activeOpacity={0.7}>
+      <TouchableOpacity style={cardStyle} onPress={onPress} activeOpacity={0.7}>
         {children}
       </TouchableOpacity>
     );

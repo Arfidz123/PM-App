@@ -8,7 +8,7 @@ declare module 'react-native-html-to-pdf' {
     height?: number;
     padding?: number;
   }
-  
+
   export interface PDFResult {
     filePath?: string;
     base64?: string;
@@ -20,4 +20,3 @@ declare module 'react-native-html-to-pdf' {
 
   export function generatePDF(options: Options): Promise<PDFResult>;
 }
-

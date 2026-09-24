@@ -50,7 +50,7 @@ const FloatingOrb: React.FC<{
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     float.start();
     return () => float.stop();
@@ -157,17 +157,30 @@ export const Header: React.FC<HeaderProps> = ({
               },
             ],
           },
-        ]}>
+        ]}
+      >
         <LinearGradient
-          colors={transparent ? ['transparent', 'transparent'] : [Colors.backgroundSecondary, Colors.background]}
+          colors={
+            transparent
+              ? ['transparent', 'transparent']
+              : [Colors.backgroundSecondary, Colors.background]
+          }
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
-          style={[styles.gradient, transparent && styles.transparent]}>
-          
+          style={[styles.gradient, transparent && styles.transparent]}
+        >
           {!transparent && (
             <>
-              <FloatingOrb size={100} color="#3B82F6" style={{ top: -30, right: -10 }} />
-              <FloatingOrb size={60} color="#60A5FA" style={{ top: 15, right: 90 }} />
+              <FloatingOrb
+                size={100}
+                color="#3B82F6"
+                style={{ top: -30, right: -10 }}
+              />
+              <FloatingOrb
+                size={60}
+                color="#60A5FA"
+                style={{ top: 15, right: 90 }}
+              />
             </>
           )}
 
@@ -180,7 +193,8 @@ export const Header: React.FC<HeaderProps> = ({
                   onPressOut={handleBackPressOut}
                   style={styles.backBtn}
                   activeOpacity={1}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
                   <ChevronLeft color={Colors.white} size={22} />
                 </TouchableOpacity>
               </Animated.View>
@@ -200,8 +214,11 @@ export const Header: React.FC<HeaderProps> = ({
                     },
                   ],
                 },
-              ]}>
-              {overlineText ? <Text style={styles.overline}>{overlineText}</Text> : null}
+              ]}
+            >
+              {overlineText ? (
+                <Text style={styles.overline}>{overlineText}</Text>
+              ) : null}
               <Text style={styles.title} numberOfLines={1}>
                 {title}
               </Text>
@@ -218,21 +235,29 @@ export const Header: React.FC<HeaderProps> = ({
                   styles.rightSection,
                   {
                     opacity: titleAnim,
-                    transform: [{ scale: titleAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+                    transform: [
+                      {
+                        scale: titleAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.85, 1],
+                        }),
+                      },
+                    ],
                   },
-                ]}>
+                ]}
+              >
                 {rightAction}
               </Animated.View>
             )}
           </View>
 
           {children && (
-            <Animated.View style={[styles.childrenContainer, { opacity: entranceAnim }]}>
+            <Animated.View
+              style={[styles.childrenContainer, { opacity: entranceAnim }]}
+            >
               {children}
             </Animated.View>
           )}
-
-
         </LinearGradient>
       </Animated.View>
     </>

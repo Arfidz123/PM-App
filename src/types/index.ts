@@ -3,7 +3,14 @@
  */
 
 // ===== Asset Types =====
-export type AssetCategory = 'telecom' | 'power' | 'cooling' | 'hvac' | 'electrical' | 'plumbing' | 'other';
+export type AssetCategory =
+  | 'telecom'
+  | 'power'
+  | 'cooling'
+  | 'hvac'
+  | 'electrical'
+  | 'plumbing'
+  | 'other';
 export type AssetStatus = 'active' | 'inactive' | 'maintenance' | 'offline';
 
 export interface AssetData {
@@ -26,7 +33,12 @@ export interface AssetData {
 }
 
 // ===== Checklist Template Types =====
-export type ChecklistItemType = 'pass_fail' | 'numeric' | 'text' | 'select' | 'photo';
+export type ChecklistItemType =
+  | 'pass_fail'
+  | 'numeric'
+  | 'text'
+  | 'select'
+  | 'photo';
 
 export interface ChecklistItemTemplateData {
   id: string;
@@ -52,7 +64,11 @@ export interface ChecklistTemplateData {
 
 // ===== Inspection Types =====
 export type InspectionType = 'preventive' | 'corrective' | 'predictive';
-export type InspectionStatus = 'draft' | 'in_progress' | 'completed' | 'reviewed';
+export type InspectionStatus =
+  | 'draft'
+  | 'in_progress'
+  | 'completed'
+  | 'reviewed';
 export type ItemStatus = 'ok' | 'warning' | 'critical' | 'na';
 
 export interface InspectionData {
@@ -103,13 +119,13 @@ export interface DashboardStats {
 export type RootStackParamList = {
   MainTabs: undefined;
   StartInspection: undefined;
-  CapturePhoto: {assetId: string};
-  Checklist: {assetId: string; inspectionId: string};
-  Review: {inspectionId: string};
-  Signature: {inspectionId: string};
-  InspectionDetail: {inspectionId: string};
-  ReportPreview: {inspectionId: string};
-  CategoryForm: {categoryId: string; categoryLabel: string};
+  CapturePhoto: { assetId: string };
+  Checklist: { assetId: string; inspectionId: string };
+  Review: { inspectionId: string };
+  Signature: { inspectionId: string };
+  InspectionDetail: { inspectionId: string };
+  ReportPreview: { inspectionId: string };
+  CategoryForm: { categoryId: string; categoryLabel: string };
   SelectPop: undefined;
   AddPop: undefined;
   InfoPop: undefined;
@@ -126,9 +142,9 @@ export type RootStackParamList = {
   FotIp: undefined;
   FotDwdm: undefined;
   ReviewPdf: undefined;
-  HistoryReviewPdf: {inspectionId: string};
-  AssetDetail: {assetId: string};
-  AddAsset: {assetId?: string} | undefined;
+  HistoryReviewPdf: { inspectionId: string };
+  AssetDetail: { assetId: string };
+  AddAsset: { assetId?: string } | undefined;
 };
 
 export type MainTabParamList = {

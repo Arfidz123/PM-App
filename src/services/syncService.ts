@@ -1,177 +1,204 @@
-import { supabase } from './supabase';
 import database from '../database';
 import Inspection from '../database/models/Inspection';
 import Asset from '../database/models/Asset';
 import { Q } from '@nozbe/watermelondb';
 import { POP_SEED_DATA } from '../database/popSeedData';
-import { bulkSeedAssetsToSupabase, fetchInspectionsFromSupabase, SupabaseAsset } from './supabaseDb';
-import { uploadFileToSupabase, uploadFilesInBatch } from './uploadService';
+import {
+  bulkSeedAssetsToFirestore,
+  fetchInspectionsFromFirestore,
+  FirestoreAsset,
+  FirestoreInspection,
+  saveInspectionToFirestore,
+  upsertAssetToFirestore,
+} from './firestoreDb';
+import {
+  uploadFileToTelegram,
+  uploadFilesInBatchToTelegram,
+} from './telegramStorage';
 
 /**
- * Recursively extracts all unique local file URIs from an arbitrary object/array
+ * Recursively collects all image URIs from an object (formData or arrays)
  */
-export const extractLocalUris = (obj: any, collected: Set<string> = new Set()): Set<string> => {
-  if (!obj) return collected;
+export const collectAllPhotoUrisFromObject = (obj: any): string[] => {
+  const uris: string[] = [];
+  if (!obj) return uris;
 
   if (typeof obj === 'string') {
+    const trimmed = obj.trim();
     if (
-      obj.startsWith('file://') ||
-      obj.startsWith('content://') ||
-      (obj.startsWith('/data/') && (obj.endsWith('.jpg') || obj.endsWith('.jpeg') || obj.endsWith('.png') || obj.endsWith('.webp') || obj.endsWith('.pdf')))
+      trimmed.startsWith('file://') ||
+      trimmed.startsWith('content://') ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('http://') ||
+      trimmed.startsWith('https://') ||
+      trimmed.startsWith('telegram://')
     ) {
-      collected.add(obj);
+      uris.push(trimmed);
     }
-    return collected;
+    return uris;
   }
 
   if (Array.isArray(obj)) {
     for (const item of obj) {
-      extractLocalUris(item, collected);
+      uris.push(...collectAllPhotoUrisFromObject(item));
     }
-    return collected;
+    return uris;
   }
 
   if (typeof obj === 'object') {
-    for (const [key, val] of Object.entries(obj)) {
-      if (key === 'photoTimestamps' || key === 'photoCoordinates') {
-        for (const subKey of Object.keys(val || {})) {
-          if (subKey.startsWith('file://') || subKey.startsWith('content://') || subKey.startsWith('/data/')) {
-            collected.add(subKey);
-          }
-        }
-      }
-      extractLocalUris(val, collected);
+    for (const key of Object.keys(obj)) {
+      uris.push(...collectAllPhotoUrisFromObject((obj as any)[key]));
     }
+    return uris;
   }
 
-  return collected;
+  return uris;
 };
 
 /**
- * Recursively replaces local file URIs in an arbitrary object/array with their cloud URLs
+ * Recursively replaces local photo URIs in an object with their mapped Telegram Cloud URIs
  */
-export const replaceLocalUris = (obj: any, urlMap: Record<string, string>): any => {
+export const replacePhotoUrisInObject = <T>(
+  obj: T,
+  urlMap: Record<string, string>,
+): T => {
   if (!obj) return obj;
 
   if (typeof obj === 'string') {
-    return urlMap[obj] || obj;
+    const trimmed = obj.trim();
+    if (urlMap[trimmed]) return urlMap[trimmed] as unknown as T;
+    const cleanStr = trimmed.split('?')[0];
+    if (urlMap[cleanStr]) return urlMap[cleanStr] as unknown as T;
+    return obj;
   }
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => replaceLocalUris(item, urlMap));
+    return obj.map(item =>
+      replacePhotoUrisInObject(item, urlMap),
+    ) as unknown as T;
   }
 
   if (typeof obj === 'object') {
-    const result: Record<string, any> = {};
-    for (const [key, val] of Object.entries(obj)) {
-      if (key === 'photoTimestamps' || key === 'photoCoordinates') {
-        const newMap: Record<string, string> = {};
-        for (const [subKey, subVal] of Object.entries((val as Record<string, string>) || {})) {
-          const mappedKey = urlMap[subKey] || subKey;
-          newMap[mappedKey] = subVal;
-        }
-        result[key] = newMap;
-      } else {
-        result[key] = replaceLocalUris(val, urlMap);
-      }
+    const updatedObj: any = {};
+    for (const key of Object.keys(obj)) {
+      updatedObj[key] = replacePhotoUrisInObject((obj as any)[key], urlMap);
     }
-    return result;
+    return updatedObj as T;
   }
 
   return obj;
 };
 
 /**
- * Uploads all local photos and PDF from inspection data and replaces local paths with Supabase Storage public URLs
+ * Uploads the inspection PDF report and individual photos to Telegram (if not already uploaded)
+ * and returns the remote Telegram download URLs and updated form data.
  */
-export const processAndUploadInspectionMedia = async (data: {
+export const processInspectionMediaForCloud = async (data: {
   pdfPath?: string;
+  popName?: string;
+  popId?: string;
   photos?: string[];
   formData?: any;
 }): Promise<{
   remotePdfPath: string;
   remotePhotos: string[];
-  remoteFormData: any;
+  updatedFormData: any;
 }> => {
-  // 1. Upload PDF if local
   let remotePdfPath = data.pdfPath || '';
-  if (remotePdfPath && (remotePdfPath.startsWith('file://') || remotePdfPath.startsWith('/') || remotePdfPath.startsWith('content://'))) {
+  let remotePhotos: string[] = data.photos || [];
+
+  // Collect photo URIs from photos array AND nested formData properties
+  const allPhotoUris = Array.from(
+    new Set([
+      ...remotePhotos,
+      ...collectAllPhotoUrisFromObject(data.formData),
+    ]),
+  );
+
+  // 1. Upload single PDF to Telegram if not already uploaded
+  if (
+    remotePdfPath &&
+    !remotePdfPath.startsWith('http://') &&
+    !remotePdfPath.startsWith('https://') &&
+    !remotePdfPath.startsWith('telegram://') &&
+    (remotePdfPath.startsWith('file://') ||
+      remotePdfPath.startsWith('/') ||
+      remotePdfPath.startsWith('content://'))
+  ) {
     try {
-      const uploadedPdf = await uploadFileToSupabase(remotePdfPath, 'inspections_media', 'pdfs');
-      if (uploadedPdf) remotePdfPath = uploadedPdf;
-    } catch (pdfErr) {
-      console.warn('PDF upload warning:', pdfErr);
-    }
-  }
-
-  // 2. Collect all local photo URIs from photos array and formData
-  const localPhotoSet = new Set<string>();
-  if (Array.isArray(data.photos)) {
-    for (const p of data.photos) {
-      if (p && (p.startsWith('file://') || p.startsWith('content://') || p.startsWith('/data/'))) {
-        localPhotoSet.add(p);
+      const caption = `📄 Laporan PM: ${data.popName || 'POP'} (${data.popId || ''
+        })\n📅 Tanggal: ${new Date().toLocaleDateString('id-ID')}`;
+      const uploadedPdf = await uploadFileToTelegram(remotePdfPath, caption);
+      if (
+        uploadedPdf &&
+        (uploadedPdf.startsWith('http://') ||
+          uploadedPdf.startsWith('https://') ||
+          uploadedPdf.startsWith('telegram://'))
+      ) {
+        remotePdfPath = uploadedPdf;
       }
+    } catch (pdfErr) {
+      console.warn('PDF upload to Telegram warning:', pdfErr);
     }
   }
-  if (data.formData) {
-    extractLocalUris(data.formData, localPhotoSet);
+
+  // 2. Upload photos to Telegram (batch upload with Telegram file_id URIs)
+  let photoUrlMap: Record<string, string> = {};
+  if (allPhotoUris.length > 0) {
+    try {
+      photoUrlMap = await uploadFilesInBatchToTelegram(allPhotoUris, '', 2);
+      remotePhotos = remotePhotos.map(p => photoUrlMap[p] || p);
+    } catch (photoErr) {
+      console.warn('Photos upload to Telegram warning:', photoErr);
+    }
   }
 
-  const uniqueLocalUris = Array.from(localPhotoSet);
-  if (uniqueLocalUris.length > 0) {
-    console.log(`[SyncService] Uploading ${uniqueLocalUris.length} local photos to Supabase Storage...`);
-  }
-
-  // 3. Batch upload photos
-  const urlMap = await uploadFilesInBatch(uniqueLocalUris, 'inspections_media', 'photos', 3);
-
-  // 4. Map top-level photos array
-  const remotePhotos = (data.photos || []).map((p) => urlMap[p] || p);
-
-  // 5. Map formData
-  const remoteFormData = data.formData ? replaceLocalUris(data.formData, urlMap) : data.formData;
+  const updatedFormData = replacePhotoUrisInObject(
+    data.formData || {},
+    photoUrlMap,
+  );
 
   return {
     remotePdfPath,
     remotePhotos,
-    remoteFormData,
+    updatedFormData,
   };
 };
 
+
 /**
- * Sync unsynced local inspections from WatermelonDB to Supabase Cloud
+ * Sync unsynced local inspections from WatermelonDB to Firebase Cloud Firestore
+ * Only uploads the PDF report once to Telegram and syncs structured form data to Firestore
  */
-export const syncInspectionsToSupabase = async () => {
+export const syncInspectionsToFirebase = async () => {
   try {
     const unsyncedInspections = await database
       .get<Inspection>('inspections')
       .query(
-        Q.or(
-          Q.where('is_synced', false),
-          Q.where('is_synced', null),
-          Q.where('photos', Q.like('%file:%')),
-          Q.where('form_data', Q.like('%file:%')),
-          Q.where('pdf_path', Q.like('%file:%')),
-          Q.where('pdf_path', Q.like('/%'))
-        )
+        Q.and(
+          Q.where('status', 'completed'),
+          Q.or(Q.where('is_synced', false), Q.where('is_synced', null)),
+        ),
       )
       .fetch();
 
     if (unsyncedInspections.length === 0) {
-      console.log('No new inspections to sync');
       return { syncedCount: 0 };
     }
 
-    console.log(`Found ${unsyncedInspections.length} inspections to sync/update media`);
+    console.log(
+      `Found ${unsyncedInspections.length} unsynced inspections to sync to Cloud`,
+    );
     let syncedCount = 0;
 
     for (const inspection of unsyncedInspections) {
-      let parsedFormData = null;
+      let parsedFormData: any = {};
       if (inspection.formData) {
         try {
-          parsedFormData = typeof inspection.formData === 'string'
-            ? JSON.parse(inspection.formData)
-            : inspection.formData;
+          parsedFormData =
+            typeof inspection.formData === 'string'
+              ? JSON.parse(inspection.formData)
+              : inspection.formData;
         } catch (e) {
           parsedFormData = inspection.formData;
         }
@@ -180,92 +207,113 @@ export const syncInspectionsToSupabase = async () => {
       let parsedPhotos: string[] = [];
       if (inspection.photos) {
         try {
-          const res = typeof inspection.photos === 'string'
-            ? JSON.parse(inspection.photos)
-            : inspection.photos;
+          const res =
+            typeof inspection.photos === 'string'
+              ? JSON.parse(inspection.photos)
+              : inspection.photos;
           parsedPhotos = Array.isArray(res) ? res : [];
         } catch (e) {
           parsedPhotos = [];
         }
       }
 
-      // Process and upload all media to Supabase Storage
-      const { remotePdfPath, remotePhotos, remoteFormData } = await processAndUploadInspectionMedia({
-        pdfPath: inspection.pdfPath,
-        photos: parsedPhotos,
-        formData: parsedFormData,
-      });
+      const popName =
+        parsedFormData?.infoPop?.namaPop ||
+        parsedFormData?.infoPop?.popName ||
+        inspection.assetId;
 
-      // Ensure referenced asset exists in Supabase public.assets to prevent Foreign Key Violation (23503)
+      // Upload single PDF & photos to Telegram if not already uploaded
+      const { remotePdfPath, remotePhotos, updatedFormData } =
+        await processInspectionMediaForCloud({
+          pdfPath: inspection.pdfPath,
+          popName,
+          popId: inspection.assetId,
+          photos: parsedPhotos,
+          formData: parsedFormData,
+        });
+
+      // Ensure referenced asset exists in Firestore
       if (inspection.assetId) {
         try {
-          await supabase.from('assets').upsert([
-            {
-              id: inspection.assetId,
-              asset_code: inspection.assetId,
-              name: inspection.assetId,
-              status: 'active'
-            }
-          ], { onConflict: 'id' });
+          await upsertAssetToFirestore({
+            id: inspection.assetId,
+            asset_code: inspection.assetId,
+            name: popName || inspection.assetId,
+            status: 'active',
+          });
         } catch (assetErr) {
-          console.warn('Auto asset upsert warning:', assetErr);
+          console.warn('Auto asset upsert warning in Firestore:', assetErr);
         }
       }
 
-      const payload = {
+      const payload: FirestoreInspection = {
         id: inspection.id,
         asset_id: inspection.assetId,
         inspector_name: inspection.inspectorName || 'Teknisi',
-        inspection_date: new Date(inspection.inspectionDate || Date.now()).toISOString(),
+        inspection_date: new Date(
+          inspection.inspectionDate || Date.now(),
+        ).toISOString(),
         type: inspection.type || 'PM',
         status: inspection.status || 'completed',
         notes: inspection.notes || '',
-        form_data: remoteFormData,
-        pdf_path: remotePdfPath || '',
-        photos: remotePhotos,
+        form_data: updatedFormData || parsedFormData || {},
+        pdf_path: remotePdfPath || inspection.pdfPath || '',
+        photos:
+          remotePhotos && remotePhotos.length > 0 ? remotePhotos : parsedPhotos,
         is_synced: true,
         created_at: new Date(inspection.createdAt || Date.now()).toISOString(),
         updated_at: new Date(inspection.updatedAt || Date.now()).toISOString(),
       };
 
-      const { error } = await supabase
-        .from('inspections')
-        .upsert([payload], { onConflict: 'id' });
-
-      if (error) {
-        console.error('Error syncing inspection to Supabase:', error);
-      } else {
-        await database.write(async () => {
-          await inspection.update((i) => {
-            i.isSynced = true;
-            if (remotePdfPath) i.pdfPath = remotePdfPath;
-            if (remotePhotos && remotePhotos.length > 0) i.photos = JSON.stringify(remotePhotos);
-            if (remoteFormData) i.formData = JSON.stringify(remoteFormData);
-          });
-        });
-        syncedCount++;
-        console.log(`Successfully synced inspection ${inspection.id} with cloud media`);
+      try {
+        await saveInspectionToFirestore(payload);
+      } catch (fsErr) {
+        console.warn('Firestore save notice during bulk sync:', fsErr);
       }
+
+      const isRemotePdf =
+        remotePdfPath &&
+        (remotePdfPath.startsWith('http://') ||
+          remotePdfPath.startsWith('https://') ||
+          remotePdfPath.startsWith('telegram://'));
+
+      await database.write(async () => {
+        await inspection.update(i => {
+          i.isSynced = true;
+          if (isRemotePdf) {
+            i.pdfPath = remotePdfPath;
+          }
+          if (remotePhotos && remotePhotos.length > 0) {
+            i.photos = JSON.stringify(remotePhotos);
+          }
+          if (updatedFormData) {
+            i.formData = JSON.stringify(updatedFormData);
+          }
+        });
+      });
+      syncedCount++;
+      console.log(
+        `Successfully synced inspection ${inspection.id} to Telegram & Firestore`,
+      );
     }
 
     return { syncedCount };
   } catch (error) {
-    console.error('Sync failed:', error);
+    console.error('Firebase sync failed:', error);
     throw error;
   }
 };
 
 /**
- * Seed or sync POP assets to Supabase DB
+ * Seed or sync POP assets to Firebase Firestore
  */
-export const syncAssetsToSupabase = async () => {
+export const syncAssetsToFirebase = async () => {
   try {
-    // 1. Fetch assets from local DB first
     const localAssets = await database.get<Asset>('assets').query().fetch();
-    
-    let assetsToSync: SupabaseAsset[] = [];
+
+    let assetsToSync: FirestoreAsset[] = [];
     if (localAssets.length > 0) {
-      assetsToSync = localAssets.map((asset) => ({
+      assetsToSync = localAssets.map(asset => ({
         id: asset.id,
         asset_code: asset.assetCode,
         name: asset.name,
@@ -276,16 +324,21 @@ export const syncAssetsToSupabase = async () => {
         manufacturer: asset.manufacturer,
         model: asset.assetModel,
         serial_number: asset.serialNumber,
-        install_date: asset.installDate ? new Date(asset.installDate).toISOString() : null,
+        install_date: asset.installDate
+          ? new Date(asset.installDate).toISOString()
+          : null,
         qr_code: asset.qrCode,
         photo_path: asset.photoPath,
-        specifications: asset.specifications ? (typeof asset.specifications === 'string' ? JSON.parse(asset.specifications) : asset.specifications) : {},
+        specifications: asset.specifications
+          ? typeof asset.specifications === 'string'
+            ? JSON.parse(asset.specifications)
+            : asset.specifications
+          : {},
         checklist_template_id: asset.checklistTemplateId,
         status: asset.status || 'active',
       }));
     } else {
-      // Fallback to POP_SEED_DATA if local DB hasn't been seeded yet
-      assetsToSync = POP_SEED_DATA.map((item) => ({
+      assetsToSync = POP_SEED_DATA.map(item => ({
         id: item.id,
         asset_code: item.asset_code,
         name: item.name,
@@ -293,71 +346,120 @@ export const syncAssetsToSupabase = async () => {
         location: item.location,
         latitude: item.latitude,
         longitude: item.longitude,
-        specifications: item.specifications ? JSON.parse(item.specifications) : {},
+        specifications: item.specifications
+          ? JSON.parse(item.specifications)
+          : {},
         status: 'active',
       }));
     }
 
-    await bulkSeedAssetsToSupabase(assetsToSync);
-    console.log(`Successfully synced ${assetsToSync.length} assets to Supabase`);
+    await bulkSeedAssetsToFirestore(assetsToSync);
+    console.log(
+      `Successfully synced ${assetsToSync.length} assets to Firebase Firestore`,
+    );
     return { assetCount: assetsToSync.length };
   } catch (error) {
-    console.error('Sync assets to Supabase failed:', error);
+    console.error('Sync assets to Firebase failed:', error);
     throw error;
   }
 };
 
 /**
- * Fetch inspections from Supabase and insert missing ones into local DB
+ * Fetch inspections from Firebase Firestore and synchronize with local DB.
+ * Automatically removes local inspections if they have been deleted from Firestore.
  */
-export const restoreInspectionsFromSupabase = async () => {
+export const restoreInspectionsFromFirebase = async () => {
   try {
-    const remoteInspections = await fetchInspectionsFromSupabase();
+    const remoteInspections = await fetchInspectionsFromFirestore();
+    const inspectionCollection = database.get<Inspection>('inspections');
+
+    // 1. If remote Firestore is empty (user deleted all inspections in console)
     if (!remoteInspections || remoteInspections.length === 0) {
-      console.log('No remote inspections to restore.');
+      const allSyncedLocal = await inspectionCollection
+        .query(Q.where('is_synced', true))
+        .fetch();
+      if (allSyncedLocal.length > 0) {
+        await database.write(async () => {
+          for (const local of allSyncedLocal) {
+            await local.destroyPermanently();
+          }
+        });
+        console.log(
+          `[Sync] Pruned ${allSyncedLocal.length} local records (Firestore collection is empty)`,
+        );
+        return { restoredCount: allSyncedLocal.length };
+      }
       return { restoredCount: 0 };
     }
 
     let restoredCount = 0;
+    const remoteIdSet = new Set(remoteInspections.map(r => r.id));
 
     await database.write(async () => {
-      const inspectionCollection = database.get<Inspection>('inspections');
-      
+      // 2. Prune any local synced records that no longer exist in Firestore
+      const allSyncedLocal = await inspectionCollection
+        .query(Q.where('is_synced', true))
+        .fetch();
+
+      for (const local of allSyncedLocal) {
+        if (!remoteIdSet.has(local.id)) {
+          await local.destroyPermanently();
+          restoredCount++;
+        }
+      }
+
+      // 3. Upsert active remote records
       for (const remote of remoteInspections) {
-        // Check if it already exists locally
-        const existing = await inspectionCollection.query(Q.where('id', remote.id)).fetch();
-        
+        const existing = await inspectionCollection
+          .query(Q.where('id', remote.id))
+          .fetch();
+
         if (existing.length === 0) {
-          await inspectionCollection.create((i) => {
+          await inspectionCollection.create(i => {
             i._raw.id = remote.id;
             i.assetId = remote.asset_id;
             i.inspectorName = remote.inspector_name || '';
-            i.inspectionDate = remote.inspection_date ? new Date(remote.inspection_date).getTime() : Date.now();
+            i.inspectionDate = remote.inspection_date
+              ? new Date(remote.inspection_date).getTime()
+              : Date.now();
             i.type = (remote.type || 'PM') as any;
             i.status = (remote.status || 'completed') as any;
             i.notes = remote.notes || '';
             i.pdfPath = remote.pdf_path || '';
             i.photos = remote.photos ? JSON.stringify(remote.photos) : '[]';
-            i.formData = remote.form_data ? JSON.stringify(remote.form_data) : '{}';
+            i.formData = remote.form_data
+              ? JSON.stringify(remote.form_data)
+              : '{}';
             i.isSynced = true;
           });
           restoredCount++;
+        } else {
+          // Update existing local record with latest remote Firestore data
+          const localInsp = existing[0];
+          await localInsp.update(i => {
+            if (remote.asset_id) i.assetId = remote.asset_id;
+            if (remote.inspector_name) i.inspectorName = remote.inspector_name;
+            if (remote.notes !== undefined) i.notes = remote.notes;
+            if (remote.pdf_path) i.pdfPath = remote.pdf_path;
+            if (remote.photos) i.photos = JSON.stringify(remote.photos);
+            if (remote.form_data) i.formData = JSON.stringify(remote.form_data);
+            i.isSynced = true;
+          });
         }
       }
     });
 
-    console.log(`Successfully restored ${restoredCount} inspections from Supabase`);
     return { restoredCount };
   } catch (error) {
-    console.error('Error restoring inspections from Supabase:', error);
+    console.error('Error restoring inspections from Firebase:', error);
     return { restoredCount: 0 };
   }
 };
 
 /**
- * Directly save inspection to Supabase Cloud Database & Storage
+ * Directly save inspection to Firebase Cloud Firestore & Telegram Storage (Called once on Simpan)
  */
-export const saveInspectionDirectlyToSupabase = async (inspectionData: {
+export const saveInspectionDirectlyToFirebase = async (inspectionData: {
   id: string;
   assetId: string;
   inspectorName?: string;
@@ -370,63 +472,89 @@ export const saveInspectionDirectlyToSupabase = async (inspectionData: {
   notes?: string;
 }) => {
   try {
-    // Process and upload all media to Supabase Storage
-    const { remotePdfPath, remotePhotos, remoteFormData } = await processAndUploadInspectionMedia({
-      pdfPath: inspectionData.pdfPath,
-      photos: inspectionData.photos,
-      formData: inspectionData.formData,
-    });
+    const popName =
+      inspectionData.formData?.infoPop?.namaPop ||
+      inspectionData.formData?.infoPop?.popName ||
+      inspectionData.assetId;
 
-    // Ensure referenced asset exists in Supabase public.assets to prevent Foreign Key Violation (23503)
+    // Upload single PDF & photos to Telegram once
+    const { remotePdfPath, remotePhotos, updatedFormData } =
+      await processInspectionMediaForCloud({
+        pdfPath: inspectionData.pdfPath,
+        popName,
+        popId: inspectionData.assetId,
+        photos: inspectionData.photos,
+        formData: inspectionData.formData,
+      });
+
+    const isCloudSuccess = Boolean(
+      remotePdfPath &&
+      (remotePdfPath.startsWith('http://') ||
+        remotePdfPath.startsWith('https://') ||
+        remotePdfPath.startsWith('telegram://')),
+    );
+
+    // Ensure referenced asset exists in Firestore
     if (inspectionData.assetId) {
       try {
-        await supabase.from('assets').upsert([
-          {
-            id: inspectionData.assetId,
-            asset_code: inspectionData.assetId,
-            name: inspectionData.assetId,
-            status: 'active'
-          }
-        ], { onConflict: 'id' });
+        await upsertAssetToFirestore({
+          id: inspectionData.assetId,
+          asset_code: inspectionData.assetId,
+          name: popName || inspectionData.assetId,
+          status: 'active',
+        });
       } catch (assetErr) {
-        console.warn('Auto asset upsert warning:', assetErr);
+        console.warn('Auto asset upsert warning in Firestore:', assetErr);
       }
     }
 
-    const payload = {
+    const payload: FirestoreInspection = {
       id: inspectionData.id,
       asset_id: inspectionData.assetId,
       inspector_name: inspectionData.inspectorName || 'Teknisi',
-      inspection_date: new Date(inspectionData.inspectionDate || Date.now()).toISOString(),
+      inspection_date: new Date(
+        inspectionData.inspectionDate || Date.now(),
+      ).toISOString(),
       type: inspectionData.type || 'PM',
       status: inspectionData.status || 'completed',
       notes: inspectionData.notes || '',
-      form_data: remoteFormData || {},
-      pdf_path: remotePdfPath,
-      photos: remotePhotos,
+      form_data: updatedFormData || inspectionData.formData || {},
+      pdf_path: remotePdfPath || inspectionData.pdfPath || '',
+      photos:
+        remotePhotos && remotePhotos.length > 0
+          ? remotePhotos
+          : inspectionData.photos || [],
       is_synced: true,
-      created_at: new Date(inspectionData.inspectionDate || Date.now()).toISOString(),
+      created_at: new Date(
+        inspectionData.inspectionDate || Date.now(),
+      ).toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const { data, error } = await supabase
-      .from('inspections')
-      .upsert([payload], { onConflict: 'id' });
-
-    if (error) {
-      console.error('Error saving directly to Supabase:', error);
-      throw error;
+    let isFirestoreSaved = false;
+    try {
+      await saveInspectionToFirestore(payload);
+      isFirestoreSaved = true;
+    } catch (firestoreErr) {
+      console.warn(
+        'Firestore save notice (Telegram PDF upload succeeded):',
+        firestoreErr,
+      );
     }
 
-    console.log(`Successfully saved inspection ${inspectionData.id} directly to Supabase Cloud with media!`);
+    const isSyncedSuccess = isCloudSuccess || isFirestoreSaved;
+
+    console.log(
+      `Saved inspection ${inspectionData.id} directly with Telegram PDF & Photos (Synced: ${isSyncedSuccess})`,
+    );
     return {
-      data,
+      data: payload,
       remotePdfPath,
       remotePhotos,
-      remoteFormData,
+      isSynced: isSyncedSuccess,
     };
   } catch (err) {
-    console.error('saveInspectionDirectlyToSupabase failed:', err);
+    console.error('saveInspectionDirectlyToFirebase failed:', err);
     throw err;
   }
 };

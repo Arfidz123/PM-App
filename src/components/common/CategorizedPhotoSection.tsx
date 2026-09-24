@@ -46,10 +46,16 @@ interface CategorizedPhotoSectionProps {
   coordsStr?: string;
   selectedFolderKey?: string | null;
   onSelectFolder?: (folderKey: string | null) => void;
-  onFolderInfoChange?: (info: { key: string | null; label: string | null; count: number }) => void;
+  onFolderInfoChange?: (info: {
+    key: string | null;
+    label: string | null;
+    count: number;
+  }) => void;
 }
 
-export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = ({
+export const CategorizedPhotoSection: React.FC<
+  CategorizedPhotoSectionProps
+> = ({
   sectionKey,
   categories,
   title = 'Foto Dokumentasi',
@@ -69,7 +75,9 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
   } = useInspectionStore();
 
   // null = Folder Grid View, string = Inside Folder Content View
-  const [internalFolderKey, setInternalFolderKey] = useState<string | null>(null);
+  const [internalFolderKey, setInternalFolderKey] = useState<string | null>(
+    null,
+  );
   const selectedFolderKey =
     controlledFolderKey !== undefined ? controlledFolderKey : internalFolderKey;
 
@@ -93,20 +101,30 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
     const list = [...(sectionData.photos || [])];
 
     if (sectionKey === 'dokumentasi') {
-      const otherSections = ['rectifier', 'kwhMeter', 'battery', 'mechanicalElect', 'powerSystem'];
+      const otherSections = [
+        'rectifier',
+        'kwhMeter',
+        'battery',
+        'mechanicalElect',
+        'powerSystem',
+      ];
       const storeCats = formData.photoCategories || {};
 
-      otherSections.forEach((sec) => {
+      otherSections.forEach(sec => {
         const otherSecData = formData[sec] || {};
         const otherPhotos: string[] = otherSecData.photos || [];
-        const otherCategorized: Array<{ uri: string; category: string; categoryLabel: string }> =
-          otherSecData.categorizedPhotos || [];
+        const otherCategorized: Array<{
+          uri: string;
+          category: string;
+          categoryLabel: string;
+        }> = otherSecData.categorizedPhotos || [];
 
-        otherPhotos.forEach((uri) => {
+        otherPhotos.forEach(uri => {
           if (!uri || list.includes(uri)) return;
 
-          const catItem = otherCategorized.find((c) => c.uri === uri);
-          const rawCat = catItem?.category || storeCats[uri] || getPhotoCategory(uri) || '';
+          const catItem = otherCategorized.find(c => c.uri === uri);
+          const rawCat =
+            catItem?.category || storeCats[uri] || getPhotoCategory(uri) || '';
           const isLainnya =
             rawCat.toLowerCase() === 'lainnya' ||
             rawCat.toLowerCase().includes('foto lainnya') ||
@@ -135,16 +153,18 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
   const photoCategoryMap = useMemo(() => {
     const map: Record<string, string> = {};
     const storeCats = formData.photoCategories || {};
-    categorizedList.forEach((item) => {
+    categorizedList.forEach(item => {
       if (item.uri) map[item.uri] = item.category;
     });
 
-    sectionPhotos.forEach((uri) => {
+    sectionPhotos.forEach(uri => {
       if (!map[uri]) {
         const catVal = storeCats[uri] || getPhotoCategory(uri);
         if (catVal) {
           const matched = categories.find(
-            (c) => c.key.toLowerCase() === catVal.toLowerCase() || c.label.toLowerCase() === catVal.toLowerCase()
+            c =>
+              c.key.toLowerCase() === catVal.toLowerCase() ||
+              c.label.toLowerCase() === catVal.toLowerCase(),
           );
           if (matched) {
             map[uri] = matched.key;
@@ -163,20 +183,26 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
       }
     });
     return map;
-  }, [categorizedList, formData.photoCategories, sectionPhotos, categories, getPhotoCategory]);
+  }, [
+    categorizedList,
+    formData.photoCategories,
+    sectionPhotos,
+    categories,
+    getPhotoCategory,
+  ]);
 
   // Count photos per category & latest photo per category
   const categoryStats = useMemo(() => {
     const counts: Record<string, number> = {};
     const latestPhoto: Record<string, string | null> = {};
 
-    categories.forEach((cat) => {
+    categories.forEach(cat => {
       counts[cat.key] = 0;
       latestPhoto[cat.key] = null;
     });
 
-    sectionPhotos.forEach((uri) => {
-      const catKey = photoCategoryMap[uri] || (categories[0]?.key || 'lainnya');
+    sectionPhotos.forEach(uri => {
+      const catKey = photoCategoryMap[uri] || categories[0]?.key || 'lainnya';
       counts[catKey] = (counts[catKey] || 0) + 1;
       latestPhoto[catKey] = uri; // last one
     });
@@ -187,23 +213,23 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
   // Current active category config when a folder is opened
   const activeCategory = useMemo(() => {
     if (!selectedFolderKey) return null;
-    return categories.find((c) => c.key === selectedFolderKey) || categories[0];
+    return categories.find(c => c.key === selectedFolderKey) || categories[0];
   }, [categories, selectedFolderKey]);
 
   // Photos to display inside the currently opened folder
   const displayedPhotos = useMemo(() => {
     if (!selectedFolderKey) return [];
     return sectionPhotos
-      .map((uri) => {
+      .map(uri => {
         const catKey = photoCategoryMap[uri] || 'lainnya';
-        const catConfig = categories.find((c) => c.key === catKey);
+        const catConfig = categories.find(c => c.key === catKey);
         return {
           uri,
           category: catKey,
           categoryLabel: catConfig ? catConfig.label : catKey,
         };
       })
-      .filter((item) => item.category === selectedFolderKey);
+      .filter(item => item.category === selectedFolderKey);
   }, [sectionPhotos, photoCategoryMap, selectedFolderKey, categories]);
 
   // Sync folder info to parent when inside a folder or photos change
@@ -215,12 +241,17 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
         count: displayedPhotos.length,
       });
     }
-  }, [selectedFolderKey, activeCategory, displayedPhotos.length, onFolderInfoChange]);
+  }, [
+    selectedFolderKey,
+    activeCategory,
+    displayedPhotos.length,
+    onFolderInfoChange,
+  ]);
 
   const handleTakePhoto = async () => {
     if (!selectedFolderKey) return;
     const targetCatKey = selectedFolderKey;
-    const targetCat = categories.find((c) => c.key === targetCatKey);
+    const targetCat = categories.find(c => c.key === targetCatKey);
     const targetCatLabel = targetCat ? targetCat.label : 'Foto';
 
     const hasPermission = await requestCameraPermission();
@@ -243,13 +274,15 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
         saveToPhotos: false,
         includeBase64: false,
       },
-      async (response) => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
           showAlert({
             type: 'error',
             title: 'Kamera Error',
-            message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini',
+            message:
+              response.errorMessage ||
+              'Gagal membuka kamera pada perangkat ini',
           });
           return;
         }
@@ -267,7 +300,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                 uri,
                 targetCatLabel,
                 photoTs,
-                liveCoords || undefined
+                liveCoords || undefined,
               );
             } catch (err) {
               console.error('Error processing camera photo:', err);
@@ -276,14 +309,14 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
             }
           }
         }
-      }
+      },
     );
   };
 
   const handlePickGallery = () => {
     if (!selectedFolderKey) return;
     const targetCatKey = selectedFolderKey;
-    const targetCat = categories.find((c) => c.key === targetCatKey);
+    const targetCat = categories.find(c => c.key === targetCatKey);
     const targetCatLabel = targetCat ? targetCat.label : 'Foto';
 
     launchImageLibrary(
@@ -295,7 +328,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
         selectionLimit: 5,
         includeBase64: false,
       },
-      async (response) => {
+      async response => {
         if (response.didCancel) return;
         if (response.errorCode) {
           showAlert({
@@ -311,7 +344,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
           try {
             const liveCoords = await getLiveCoordinatesString();
             const photoTs = getCurrentFormattedTimestamp();
-            response.assets.forEach((asset) => {
+            response.assets.forEach(asset => {
               if (asset.uri) {
                 addCategorizedPhoto(
                   sectionKey,
@@ -319,7 +352,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                   asset.uri,
                   targetCatLabel,
                   photoTs,
-                  liveCoords || undefined
+                  liveCoords || undefined,
                 );
               }
             });
@@ -329,7 +362,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
             setIsLoadingPhoto(false);
           }
         }
-      }
+      },
     );
   };
 
@@ -348,7 +381,13 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
             if (sectionKey === 'dokumentasi') {
               const dokPhotos = formData.dokumentasi?.photos || [];
               if (!dokPhotos.includes(uri)) {
-                const otherSections = ['rectifier', 'kwhMeter', 'battery', 'mechanicalElect', 'powerSystem'];
+                const otherSections = [
+                  'rectifier',
+                  'kwhMeter',
+                  'battery',
+                  'mechanicalElect',
+                  'powerSystem',
+                ];
                 for (const sec of otherSections) {
                   const secPhotos = formData[sec]?.photos || [];
                   if (secPhotos.includes(uri)) {
@@ -365,7 +404,6 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
     });
   };
 
-
   return (
     <View style={styles.container}>
       {/* VIEW 1: FOLDER GRID VIEW */}
@@ -373,7 +411,7 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
         <View style={styles.folderViewContainer}>
           {/* 2-Column Folder Grid */}
           <View style={styles.folderGrid}>
-            {categories.map((cat) => {
+            {categories.map(cat => {
               const count = categoryStats.counts[cat.key] || 0;
               const isCompleted = count >= 2;
               const previewUri = categoryStats.latestPhoto[cat.key];
@@ -397,7 +435,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                       ]}
                     >
                       {isCompleted ? (
-                        <FolderCheck size={44} color={Colors.success} strokeWidth={1.8} />
+                        <FolderCheck
+                          size={44}
+                          color={Colors.success}
+                          strokeWidth={1.8}
+                        />
                       ) : (
                         <Folder
                           size={44}
@@ -415,7 +457,9 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                           isCompleted && styles.folderBadgeCircleCompleted,
                         ]}
                       >
-                        <Text style={styles.folderBadgeCircleText}>{count}</Text>
+                        <Text style={styles.folderBadgeCircleText}>
+                          {count}
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -429,7 +473,10 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                     {/* Baris Informasi Foto Halus */}
                     <View style={styles.folderMetaRow}>
                       {previewUri ? (
-                        <Image source={{ uri: previewUri }} style={styles.thumbnailImg} />
+                        <Image
+                          source={{ uri: previewUri }}
+                          style={styles.thumbnailImg}
+                        />
                       ) : null}
                       <Text
                         style={[
@@ -439,7 +486,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
                       >
                         {count > 0 ? `${count} Foto Tersimpan` : '0 Foto'}
                       </Text>
-                      <ChevronRight size={14} color={Colors.textMuted} style={{ marginLeft: 2 }} />
+                      <ChevronRight
+                        size={14}
+                        color={Colors.textMuted}
+                        style={{ marginLeft: 2 }}
+                      />
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -469,7 +520,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
             {isLoadingPhoto && (
               <View style={styles.photoUploadBoxWrapper}>
                 <View style={styles.photoUploadBoxLoading}>
-                  <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 6 }} />
+                  <ActivityIndicator
+                    size="large"
+                    color={Colors.primary}
+                    style={{ marginBottom: 6 }}
+                  />
                   <Text style={styles.photoLoadingTitle}>Memproses...</Text>
                   <Text style={styles.photoLoadingSubtitle}>{loadingText}</Text>
                 </View>
@@ -484,7 +539,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
               disabled={isLoadingPhoto}
             >
               <View style={styles.photoUploadBoxAdd}>
-                <Camera color={Colors.primary} size={26} style={{ marginBottom: 4 }} />
+                <Camera
+                  color={Colors.primary}
+                  size={26}
+                  style={{ marginBottom: 4 }}
+                />
                 <Text style={styles.photoUploadText}>Kamera</Text>
                 {activeCategory && (
                   <Text style={styles.photoUploadSubText} numberOfLines={1}>
@@ -501,7 +560,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
               disabled={isLoadingPhoto}
             >
               <View style={styles.photoUploadBoxAdd}>
-                <ImageIcon color={Colors.textMuted} size={26} style={{ marginBottom: 4 }} />
+                <ImageIcon
+                  color={Colors.textMuted}
+                  size={26}
+                  style={{ marginBottom: 4 }}
+                />
                 <Text style={styles.photoUploadText}>Galeri</Text>
                 {activeCategory && (
                   <Text style={styles.photoUploadSubText} numberOfLines={1}>
@@ -525,7 +588,11 @@ export const CategorizedPhotoSection: React.FC<CategorizedPhotoSectionProps> = (
       <Modal visible={isLoadingPhoto} transparent animationType="fade">
         <View style={styles.loadingModalOverlay}>
           <View style={styles.loadingModalCard}>
-            <ActivityIndicator size="large" color={Colors.primary} style={{ marginBottom: 12 }} />
+            <ActivityIndicator
+              size="large"
+              color={Colors.primary}
+              style={{ marginBottom: 12 }}
+            />
             <Text style={styles.loadingModalTitle}>Memproses Foto</Text>
             <Text style={styles.loadingModalSubtitle}>{loadingText}</Text>
           </View>

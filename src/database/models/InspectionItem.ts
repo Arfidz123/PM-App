@@ -3,15 +3,15 @@
  * Represents a single filled item from a checklist
  */
 
-import {Model} from '@nozbe/watermelondb';
-import {field, text, relation} from '@nozbe/watermelondb/decorators';
-import type {ChecklistItemType, ItemStatus} from '../../types';
+import { Model } from '@nozbe/watermelondb';
+import { field, text, relation } from '@nozbe/watermelondb/decorators';
+import type { ChecklistItemType, ItemStatus } from '../../types';
 
 export default class InspectionItem extends Model {
   static table = 'inspection_items';
 
   static associations = {
-    inspections: {type: 'belongs_to' as const, key: 'inspection_id'},
+    inspections: { type: 'belongs_to' as const, key: 'inspection_id' },
   };
 
   @text('inspection_id') inspectionId!: string;

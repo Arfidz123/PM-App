@@ -6,20 +6,20 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Image,
   Animated,
-  Easing,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ChevronUp, ChevronDown, ChevronLeft, Camera, Check, Trash2, Image as ImageIcon, Lock } from 'lucide-react-native';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { ChevronUp, ChevronDown, Trash2, Plus, Lock } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, showAlert } from '../../components/common';
+import {
+  Header,
+  showAlert,
+  DropdownModalPicker,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
-import { requestCameraPermission, getLiveCoordinatesString, getCurrentFormattedTimestamp } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -28,44 +28,65 @@ interface RectifierModule {
   id: string;
   sn: string;
   kapasitas: string;
-  beban: string;
+  beban?: string;
 }
 
 interface RectifierMCB {
   id: string;
   merk: string;
   kapasitas: string;
+  beban: string;
+  arus: string;
+  namaNe: string;
   peruntukan: string;
 }
 
 interface RectifierData {
   id: string;
   isExpanded: boolean;
+  inputAC: string;
   merk: string;
   tipe: string;
   sn: string;
   tipeModul: string;
   jmlModul: string;
   jmlSlot: string;
+  kapasitasModul: string;
   modules: RectifierModule[];
   mcbs: RectifierMCB[];
   arusBeban: string;
   tegInput: string;
   tegFloating: string;
+  tegEqualizing: string;
+  lvd: string;
+  boost: string;
+  utilisasi: string;
+  comment?: string;
+  kebersihanRack: string;
+  kebersihanRackKet: string;
+  cekBautKabinet: string;
+  cekBautKabinetKet: string;
 }
+
+export const calculateUtilisasi = (arusStr: string, kapStr: string): string => {
+  if (!arusStr || !kapStr) return '';
+  const cleanArus = parseFloat(
+    arusStr.toString().replace(',', '.').replace(/[^0-9.]/g, ''),
+  );
+  const cleanKap = parseFloat(
+    kapStr.toString().replace(',', '.').replace(/[^0-9.]/g, ''),
+  );
+  if (isNaN(cleanArus) || isNaN(cleanKap) || cleanKap <= 0) return '';
+  const val = cleanArus / cleanKap;
+  const normalized = parseFloat(val.toPrecision(12));
+  return normalized.toString();
+};
 
 export const RectifierScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const { formData, updateFormData } = useInspectionStore();
 
-  const { formData, updateFormData, addPhotoBySection, removePhotoBySection, currentLocation, activePopLocation, getPhotoTimestamp, getPhotoCoordinates } = useInspectionStore();
   const rectData = formData.rectifier || {};
-
-  const infoPop = formData.infoPop || {};
-  const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
-  const addressStr = (infoPop.alamat && infoPop.alamat.trim() !== '') ? infoPop.alamat : (activePopLocation || currentLocation?.address || '-');
-  const now = new Date();
-  const dateStr = `${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA`;
 
   // Entrance animations
   const contentAnim = useRef(new Animated.Value(0)).current;
@@ -82,167 +103,369 @@ export const RectifierScreen: React.FC = () => {
   }, []);
 
   const handleSavePressIn = () => {
-    Animated.spring(saveButtonAnim, { toValue: 0.96, friction: 4, tension: 200, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 0.96,
+      friction: 4,
+      tension: 200,
+      useNativeDriver: true,
+    }).start();
   };
   const handleSavePressOut = () => {
-    Animated.spring(saveButtonAnim, { toValue: 1, friction: 3, tension: 150, useNativeDriver: true }).start();
+    Animated.spring(saveButtonAnim, {
+      toValue: 1,
+      friction: 3,
+      tension: 150,
+      useNativeDriver: true,
+    }).start();
   };
 
-  const catatan = rectData.catatan || '';
-  const setCatatan = (val: string) => updateFormData('rectifier', { ...rectData, catatan: val });
+  // Modal Picker state
+  const [modalPicker, setModalPicker] = useState<{
+    visible: boolean;
+    title: string;
+    options: string[];
+    selectedValue: string;
+    onSelect: (val: string) => void;
+  }>({
+    visible: false,
+    title: '',
+    options: [],
+    selectedValue: '',
+    onSelect: () => {},
+  });
 
-  const handleTakePhoto = async () => {
-    const hasPermission = await requestCameraPermission();
-    if (!hasPermission) {
-      showAlert({ type: 'error', title: 'Izin Kamera Ditolak', message: 'Aplikasi memerlukan izin kamera untuk mengambil foto.' });
-      return;
+  // Catatan
+  const catatan = rectData.catatan || rectData.comment || '';
+  const setCatatan = (val: string) =>
+    updateFormData('rectifier', { ...rectData, catatan: val, comment: val });
+
+  // Initial Rectifiers
+  const getInitialRectifiers = (): RectifierData[] => {
+    const existingBeban = (rectData.rectifierBeban ||
+      rectData.bebanRectifier) as any[] | undefined;
+
+    const getMcbsForRect = (
+      num: number,
+      existingMcbs?: any[],
+    ): RectifierMCB[] => {
+      if (
+        existingMcbs &&
+        Array.isArray(existingMcbs) &&
+        existingMcbs.length > 0
+      ) {
+        const hasData = existingMcbs.some(
+          (m: any) =>
+            m.kapasitas ||
+            m.beban ||
+            m.arus ||
+            m.namaNe ||
+            m.merk ||
+            m.peruntukan,
+        );
+        if (hasData) {
+          return existingMcbs.map((m: any, mIdx: number) => ({
+            id: m.id || (mIdx + 1).toString(),
+            merk: m.merk || '',
+            kapasitas: m.kapasitas || '',
+            beban: m.beban || '',
+            arus: m.arus || '',
+            namaNe: m.namaNe || '',
+            peruntukan: m.peruntukan || '',
+          }));
+        }
+      }
+
+      if (Array.isArray(existingBeban) && existingBeban.length > 0) {
+        const rectMatches = existingBeban.filter((b: any) => {
+          const rNum = (b.rectifier || '').match(/\d+/)?.[0];
+          if (rNum) return rNum === num.toString();
+          if (
+            num === 1 &&
+            (b.rect1KapMcb ||
+              b.rect1Arus ||
+              b.rect1NamaNe ||
+              b.r1Kap ||
+              b.r1Arus ||
+              b.r1Nama)
+          )
+            return true;
+          if (
+            num === 2 &&
+            (b.rect2KapMcb ||
+              b.rect2Arus ||
+              b.rect2NamaNe ||
+              b.r2Kap ||
+              b.r2Arus ||
+              b.r2Nama)
+          )
+            return true;
+          if (
+            num === 3 &&
+            (b.rect3KapMcb ||
+              b.rect3Arus ||
+              b.rect3NamaNe ||
+              b.r3Kap ||
+              b.r3Arus ||
+              b.r3Nama)
+          )
+            return true;
+          return num === 1 && !b.rectifier;
+        });
+
+        if (rectMatches.length > 0) {
+          return rectMatches.map((b: any, bIdx: number) => ({
+            id: (bIdx + 1).toString(),
+            merk: b.merk || '',
+            kapasitas:
+              b.kapasitas || b[`rect${num}KapMcb`] || b[`r${num}Kap`] || '',
+            beban: b.beban || '',
+            arus: b.arus || b[`rect${num}Arus`] || b[`r${num}Arus`] || '',
+            namaNe: b.namaNe || '',
+            peruntukan: b.peruntukan || b.namaNe || '',
+          }));
+        }
+      }
+
+      return [
+        {
+          id: '1',
+          merk: '',
+          kapasitas: '',
+          beban: '',
+          arus: '',
+          namaNe: '',
+          peruntukan: '',
+        },
+      ];
+    };
+
+    if (
+      rectData.rectifiers &&
+      Array.isArray(rectData.rectifiers) &&
+      rectData.rectifiers.length > 0
+    ) {
+      return rectData.rectifiers.map((r: any, idx: number) => {
+        const num = idx + 1;
+        const arus = r.arusBeban || '';
+        const kap = r.kapasitasModul || '';
+        const initialUtil = r.utilisasi || calculateUtilisasi(arus, kap);
+        const numModules = Math.min(parseInt(r.jmlModul || '', 10) || 0, 20);
+        let modules: RectifierModule[] = Array.isArray(r.modules) ? [...r.modules] : [];
+
+        if (numModules > modules.length) {
+          for (let i = modules.length; i < numModules; i++) {
+            modules.push({
+              id: (i + 1).toString(),
+              sn: '',
+              kapasitas: '',
+              beban: '',
+            });
+          }
+        } else if (numModules > 0 && numModules < modules.length) {
+          modules = modules.slice(0, numModules);
+        }
+
+        return {
+          id: r.id || num.toString(),
+          isExpanded: r.isExpanded ?? idx === 0,
+          inputAC: r.inputAC || '',
+          merk: r.merk || '',
+          tipe: r.tipe || '',
+          sn: r.sn || '',
+          tipeModul: r.tipeModul || '',
+          jmlModul: r.jmlModul || '',
+          jmlSlot: r.jmlSlot || '',
+          kapasitasModul: kap,
+          modules: modules,
+          mcbs: getMcbsForRect(num, r.mcbs),
+          arusBeban: arus,
+          tegInput: r.tegInput || '',
+          tegFloating: r.tegFloating || '',
+          tegEqualizing: r.tegEqualizing || '',
+          lvd: r.lvd || '',
+          boost: r.boost || '',
+          utilisasi: initialUtil,
+          comment: r.comment || r.catatan || '',
+          kebersihanRack: r.kebersihanRack || '',
+          kebersihanRackKet: r.kebersihanRackKet || '',
+          cekBautKabinet: r.cekBautKabinet || '',
+          cekBautKabinetKet: r.cekBautKabinetKet || '',
+        };
+      });
     }
-    launchCamera(
-      {
-        mediaType: 'photo',
-        cameraType: 'back',
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.7,
-        saveToPhotos: false,
-        includeBase64: false,
-      },
-      async (response) => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          showAlert({ type: 'error', title: 'Kamera Error', message: response.errorMessage || 'Gagal membuka kamera pada perangkat ini' });
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            const liveCoords = await getLiveCoordinatesString();
-            const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('rectifier', uri, photoTs, liveCoords || undefined);
-          }
-        }
-      }
-    );
-  };
 
-  const handlePickGallery = () => {
-    launchImageLibrary(
-      {
-        mediaType: 'photo',
-        maxWidth: 1280,
-        maxHeight: 1280,
-        quality: 0.7,
-        includeBase64: false,
-      },
-      async (response) => {
-        if (response.didCancel) return;
-        if (response.errorCode) {
-          showAlert({ type: 'error', title: 'Galeri Error', message: response.errorMessage || 'Gagal membuka galeri' });
-          return;
-        }
-        if (response.assets && response.assets.length > 0) {
-          const uri = response.assets[0].uri;
-          if (uri) {
-            const liveCoords = await getLiveCoordinatesString();
-            const photoTs = getCurrentFormattedTimestamp();
-            addPhotoBySection('rectifier', uri, photoTs, liveCoords || undefined);
-          }
-        }
-      }
-    );
-  };
-
-  const ps = formData.powerSystem || {};
-
-  const rawRectifiers: RectifierData[] = rectData.rectifiers && rectData.rectifiers.length > 0
-    ? rectData.rectifiers
-    : [
+    return [
       {
         id: '1',
         isExpanded: true,
-        merk: ps.rect1Merk || '',
-        tipe: ps.rect1Tipe || '',
-        sn: ps.rect1SN || '',
-        tipeModul: ps.rect1TipeModul || '',
-        jmlModul: ps.rect1ModulJml || '',
-        jmlSlot: ps.rect1KapasitasSlot || '',
+        inputAC: '',
+        merk: '',
+        tipe: '',
+        sn: '',
+        tipeModul: '',
+        jmlModul: '',
+        jmlSlot: '',
+        kapasitasModul: '',
         modules: [],
-        mcbs: [
-          {
-            id: '1',
-            merk: '',
-            kapasitas: '',
-            peruntukan: ''
-          }
-        ],
-        arusBeban: ps.rect1ArusBeban || '',
-        tegInput: ps.rect1TegInput || '',
-        tegFloating: ps.rect1TegFloating || '',
-      }
+        mcbs: getMcbsForRect(1),
+        arusBeban: '',
+        tegInput: '',
+        tegFloating: '',
+        tegEqualizing: '',
+        lvd: '',
+        boost: '',
+        utilisasi: '',
+        comment: '',
+        kebersihanRack: '',
+        kebersihanRackKet: '',
+        cekBautKabinet: '',
+        cekBautKabinetKet: '',
+      },
     ];
-
-  const rectifiers: RectifierData[] = rawRectifiers.map((r: RectifierData, idx: number) => {
-    const num = idx + 1;
-    const jmlModul = ps[`rect${num}ModulJml`] || r.jmlModul || '';
-    const numModules = Math.min(parseInt(jmlModul) || 0, 20);
-    let modules = [...(r.modules || [])];
-    if (numModules > modules.length) {
-      for (let i = modules.length; i < numModules; i++) {
-        modules.push({ id: (i + 1).toString(), sn: '', kapasitas: ps[`rect${num}KapasitasModul`] || '', beban: '' });
-      }
-    } else if (numModules > 0 && numModules < modules.length) {
-      modules = modules.slice(0, numModules);
-    }
-
-    let mcbs = r.mcbs || [{ id: '1', merk: '', kapasitas: '', peruntukan: '' }];
-    if (mcbs.length === 8 && mcbs.every((m) => (!m.kapasitas && !m.peruntukan && (m.merk === 'SCHNEIDER' || m.merk === '')))) {
-      mcbs = [{ id: '1', merk: '', kapasitas: '', peruntukan: '' }];
-    } else {
-      mcbs = mcbs.map(m => (m.merk === 'SCHNEIDER' && !m.kapasitas && !m.peruntukan ? { ...m, merk: '' } : m));
-    }
-
-    return {
-      ...r,
-      merk: ps[`rect${num}Merk`] || r.merk || '',
-      tipe: ps[`rect${num}Tipe`] || r.tipe || '',
-      sn: ps[`rect${num}SN`] || r.sn || '',
-      tipeModul: ps[`rect${num}TipeModul`] || r.tipeModul || '',
-      jmlModul: jmlModul,
-      jmlSlot: ps[`rect${num}KapasitasSlot`] || r.jmlSlot || '',
-      arusBeban: ps[`rect${num}ArusBeban`] || r.arusBeban || '',
-      tegInput: ps[`rect${num}TegInput`] || r.tegInput || '',
-      tegFloating: ps[`rect${num}TegFloating`] || r.tegFloating || '',
-      modules,
-      mcbs,
-    };
-  });
-
-  const setRectifiers = (newRectifiers: RectifierData[]) => {
-    updateFormData('rectifier', { rectifiers: newRectifiers });
-
-    const powerUpdates: Record<string, any> = {
-      activeRectifiers: newRectifiers.map(r => parseInt(r.id, 10)).filter(n => !isNaN(n))
-    };
-    newRectifiers.forEach((r, idx) => {
-      const rectNum = idx + 1;
-      if (rectNum <= 3) {
-        if (r.merk !== undefined) powerUpdates[`rect${rectNum}Merk`] = r.merk;
-        if (r.tipe !== undefined) powerUpdates[`rect${rectNum}Tipe`] = r.tipe;
-        if (r.sn !== undefined) {
-          powerUpdates[`rect${rectNum}SN`] = r.sn;
-          powerUpdates[`rect${rectNum}Serial number`] = r.sn;
-        }
-        if (r.tipeModul !== undefined) powerUpdates[`rect${rectNum}TipeModul`] = r.tipeModul;
-        if (r.jmlModul !== undefined) powerUpdates[`rect${rectNum}ModulJml`] = r.jmlModul;
-        if (r.jmlSlot !== undefined) powerUpdates[`rect${rectNum}KapasitasSlot`] = r.jmlSlot;
-        if (r.arusBeban !== undefined) powerUpdates[`rect${rectNum}ArusBeban`] = r.arusBeban;
-        if (r.tegInput !== undefined) powerUpdates[`rect${rectNum}TegInput`] = r.tegInput;
-        if (r.tegFloating !== undefined) powerUpdates[`rect${rectNum}TegFloating`] = r.tegFloating;
-      }
-    });
-    updateFormData('powerSystem', powerUpdates);
   };
 
+  const [rectifiers, setRectifiersState] =
+    useState<RectifierData[]>(getInitialRectifiers);
+
+  // Sync Rectifiers to store & powerSystem
+  const syncRectifiers = (newRectifiers: RectifierData[]) => {
+    setRectifiersState(newRectifiers);
+
+    // Build unified beban list across all rectifiers for backward compatibility with ReviewScreen and pdfTemplate
+    const allBebanRows: any[] = [];
+    newRectifiers.forEach(r => {
+      const rectNum = r.id;
+      const rectLabel = `Rectifier ${rectNum}`;
+      (r.mcbs || []).forEach(mcb => {
+        allBebanRows.push({
+          mcb: (allBebanRows.length + 1).toString(),
+          rectifier: rectLabel,
+          merk: mcb.merk || '',
+          kapasitas: mcb.kapasitas || '',
+          beban: mcb.beban || '',
+          arus: mcb.arus || '',
+          namaNe: mcb.namaNe || '',
+          peruntukan: mcb.peruntukan || '',
+          rect1KapMcb: rectNum === '1' ? mcb.kapasitas || '' : '',
+          rect1Arus: rectNum === '1' ? mcb.arus || '' : '',
+          rect1NamaNe:
+            rectNum === '1' ? mcb.namaNe || mcb.peruntukan || '' : '',
+          rect2KapMcb: rectNum === '2' ? mcb.kapasitas || '' : '',
+          rect2Arus: rectNum === '2' ? mcb.arus || '' : '',
+          rect2NamaNe:
+            rectNum === '2' ? mcb.namaNe || mcb.peruntukan || '' : '',
+          rect3KapMcb: rectNum === '3' ? mcb.kapasitas || '' : '',
+          rect3Arus: rectNum === '3' ? mcb.arus || '' : '',
+          rect3NamaNe:
+            rectNum === '3' ? mcb.namaNe || mcb.peruntukan || '' : '',
+          r1Kap: rectNum === '1' ? mcb.kapasitas || '' : '',
+          r1Arus: rectNum === '1' ? mcb.arus || '' : '',
+          r1Nama: rectNum === '1' ? mcb.namaNe || mcb.peruntukan || '' : '',
+          r2Kap: rectNum === '2' ? mcb.kapasitas || '' : '',
+          r2Arus: rectNum === '2' ? mcb.arus || '' : '',
+          r2Nama: rectNum === '2' ? mcb.namaNe || mcb.peruntukan || '' : '',
+          r3Kap: rectNum === '3' ? mcb.kapasitas || '' : '',
+          r3Arus: rectNum === '3' ? mcb.arus || '' : '',
+          r3Nama: rectNum === '3' ? mcb.namaNe || mcb.peruntukan || '' : '',
+        });
+      });
+    });
+
+    updateFormData('rectifier', {
+      rectifiers: newRectifiers,
+      rectifierBeban: allBebanRows,
+      bebanRectifier: allBebanRows,
+    });
+  };
+
+  const updateRectifier = (
+    id: string,
+    field: keyof RectifierData,
+    value: any,
+  ) => {
+    syncRectifiers(
+      rectifiers.map(r => {
+        if (r.id !== id) return r;
+        const updated = { ...r, [field]: value };
+
+        // Auto-calculate Utilisasi when arusBeban or kapasitasModul changes
+        if (field === 'arusBeban' || field === 'kapasitasModul') {
+          const arusStr = field === 'arusBeban' ? value : r.arusBeban;
+          const kapStr = field === 'kapasitasModul' ? value : r.kapasitasModul;
+          const calculated = calculateUtilisasi(arusStr, kapStr);
+          if (calculated) {
+            updated.utilisasi = calculated;
+          } else if (!arusStr || !kapStr) {
+            updated.utilisasi = '';
+          }
+        }
+
+        return updated;
+      }),
+    );
+  };
+
+  const addRectifier = () => {
+    if (rectifiers.length >= 3) {
+      showAlert({
+        type: 'warning',
+        title: 'Maksimal Rectifier',
+        message: 'Maksimal 3 Rectifier pada sistem.',
+        buttons: [{ text: 'OK' }],
+      });
+      return;
+    }
+    const currentIds = rectifiers
+      .map(r => parseInt(r.id, 10))
+      .filter(n => !isNaN(n));
+    const nextNum =
+      [1, 2, 3].find(n => !currentIds.includes(n)) || currentIds.length + 1;
+    const newRect: RectifierData = {
+      id: nextNum.toString(),
+      isExpanded: true,
+      inputAC: '',
+      merk: '',
+      tipe: '',
+      sn: '',
+      tipeModul: '',
+      jmlModul: '',
+      jmlSlot: '',
+      kapasitasModul: '',
+      modules: [],
+      mcbs: [
+        {
+          id: '1',
+          merk: '',
+          kapasitas: '',
+          beban: '',
+          arus: '',
+          namaNe: '',
+          peruntukan: '',
+        },
+      ],
+      arusBeban: '',
+      tegInput: '',
+      tegFloating: '',
+      tegEqualizing: '',
+      lvd: '',
+      boost: '',
+      utilisasi: '',
+      comment: '',
+      kebersihanRack: '',
+      kebersihanRackKet: '',
+      cekBautKabinet: '',
+      cekBautKabinetKet: '',
+    };
+    const updated = [...rectifiers, newRect].sort(
+      (a, b) => parseInt(a.id, 10) - parseInt(b.id, 10),
+    );
+    syncRectifiers(updated);
+    showAlert({
+      type: 'success',
+      title: 'Berhasil Ditambahkan',
+      message: `Rectifier #${nextNum} berhasil ditambahkan.`,
+    });
+  };
 
   const deleteRectifier = (id: string) => {
     showAlert({
@@ -255,27 +478,27 @@ export const RectifierScreen: React.FC = () => {
           text: 'Hapus',
           style: 'destructive',
           onPress: () => {
-            setRectifiers(rectifiers.filter((r: RectifierData) => r.id !== id));
-          }
-        }
+            const updated = rectifiers.filter(r => r.id !== id);
+            syncRectifiers(updated);
+          },
+        },
       ],
     });
   };
 
-  const updateRectifier = (id: string, field: keyof RectifierData, value: any) => {
-    setRectifiers(
-      rectifiers.map((r: RectifierData) => (r.id === id ? { ...r, [field]: value } : r))
-    );
-  };
-
   const handleJmlModulChange = (rectId: string, val: string) => {
-    const num = Math.min(parseInt(val) || 0, 20); // Cap at 20 modules
-    setRectifiers(rectifiers.map((r: RectifierData) => {
+    const num = Math.min(parseInt(val, 10) || 0, 20);
+    const updated = rectifiers.map(r => {
       if (r.id === rectId) {
         let newModules = [...r.modules];
         if (num > newModules.length) {
           for (let i = newModules.length; i < num; i++) {
-            newModules.push({ id: (i + 1).toString(), sn: '', kapasitas: '', beban: '' });
+            newModules.push({
+              id: (i + 1).toString(),
+              sn: '',
+              kapasitas: '',
+              beban: '',
+            });
           }
         } else {
           newModules = newModules.slice(0, num);
@@ -283,52 +506,59 @@ export const RectifierScreen: React.FC = () => {
         return { ...r, jmlModul: val, modules: newModules };
       }
       return r;
-    }));
+    });
+    syncRectifiers(updated);
   };
 
-  const updateModule = (rectId: string, moduleId: string, field: keyof RectifierModule, value: string) => {
-    setRectifiers(rectifiers.map((r: RectifierData) => {
+  const updateModule = (
+    rectId: string,
+    moduleId: string,
+    field: keyof RectifierModule,
+    value: string,
+  ) => {
+    const updated = rectifiers.map(r => {
       if (r.id === rectId) {
         return {
           ...r,
-          modules: r.modules.map(m => m.id === moduleId ? { ...m, [field]: value } : m)
+          modules: r.modules.map(m =>
+            m.id === moduleId ? { ...m, [field]: value } : m,
+          ),
         };
       }
       return r;
-    }));
-  };
-
-  const renderMeasurement = (
-    label: string,
-    value: string,
-    unit: string = 'V'
-  ) => {
-    return (
-      <View style={styles.measurementRow}>
-        <Text style={styles.measurementLabel}>{label}</Text>
-        <View style={styles.measurementInputWrapper}>
-          <View style={[styles.measurementInputContainer, styles.lockedMeasurementContainer]}>
-            <Text style={styles.lockedMeasurementText}>{value || '—'}</Text>
-          </View>
-          <Text style={styles.measurementUnit}>{unit}</Text>
-        </View>
-      </View>
-    );
+    });
+    syncRectifiers(updated);
   };
 
   const addMCB = (rectId: string) => {
     let createdMcbId = '1';
-    setRectifiers(rectifiers.map((r: RectifierData) => {
+    const updated = rectifiers.map(r => {
       if (r.id === rectId) {
-        const newMcbId = (r.mcbs.length > 0 ? Math.max(...r.mcbs.map(m => parseInt(m.id))) + 1 : 1).toString();
+        const newMcbId = (
+          r.mcbs.length > 0
+            ? Math.max(...r.mcbs.map(m => parseInt(m.id, 10) || 0)) + 1
+            : 1
+        ).toString();
         createdMcbId = newMcbId;
         return {
           ...r,
-          mcbs: [...r.mcbs, { id: newMcbId, merk: '', kapasitas: '', peruntukan: '' }]
+          mcbs: [
+            ...r.mcbs,
+            {
+              id: newMcbId,
+              merk: '',
+              kapasitas: '',
+              beban: '',
+              arus: '',
+              namaNe: '',
+              peruntukan: '',
+            },
+          ],
         };
       }
       return r;
-    }));
+    });
+    syncRectifiers(updated);
     showAlert({
       type: 'success',
       title: 'Berhasil Ditambahkan',
@@ -336,16 +566,24 @@ export const RectifierScreen: React.FC = () => {
     });
   };
 
-  const updateMCB = (rectId: string, mcbId: string, field: keyof RectifierMCB, value: string) => {
-    setRectifiers(rectifiers.map((r: RectifierData) => {
+  const updateMCB = (
+    rectId: string,
+    mcbId: string,
+    field: keyof RectifierMCB,
+    value: string,
+  ) => {
+    const updated = rectifiers.map(r => {
       if (r.id === rectId) {
         return {
           ...r,
-          mcbs: r.mcbs.map(m => m.id === mcbId ? { ...m, [field]: value } : m)
+          mcbs: r.mcbs.map(m =>
+            m.id === mcbId ? { ...m, [field]: value } : m,
+          ),
         };
       }
       return r;
-    }));
+    });
+    syncRectifiers(updated);
   };
 
   const removeMCB = (rectId: string, mcbId: string) => {
@@ -359,28 +597,168 @@ export const RectifierScreen: React.FC = () => {
           text: 'Hapus',
           style: 'destructive',
           onPress: () => {
-            setRectifiers(rectifiers.map((r: RectifierData) => {
+            const updated = rectifiers.map(r => {
               if (r.id === rectId) {
                 return {
                   ...r,
-                  mcbs: r.mcbs.filter(m => m.id !== mcbId)
+                  mcbs: r.mcbs.filter(m => m.id !== mcbId),
                 };
               }
               return r;
-            }));
-          }
-        }
-      ]
+            });
+            syncRectifiers(updated);
+          },
+        },
+      ],
     });
   };
 
+  // Dropdown helper
+  const renderDropdownSelect = (
+    key: string,
+    value: string,
+    onSelect: (val: string) => void,
+    options: string[] = ['1', '3'],
+    prefix?: string,
+    title?: string,
+    placeholder: string = 'Pilih',
+  ) => {
+    const displayText = value
+      ? prefix
+        ? `${prefix}${value}`
+        : value
+      : placeholder;
+    const modalTitle =
+      title ||
+      (key.includes('rectBeban') || key.includes('rectifier')
+        ? 'Pilih Rectifier'
+        : key.includes('InputAC')
+        ? 'Pilih Phasa'
+        : key.includes('Boost')
+        ? 'Pilih Boost Charge'
+        : 'Pilih');
 
+    return (
+      <TouchableOpacity
+        style={styles.dropdownBtn}
+        onPress={() => {
+          setModalPicker({
+            visible: true,
+            title: modalTitle,
+            options,
+            selectedValue: value,
+            onSelect: (selectedVal: string) => {
+              onSelect(selectedVal === value ? '' : selectedVal);
+              setModalPicker(prev => ({ ...prev, visible: false }));
+            },
+          });
+        }}
+        activeOpacity={0.7}
+      >
+        <Text
+          style={[
+            styles.dropdownBtnText,
+            !value && styles.dropdownBtnTextPlaceholder,
+          ]}
+        >
+          {displayText}
+        </Text>
+        <ChevronDown size={18} color={Colors.textMuted} />
+      </TouchableOpacity>
+    );
+  };
+
+  const renderVisualRow = (
+    label: string,
+    status: string,
+    onStatusChange: (val: string) => void,
+    keterangan: string,
+    onKeteranganChange: (val: string) => void,
+    options: string[] = ['OK', 'NOK'],
+  ) => {
+    return (
+      <View style={[styles.row, { marginBottom: Spacing.sm }]}>
+        <View style={{ width: 140 }}>
+          <Text style={styles.inputLabel} numberOfLines={1}>
+            {label}
+          </Text>
+          {renderDropdownSelect(
+            label,
+            status,
+            onStatusChange,
+            options,
+            undefined,
+            `Pilih ${label}`,
+            'Pilih',
+          )}
+        </View>
+
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <TextInput
+            style={styles.inputBox}
+            value={keterangan || ''}
+            onChangeText={onKeteranganChange}
+            placeholder="Keterangan..."
+            placeholderTextColor={Colors.textMuted}
+          />
+        </View>
+      </View>
+    );
+  };
+
+  // Measurement input helper (No Unit)
+  const renderMeasurement = (
+    rectId: string,
+    field: keyof RectifierData,
+    label: string,
+    value: string,
+    isLocked: boolean = false,
+  ) => {
+    return (
+      <View style={styles.measurementRow}>
+        <Text style={styles.measurementLabel}>{label}</Text>
+        <View style={styles.measurementInputWrapper}>
+          {isLocked ? (
+            <View
+              style={[
+                styles.measurementInputContainer,
+                styles.lockedMeasurementContainer,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.measurementInput,
+                  styles.lockedMeasurementText,
+                  !value && { color: Colors.textMuted },
+                ]}
+                numberOfLines={1}
+              >
+                {value || '—'}
+              </Text>
+              <Lock size={12} color={Colors.textMuted} style={{ marginLeft: 4 }} />
+            </View>
+          ) : (
+            <View style={styles.measurementInputContainer}>
+              <TextInput
+                style={styles.measurementInput}
+                value={value}
+                onChangeText={val => updateRectifier(rectId, field, val)}
+                placeholder="—"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="numeric"
+              />
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <Header
         title="Rectifier"
-        subtitle="Pengukuran Rectifier"
+        subtitle="Pengukuran & Output"
         onBack={() => navigation.goBack()}
       />
 
@@ -400,199 +778,530 @@ export const RectifierScreen: React.FC = () => {
             ],
           }}
         >
-          {rectifiers.map((rect, index) => (
+          {rectifiers.map(rect => (
             <View key={rect.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <TouchableOpacity
-                  style={styles.cardTitleRow}
-                  onPress={() => updateRectifier(rect.id, 'isExpanded', !rect.isExpanded)}
-                  activeOpacity={0.7}
-                >
+              <TouchableOpacity
+                style={styles.cardHeader}
+                onPress={() =>
+                  updateRectifier(rect.id, 'isExpanded', !rect.isExpanded)
+                }
+                activeOpacity={0.7}
+              >
+                <View style={styles.cardTitleRow}>
                   <Text style={styles.cardTitle}>Rectifier #{rect.id}</Text>
-                  {rect.isExpanded ?
-                    <ChevronUp color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} /> :
-                    <ChevronDown color={Colors.textMuted} size={20} style={{ marginLeft: 8 }} />
-                  }
-                </TouchableOpacity>
-                {parseInt(rect.id, 10) > 1 && (
-                  <TouchableOpacity
-                    onPress={() => deleteRectifier(rect.id)}
-                    style={styles.deleteBtn}
-                  >
-                    <Trash2 color={Colors.danger} size={18} />
-                  </TouchableOpacity>
-                )}
-              </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {parseInt(rect.id, 10) > 1 && (
+                    <TouchableOpacity
+                      onPress={e => {
+                        e.stopPropagation();
+                        deleteRectifier(rect.id);
+                      }}
+                      style={[styles.deleteBtn, { marginRight: 8 }]}
+                    >
+                      <Trash2 color={Colors.danger} size={18} />
+                    </TouchableOpacity>
+                  )}
+                  {rect.isExpanded ? (
+                    <ChevronUp color={Colors.textMuted} size={20} />
+                  ) : (
+                    <ChevronDown color={Colors.textMuted} size={20} />
+                  )}
+                </View>
+              </TouchableOpacity>
 
               {rect.isExpanded && (
-                <View style={styles.cardBody}>
-
-                  {/* Merk */}
-                  <View style={styles.inputGroupFull}>
-                    <Text style={styles.inputLabel}>MERK</Text>
-                    <View style={styles.lockedContainer}>
-                      <Text style={styles.lockedText}>{rect.merk || '—'}</Text>
-                    </View>
-                  </View>
-
-                  {/* Tipe & SN */}
-                  <View style={styles.row}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>TIPE</Text>
-                      <View style={styles.lockedContainer}>
-                        <Text style={styles.lockedText}>{rect.tipe || '—'}</Text>
+                <>
+                  <View style={styles.titleDivider} />
+                  <View style={styles.cardBody}>
+                    {/* Row 1: Phasa (Input AC) & Merk Recti */}
+                    <View style={styles.row}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Phasa</Text>
+                        {renderDropdownSelect(
+                          `rect_${rect.id}_InputAC`,
+                          (rect.inputAC || '').replace(/phasa\s*/gi, '').trim(),
+                          val => updateRectifier(rect.id, 'inputAC', val),
+                          ['1', '3'],
+                          undefined,
+                          'Pilih Phasa',
+                          'Pilih',
+                        )}
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Merk Recti</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          value={rect.merk}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'merk', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
                       </View>
                     </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>SERIAL NUMBER</Text>
-                      <View style={styles.lockedContainer}>
-                        <Text style={styles.lockedText}>{rect.sn || '—'}</Text>
+
+                    {/* Row 2: Serial Number & Tipe Recti */}
+                    <View style={styles.row}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Serial Number</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          value={rect.sn}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'sn', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Tipe Recti</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          value={rect.tipe}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'tipe', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
                       </View>
                     </View>
-                  </View>
 
-                  {/* Tipe Modul */}
-                  <View style={styles.inputGroupFull}>
-                    <Text style={styles.inputLabel}>TIPE MODUL</Text>
-                    <View style={styles.lockedContainer}>
-                      <Text style={styles.lockedText}>{rect.tipeModul || '—'}</Text>
-                    </View>
-                  </View>
-
-                  {/* Jml Modul & Jml Slot */}
-                  <View style={styles.row}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>JUMLAH MODUL</Text>
-                      <View style={styles.lockedContainer}>
-                        <Text style={styles.lockedText}>{rect.jmlModul || '—'}</Text>
+                    {/* Row 3: Kapasitas Modul & Tipe Modul */}
+                    <View style={styles.row}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Kapasitas Modul</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          keyboardType="numeric"
+                          value={rect.kapasitasModul}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'kapasitasModul', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Tipe Modul</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          value={rect.tipeModul}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'tipeModul', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
                       </View>
                     </View>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>JUMLAH SLOT MODUL</Text>
-                      <View style={styles.lockedContainer}>
-                        <Text style={styles.lockedText}>{rect.jmlSlot || '—'}</Text>
+
+                    {/* Row 4: Jumlah Modul & Jumlah Slot Modul */}
+                    <View style={styles.row}>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Jumlah Modul</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          keyboardType="numeric"
+                          value={rect.jmlModul}
+                          onChangeText={val =>
+                            handleJmlModulChange(rect.id, val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
+                      </View>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Jumlah Slot Modul</Text>
+                        <TextInput
+                          style={styles.inputBox}
+                          keyboardType="numeric"
+                          value={rect.jmlSlot}
+                          onChangeText={val =>
+                            updateRectifier(rect.id, 'jmlSlot', val)
+                          }
+                          placeholder="—"
+                          placeholderTextColor={Colors.textMuted}
+                        />
                       </View>
                     </View>
-                  </View>
 
-                  {/* Dynamic Modules based on Jumlah Modul */}
-                  {rect.modules.length > 0 && (
+                    {/* Detail Modul (dam detail modul) */}
+                    {rect.modules.length > 0 && (
+                      <View style={styles.sectionContainer}>
+                        <View style={styles.subHeadingContainer}>
+                          <Text style={styles.subHeading}>Detail Modul</Text>
+                        </View>
+                        {rect.modules.map((mod, index) => (
+                          <View
+                            key={mod.id}
+                            style={[
+                              styles.card,
+                              {
+                                marginTop: index === 0 ? 0 : Spacing.md,
+                                marginBottom: Spacing.sm,
+                                borderWidth: 1,
+                                borderColor: Colors.border,
+                                backgroundColor: Colors.surface,
+                              },
+                            ]}
+                          >
+                            <View style={styles.cardHeader}>
+                              <Text style={styles.mcbTitle}>
+                                Modul #{mod.id}
+                              </Text>
+                            </View>
+                            <View style={styles.titleDivider} />
+
+                            <View style={[styles.row, { marginBottom: 0 }]}>
+                              <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>
+                                  Serial Number
+                                </Text>
+                                <TextInput
+                                  style={styles.inputBox}
+                                  value={mod.sn}
+                                  onChangeText={val =>
+                                    updateModule(rect.id, mod.id, 'sn', val)
+                                  }
+                                  placeholder="—"
+                                  placeholderTextColor={Colors.textMuted}
+                                />
+                              </View>
+                              <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Kapasitas</Text>
+                                <TextInput
+                                  style={styles.inputBox}
+                                  value={mod.kapasitas}
+                                  onChangeText={val =>
+                                    updateModule(
+                                      rect.id,
+                                      mod.id,
+                                      'kapasitas',
+                                      val,
+                                    )
+                                  }
+                                  keyboardType="numeric"
+                                  placeholder="—"
+                                  placeholderTextColor={Colors.textMuted}
+                                />
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Pengukuran: Arus Beban, Tegangan Input, Tegangan Floating, Tegangan Equalizing, LVD Threshold, Boost Charge, Utilisasi */}
                     <View style={styles.sectionContainer}>
                       <View style={styles.subHeadingContainer}>
-                        <Text style={styles.subHeading}>Detail Modul</Text>
+                        <Text style={styles.subHeading}>Pengukuran</Text>
                       </View>
-                      {rect.modules.map(mod => (
-                        <View key={mod.id} style={styles.moduleItem}>
-                          <Text style={styles.moduleItemTitle}>Modul {mod.id}</Text>
+
+                      {renderMeasurement(
+                        rect.id,
+                        'arusBeban',
+                        'Arus Beban',
+                        rect.arusBeban,
+                      )}
+                      {renderMeasurement(
+                        rect.id,
+                        'tegInput',
+                        'Tegangan Input',
+                        rect.tegInput,
+                      )}
+                      {renderMeasurement(
+                        rect.id,
+                        'tegFloating',
+                        'Tegangan Floating',
+                        rect.tegFloating,
+                      )}
+                      {renderMeasurement(
+                        rect.id,
+                        'tegEqualizing',
+                        'Tegangan Equalizing',
+                        rect.tegEqualizing,
+                      )}
+                      {renderMeasurement(
+                        rect.id,
+                        'lvd',
+                        'LVD Threshold',
+                        rect.lvd,
+                      )}
+
+                      {/* Boost Charge */}
+                      <View style={styles.measurementRow}>
+                        <Text style={styles.measurementLabel}>
+                          Boost Charge
+                        </Text>
+                        <View style={styles.measurementInputWrapper}>
+                          <TouchableOpacity
+                            style={[
+                              styles.measurementInputContainer,
+                              {
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                paddingHorizontal: 10,
+                              },
+                            ]}
+                            onPress={() => {
+                              setModalPicker({
+                                visible: true,
+                                title: 'Pilih Boost Charge',
+                                options: ['Disable', 'Enable'],
+                                selectedValue: rect.boost || '',
+                                onSelect: val => {
+                                  updateRectifier(
+                                    rect.id,
+                                    'boost',
+                                    rect.boost === val ? '' : val,
+                                  );
+                                  setModalPicker(prev => ({
+                                    ...prev,
+                                    visible: false,
+                                  }));
+                                },
+                              });
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.measurementInput,
+                                {
+                                  flex: 1,
+                                  textAlign: 'left',
+                                  fontSize: 14,
+                                  color: rect.boost
+                                    ? Colors.text
+                                    : Colors.textMuted,
+                                },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {rect.boost || 'Pilih'}
+                            </Text>
+                            <ChevronDown size={14} color={Colors.textMuted} />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {renderMeasurement(
+                        rect.id,
+                        'utilisasi',
+                        'Utilisasi',
+                        rect.utilisasi,
+                        true,
+                      )}
+                    </View>
+
+                    {/* Output */}
+                    <View style={styles.sectionContainer}>
+                      <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.subHeading}>Output</Text>
+                        <TouchableOpacity
+                          onPress={() => addMCB(rect.id)}
+                          style={{ paddingVertical: 4, paddingHorizontal: 6 }}
+                        >
+                          <Text
+                            style={{
+                              color: Colors.primary,
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            + Tambah MCB Baru
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {rect.mcbs.map((mcb, index) => (
+                        <View
+                          key={mcb.id}
+                          style={[
+                            styles.card,
+                            {
+                              marginTop: index === 0 ? 0 : Spacing.md,
+                              marginBottom: Spacing.sm,
+                              borderWidth: 1,
+                              borderColor: Colors.border,
+                              backgroundColor: Colors.surface,
+                            },
+                          ]}
+                        >
+                          <View style={styles.cardHeader}>
+                            <Text style={styles.mcbTitle}>
+                              MCB #{index + 1}
+                            </Text>
+                            {rect.mcbs.length > 1 && (
+                              <TouchableOpacity
+                                onPress={() => removeMCB(rect.id, mcb.id)}
+                                style={{ padding: 4 }}
+                              >
+                                <Trash2 color={Colors.danger} size={15} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                          <View style={styles.titleDivider} />
+
+                          {/* Row 1: Merk & Kapasitas */}
                           <View style={styles.row}>
                             <View style={styles.inputGroup}>
-                              <Text style={styles.inputLabel}>Serial Number</Text>
+                              <Text style={styles.inputLabel}>Merk</Text>
                               <TextInput
                                 style={styles.inputBox}
-                                value={mod.sn}
-                                onChangeText={(val) => updateModule(rect.id, mod.id, 'sn', val)}
+                                value={mcb.merk}
+                                onChangeText={val =>
+                                  updateMCB(rect.id, mcb.id, 'merk', val)
+                                }
+                                placeholder="—"
+                                placeholderTextColor={Colors.textMuted}
                               />
                             </View>
                             <View style={styles.inputGroup}>
                               <Text style={styles.inputLabel}>Kapasitas</Text>
-                              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <TextInput
+                                style={styles.inputBox}
+                                keyboardType="numeric"
+                                value={mcb.kapasitas}
+                                onChangeText={val =>
+                                  updateMCB(rect.id, mcb.id, 'kapasitas', val)
+                                }
+                                placeholder="—"
+                                placeholderTextColor={Colors.textMuted}
+                              />
+                            </View>
+                          </View>
+
+                          {/* Row 2: Nama NE & Peruntukan (di atas Beban) */}
+                          <View style={styles.row}>
+                            <View style={styles.inputGroup}>
+                              <Text style={styles.inputLabel}>Nama NE</Text>
+                              <TextInput
+                                style={styles.inputBox}
+                                value={mcb.namaNe ?? ''}
+                                onChangeText={val =>
+                                  updateMCB(rect.id, mcb.id, 'namaNe', val)
+                                }
+                                placeholder="—"
+                                placeholderTextColor={Colors.textMuted}
+                              />
+                            </View>
+                            <View style={styles.inputGroup}>
+                              <Text style={styles.inputLabel}>Peruntukan</Text>
+                              <TextInput
+                                style={styles.inputBox}
+                                value={mcb.peruntukan ?? ''}
+                                onChangeText={val =>
+                                  updateMCB(rect.id, mcb.id, 'peruntukan', val)
+                                }
+                                placeholder="—"
+                                placeholderTextColor={Colors.textMuted}
+                              />
+                            </View>
+                          </View>
+
+                          <View
+                            style={[
+                              styles.divider,
+                              { marginVertical: Spacing.sm },
+                            ]}
+                          />
+
+                          {/* Pengukuran: Arus */}
+                          <View style={styles.measurementRow}>
+                            <Text style={styles.measurementLabel}>Arus</Text>
+                            <View style={styles.measurementInputWrapper}>
+                              <View style={styles.measurementInputContainer}>
                                 <TextInput
-                                  style={[styles.inputBox, { flex: 1 }]}
-                                  value={mod.kapasitas}
-                                  onChangeText={(val) => updateModule(rect.id, mod.id, 'kapasitas', val)}
+                                  style={styles.measurementInput}
+                                  value={mcb.arus ?? ''}
+                                  onChangeText={val =>
+                                    updateMCB(rect.id, mcb.id, 'arus', val)
+                                  }
+                                  placeholder="—"
+                                  placeholderTextColor={Colors.textMuted}
                                   keyboardType="numeric"
                                 />
-                                <Text style={styles.measurementUnit}>A</Text>
                               </View>
                             </View>
                           </View>
-
                         </View>
                       ))}
                     </View>
-                  )}
 
-                  {/* Measurements */}
-                  <View style={styles.sectionContainer}>
-                    <View style={styles.subHeadingContainer}>
-                      <Text style={styles.subHeading}>Pengukuran</Text>
-                    </View>
-
-                    {renderMeasurement('ARUS BEBAN', rect.arusBeban ? `${rect.arusBeban}` : '', 'A')}
-                    {renderMeasurement('TEGANGAN INPUT', rect.tegInput ? `${rect.tegInput}` : '', 'V')}
-                    {renderMeasurement('TEGANGAN FLOATING', rect.tegFloating ? `${rect.tegFloating}` : '', 'V')}
-                  </View>
-
-                  {/* Output MCB */}
-                  <View style={styles.sectionContainer}>
-                    <View style={[styles.sectionHeaderRow, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-                      <Text style={[styles.subHeading, { marginBottom: 0 }]}>Output MCB</Text>
-                      <TouchableOpacity onPress={() => addMCB(rect.id)} style={{ padding: 8 }}>
-                        <Text style={{ color: Colors.primary, fontWeight: 'bold' }}>+ Tambah Baris</Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {rect.mcbs.map((mcb, index) => (
-                      <View key={mcb.id} style={styles.mcbItem}>
-                        <View style={styles.mcbHeaderRow}>
-                          <Text style={styles.mcbItemTitle}>MCB {index + 1}</Text>
-                          {rect.mcbs.length > 1 && (
-                            <TouchableOpacity onPress={() => removeMCB(rect.id, mcb.id)}>
-                              <Trash2 size={16} color={Colors.danger} />
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        <View style={styles.row}>
-                          <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Merk</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <TextInput
-                                style={[styles.inputBox, { flex: 1 }]}
-                                value={mcb.merk}
-                                onChangeText={(val) => updateMCB(rect.id, mcb.id, 'merk', val)}
-                              />
-                              <View style={styles.measurementUnit} />
-                            </View>
-                          </View>
-                          <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Kapasitas</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <TextInput
-                                style={[styles.inputBox, { flex: 1 }]}
-                                value={mcb.kapasitas}
-                                onChangeText={(val) => updateMCB(rect.id, mcb.id, 'kapasitas', val)}
-                                keyboardType="numeric"
-                              />
-                              <Text style={styles.measurementUnit}>A</Text>
-                            </View>
-                          </View>
-                        </View>
-                        <View style={styles.inputGroupFull}>
-                          <Text style={styles.inputLabel}>Peruntukan</Text>
-                          <TextInput
-                            style={styles.inputBox}
-                            value={mcb.peruntukan}
-                            onChangeText={(val) => updateMCB(rect.id, mcb.id, 'peruntukan', val)}
-                          />
-                        </View>
+                    {/* Pengecekan Fisik Rectifier: Kebersihan Rack & Cek Baut Kabinet */}
+                    <View style={styles.sectionContainer}>
+                      <View style={styles.subHeadingContainer}>
+                        <Text style={styles.subHeading}>
+                          Pengecekan Fisik Rectifier #{rect.id}
+                        </Text>
                       </View>
-                    ))}
+
+                      {renderVisualRow(
+                        'Kebersihan Rack',
+                        rect.kebersihanRack,
+                        val => updateRectifier(rect.id, 'kebersihanRack', val),
+                        rect.kebersihanRackKet,
+                        val =>
+                          updateRectifier(rect.id, 'kebersihanRackKet', val),
+                        ['OK', 'NOK'],
+                      )}
+
+                      {renderVisualRow(
+                        'Cek Baut Kabinet',
+                        rect.cekBautKabinet,
+                        val => updateRectifier(rect.id, 'cekBautKabinet', val),
+                        rect.cekBautKabinetKet,
+                        val =>
+                          updateRectifier(rect.id, 'cekBautKabinetKet', val),
+                        ['OK', 'NOK'],
+                      )}
+                    </View>
                   </View>
-                </View>
+                </>
               )}
             </View>
           ))}
 
-
+          {/* Add Rectifier Button (up to 3) */}
+          {rectifiers.length < 3 && (
+            <TouchableOpacity
+              style={styles.addRectifierButton}
+              onPress={addRectifier}
+              activeOpacity={0.7}
+            >
+              <Plus
+                size={18}
+                color={Colors.primary}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.addRectifierText}>Tambah Rectifier</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Card: Catatan */}
           <View style={styles.card}>
-            <View style={styles.cardTitleRow}>
-              <Text style={styles.cardTitle}>Catatan</Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardTitleRow}>
+                <Text style={styles.cardTitle}>Catatan</Text>
+              </View>
             </View>
+            <View style={styles.titleDivider} />
             <View style={styles.cardBody}>
               <TextInput
-                style={[styles.inputBox, { height: 100, textAlignVertical: 'top' }]}
+                style={[
+                  styles.inputBox,
+                  {
+                    height: 100,
+                    textAlignVertical: 'top',
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                  },
+                ]}
                 value={catatan}
                 onChangeText={setCatatan}
                 placeholder="Tambahkan catatan..."
@@ -608,13 +1317,23 @@ export const RectifierScreen: React.FC = () => {
               onPress={() => navigation.goBack()}
               onPressIn={handleSavePressIn}
               onPressOut={handleSavePressOut}
-              activeOpacity={1}>
+              activeOpacity={1}
+            >
               <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
             </TouchableOpacity>
           </Animated.View>
-
         </Animated.ScrollView>
       </View>
+
+      {/* Modal Picker Pop-up */}
+      <DropdownModalPicker
+        visible={modalPicker.visible}
+        title={modalPicker.title}
+        options={modalPicker.options}
+        selectedValue={modalPicker.selectedValue}
+        onSelect={modalPicker.onSelect}
+        onClose={() => setModalPicker(prev => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 };
@@ -623,29 +1342,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: Spacing.md,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: 80,
-  },
-  backText: {
-    ...Typography.body,
-    color: Colors.white,
-    marginLeft: 4,
-  },
-  headerTitle: {
-    ...Typography.h4,
-    color: Colors.white,
-    fontWeight: 'bold',
   },
   contentContainer: {
     flex: 1,
@@ -671,6 +1367,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: 28,
   },
   cardTitleRow: {
     flexDirection: 'row',
@@ -680,16 +1377,28 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  mcbTitle: {
+    ...Typography.h4,
+    color: Colors.text,
+    fontSize: 15,
+    fontWeight: 'bold',
+    lineHeight: 22,
   },
   deleteBtn: {
     padding: 8,
   },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
   cardBody: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    zIndex: 10,
   },
   row: {
     flexDirection: 'row',
@@ -705,7 +1414,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     ...Typography.caption,
-    color: Colors.textMuted,
+    fontSize: 10,
+    color: Colors.textSecondary,
     fontWeight: 'bold',
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -715,17 +1425,15 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 44,
+    paddingVertical: 8,
+    height: 38,
     backgroundColor: Colors.background,
     color: Colors.text,
-    ...Typography.body,
+    fontSize: 13,
+    textAlign: 'left',
   },
   sectionContainer: {
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.glassBorder,
+    marginTop: 0,
   },
   measurementRow: {
     flexDirection: 'row',
@@ -735,8 +1443,10 @@ const styles = StyleSheet.create({
   },
   measurementLabel: {
     ...Typography.body,
+    fontSize: 14,
     color: Colors.text,
     fontWeight: '600',
+    flex: 1,
   },
   measurementInputWrapper: {
     flexDirection: 'row',
@@ -746,239 +1456,105 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
-    width: 80,
-    height: 40,
+    width: 90,
+    height: 38,
     justifyContent: 'center',
     paddingHorizontal: 12,
     backgroundColor: Colors.background,
+    overflow: 'hidden',
   },
   measurementInput: {
-    ...Typography.body,
     color: Colors.text,
-    textAlign: 'right',
+    fontSize: 14,
+    textAlign: 'left',
     padding: 0,
     margin: 0,
   },
-  measurementUnit: {
-    ...Typography.body,
-    color: Colors.textMuted,
-    fontWeight: 'bold',
-    marginLeft: Spacing.sm,
-  },
-  syncNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.2)',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginBottom: Spacing.md,
-  },
-  syncNoticeText: {
-    ...Typography.caption,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  lockedContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 42,
-  },
-  lockedText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
   lockedMeasurementContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
   },
   lockedMeasurementText: {
-    ...Typography.body,
     color: Colors.textSecondary,
     fontWeight: '600',
     flex: 1,
-    textAlign: 'right',
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingBottom: Spacing.sm,
-    marginBottom: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
   subHeading: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
   },
   subHeadingContainer: {
-    paddingBottom: Spacing.sm,
-    marginBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  smallAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: 12,
-  },
-  smallAddBtnText: {
-    ...Typography.caption,
-    color: Colors.white,
-    fontWeight: 'bold',
-    marginLeft: 4,
-  },
-  moduleItem: {
-    backgroundColor: Colors.background,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.md,
-  },
-  moduleItemTitle: {
-    ...Typography.caption,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  mcbItem: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.md,
-  },
-  mcbHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  mcbItemTitle: {
-    ...Typography.caption,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-
-  addButton: {
+  addRectifierButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceLight,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
     borderStyle: 'dashed',
-    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: 14,
     marginBottom: Spacing.lg,
   },
-  addButtonText: {
+  addRectifierText: {
     ...Typography.body,
-    color: Colors.white,
+    color: Colors.primary,
     fontWeight: 'bold',
   },
-  photoGrid: {
+  divider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: Spacing.md,
+  },
+  dropdownBtn: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  photoUploadBoxWrapper: {
-    width: '47%',
-    position: 'relative',
-    marginBottom: Spacing.sm,
-  },
-  photoUploadBox: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    backgroundColor: Colors.surfaceLight,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'stretch',
-  },
-  photoUploadBoxAdd: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    borderWidth: 1.5,
-    borderColor: Colors.glassBorder,
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.md,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.backgroundSecondary,
-  },
-  uploadedImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  photoUploadText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    fontWeight: '600',
-  },
-  deletePhotoBtn: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 6,
+    justifyContent: 'space-between',
+    backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.glassBorder,
-    ...Shadow.sm,
-    zIndex: 10,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 38,
   },
-  timestampBadgeOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'transparent',
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+  dropdownBtnText: {
+    color: Colors.text,
+    fontSize: 13,
   },
-  timestampOverlayText: {
-    color: '#ffffff',
-    fontSize: 9.5,
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'android' ? 'monospace' : 'Courier',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  timestampOverlayTextSub: {
-    color: '#ffffff',
-    fontSize: 8.5,
-    fontWeight: 'bold',
-    fontFamily: Platform.OS === 'android' ? 'monospace' : 'Courier',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+  dropdownBtnTextPlaceholder: {
+    color: Colors.textMuted,
   },
   saveButton: {
     backgroundColor: Colors.primary,

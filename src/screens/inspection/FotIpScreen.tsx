@@ -19,8 +19,19 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ChevronDown, Maximize2 } from 'lucide-react-native';
 
-import { Colors, Typography, FontSize, Spacing, BorderRadius, Shadow } from '../../theme';
-import { Header, DropdownModalPicker, ImageZoomModal } from '../../components/common';
+import {
+  Colors,
+  Typography,
+  FontSize,
+  Spacing,
+  BorderRadius,
+  Shadow,
+} from '../../theme';
+import {
+  Header,
+  DropdownModalPicker,
+  ImageZoomModal,
+} from '../../components/common';
 import { useInspectionStore } from '../../store/inspectionStore';
 import type { RootStackParamList } from '../../types';
 
@@ -49,7 +60,8 @@ const PROCEDURES_PART_1: ProcedureItem[] = [
   {
     id: '1.2',
     code: '1.2',
-    label: 'Memastikan bahwa ESD-Preventive Wrist Strap digunakan pada saat melakukan kegiatan preventive',
+    label:
+      'Memastikan bahwa ESD-Preventive Wrist Strap digunakan pada saat melakukan kegiatan preventive',
   },
 ];
 
@@ -68,7 +80,8 @@ const PROCEDURES_PART_2: ProcedureItem[] = [
   {
     id: '1.5',
     code: '1.5',
-    label: 'Menggunakan kedua tangan untuk menarik tray kipas[8.69kg] pada jalurnya',
+    label:
+      'Menggunakan kedua tangan untuk menarik tray kipas[8.69kg] pada jalurnya',
   },
   {
     id: '1.6',
@@ -89,7 +102,8 @@ const PROCEDURES_PART_2: ProcedureItem[] = [
   {
     id: '1.9',
     code: '1.9',
-    label: 'Menggunakan peralatan obeng untuk mengencangkan baut skrup pada chassis',
+    label:
+      'Menggunakan peralatan obeng untuk mengencangkan baut skrup pada chassis',
   },
   {
     id: '1.10',
@@ -142,7 +156,8 @@ const PROCEDURES_AIR_FILTER_PART_2: ProcedureItem[] = [
   {
     id: '3.5',
     code: '3.5',
-    label: 'Menggunakan kedua tangan untuk menarik tray kipas[8.69kg] pada jalurnya',
+    label:
+      'Menggunakan kedua tangan untuk menarik tray kipas[8.69kg] pada jalurnya',
   },
   {
     id: '3.6',
@@ -163,7 +178,8 @@ const PROCEDURES_AIR_FILTER_PART_2: ProcedureItem[] = [
   {
     id: '3.9',
     code: '3.9',
-    label: 'Menggunakan peralatan obeng untuk mengencangkan baut skrup pada chassis',
+    label:
+      'Menggunakan peralatan obeng untuk mengencangkan baut skrup pada chassis',
   },
   {
     id: '3.10',
@@ -195,8 +211,10 @@ export const FotIpScreen: React.FC = () => {
   const savedFotIp = formData.fot_ip || {};
   const [procStatus, setProcStatus] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = savedFotIp.procedures || {};
-    if (savedFotIp.proc1_1 && !initial['1.1']) initial['1.1'] = savedFotIp.proc1_1;
-    if (savedFotIp.proc1_2 && !initial['1.2']) initial['1.2'] = savedFotIp.proc1_2;
+    if (savedFotIp.proc1_1 && !initial['1.1'])
+      initial['1.1'] = savedFotIp.proc1_1;
+    if (savedFotIp.proc1_2 && !initial['1.2'])
+      initial['1.2'] = savedFotIp.proc1_2;
     return initial;
   });
 
@@ -212,7 +230,7 @@ export const FotIpScreen: React.FC = () => {
     title: '',
     options: [],
     selectedValue: '',
-    onSelect: () => { },
+    onSelect: () => {},
   });
 
   // Image Zoom Modal state
@@ -246,7 +264,7 @@ export const FotIpScreen: React.FC = () => {
     value: string,
     onSelect: (val: string) => void,
     options: string[] = ['OK', 'NOK'],
-    title: string = 'Pilih Status'
+    title: string = 'Pilih Status',
   ) => {
     return (
       <TouchableOpacity
@@ -268,7 +286,10 @@ export const FotIpScreen: React.FC = () => {
             !value && styles.selectTextPlaceholder,
             value === 'OK' && { color: Colors.success, fontWeight: '700' },
             value === 'NOK' && { color: Colors.danger, fontWeight: '700' },
-            (value === 'N/A' || value === 'NA') && { color: Colors.warning, fontWeight: '700' },
+            (value === 'N/A' || value === 'NA') && {
+              color: Colors.warning,
+              fontWeight: '700',
+            },
           ]}
           numberOfLines={1}
         >
@@ -279,19 +300,54 @@ export const FotIpScreen: React.FC = () => {
     );
   };
 
+  const renderEquipmentItem = (
+    itemText: string,
+    idx: number,
+    isLeftAlign: boolean = false,
+  ) => {
+    const match = itemText.match(/^([a-z]\.)\s*(.*)$/);
+    if (match) {
+      const [, bullet, label] = match;
+      return (
+        <View key={idx} style={styles.equipmentRow}>
+          <Text style={styles.equipmentBullet} numberOfLines={1}>
+            {bullet}
+          </Text>
+          <Text
+            style={[
+              styles.equipmentLabel,
+              isLeftAlign && { textAlign: 'left' },
+            ]}
+          >
+            {label}
+          </Text>
+        </View>
+      );
+    }
+    return (
+      <Text
+        key={idx}
+        style={[styles.descText, isLeftAlign && { textAlign: 'left' }]}
+      >
+        {itemText}
+      </Text>
+    );
+  };
+
   const renderProcedureItem = (item: ProcedureItem) => (
     <View key={item.id} style={styles.procedureRow}>
       <View style={styles.procedureTextContainer}>
-        <Text style={styles.descText}>
-          {item.code} {item.label}
+        <Text style={styles.procedureCode} numberOfLines={1}>
+          {item.code}
         </Text>
+        <Text style={styles.procedureLabel}>{item.label}</Text>
       </View>
       <View style={styles.selectWrap}>
         {renderDropdownSelect(
           procStatus[item.id] || '',
-          (val) => updateProc(item.id, val),
+          val => updateProc(item.id, val),
           ['OK', 'NOK'],
-          `Pilih Status Prosedur ${item.code}`
+          `Pilih Status Prosedur ${item.code}`,
         )}
       </View>
     </View>
@@ -312,16 +368,14 @@ export const FotIpScreen: React.FC = () => {
         {/* Card 1: Lower Fan Tray */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Lower Fan Tray</Text>
-          <View style={styles.divider} />
+          <View style={styles.titleDivider} />
 
           {/* Peralatan (Murni Teks Deskripsi) */}
-          <Text style={styles.subHeader}>Peralatan yang dibutuhkan meliputi :</Text>
+          <Text style={styles.subHeader}>
+            Peralatan yang dibutuhkan meliputi :
+          </Text>
           <View style={styles.listContainer}>
-            {EQUIPMENT_ITEMS.map((item, idx) => (
-              <Text key={idx} style={styles.descText}>
-                {item}
-              </Text>
-            ))}
+            {EQUIPMENT_ITEMS.map((item, idx) => renderEquipmentItem(item, idx))}
           </View>
 
           <View style={styles.divider} />
@@ -363,16 +417,16 @@ export const FotIpScreen: React.FC = () => {
         {/* Card 2: Rear Exhaust Screen */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Rear Exhaust Screen</Text>
-          <View style={styles.divider} />
+          <View style={styles.titleDivider} />
 
           {/* Peralatan */}
-          <Text style={styles.subHeader}>Peralatan yang dibutuhkan meliputi :</Text>
+          <Text style={styles.subHeader}>
+            Peralatan yang dibutuhkan meliputi :
+          </Text>
           <View style={styles.listContainer}>
-            {EQUIPMENT_REAR_EXHAUST.map((item, idx) => (
-              <Text key={idx} style={styles.descText}>
-                {item}
-              </Text>
-            ))}
+            {EQUIPMENT_REAR_EXHAUST.map((item, idx) =>
+              renderEquipmentItem(item, idx),
+            )}
           </View>
 
           {/* Gambar di bawah c. Rear Exhaust Screen */}
@@ -402,16 +456,16 @@ export const FotIpScreen: React.FC = () => {
         {/* Card 3: Chassis Air Filter */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Chassis Air Filter</Text>
-          <View style={styles.divider} />
+          <View style={styles.titleDivider} />
 
           {/* Peralatan */}
-          <Text style={styles.subHeader}>Peralatan yang dibutuhkan meliputi :</Text>
+          <Text style={styles.subHeader}>
+            Peralatan yang dibutuhkan meliputi :
+          </Text>
           <View style={styles.listContainer}>
-            {EQUIPMENT_AIR_FILTER.map((item, idx) => (
-              <Text key={idx} style={styles.descText}>
-                {item}
-              </Text>
-            ))}
+            {EQUIPMENT_AIR_FILTER.map((item, idx) =>
+              renderEquipmentItem(item, idx, item.startsWith('c.')),
+            )}
           </View>
 
           <View style={styles.divider} />
@@ -449,6 +503,15 @@ export const FotIpScreen: React.FC = () => {
             {PROCEDURES_AIR_FILTER_PART_2.map(renderProcedureItem)}
           </View>
         </View>
+
+        {/* Tombol Simpan & Kembali */}
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.saveButtonText}>Simpan & Kembali</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Modal Picker Pilihan OK / NOK */}
@@ -458,7 +521,7 @@ export const FotIpScreen: React.FC = () => {
         options={modalPicker.options}
         selectedValue={modalPicker.selectedValue}
         onSelect={modalPicker.onSelect}
-        onClose={() => setModalPicker((prev) => ({ ...prev, visible: false }))}
+        onClose={() => setModalPicker(prev => ({ ...prev, visible: false }))}
       />
 
       {/* Modal Zoom Gambar */}
@@ -466,7 +529,7 @@ export const FotIpScreen: React.FC = () => {
         visible={zoomModal.visible}
         source={zoomModal.source}
         title={zoomModal.title}
-        onClose={() => setZoomModal((prev) => ({ ...prev, visible: false }))}
+        onClose={() => setZoomModal(prev => ({ ...prev, visible: false }))}
       />
     </View>
   );
@@ -478,14 +541,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: 40,
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
   },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     ...Shadow.sm,
@@ -493,7 +556,15 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...Typography.h4,
     color: Colors.text,
+    fontSize: 17,
     fontWeight: 'bold',
+    lineHeight: 24,
+  },
+  titleDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   divider: {
     height: 1,
@@ -501,20 +572,23 @@ const styles = StyleSheet.create({
     marginVertical: Spacing.md,
   },
   subHeader: {
-    fontSize: 12.5,
-    lineHeight: 18,
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
     color: Colors.text,
     fontWeight: '700',
     marginBottom: Spacing.xs,
+    textAlign: 'justify',
   },
   listContainer: {
-    paddingLeft: Spacing.xs,
-    gap: 5,
+    gap: 6,
   },
   descText: {
-    fontSize: 12.5,
-    lineHeight: 18,
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
     color: Colors.text,
+    textAlign: 'justify',
   },
   procedureList: {
     gap: 10,
@@ -527,9 +601,47 @@ const styles = StyleSheet.create({
   },
   procedureTextContainer: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  procedureCode: {
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.text,
+    fontWeight: '600',
+    width: 32,
+  },
+  procedureLabel: {
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.text,
+    flex: 1,
+    textAlign: 'justify',
+  },
+  equipmentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  equipmentBullet: {
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.text,
+    fontWeight: '600',
+    width: 20,
+  },
+  equipmentLabel: {
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.text,
+    flex: 1,
+    textAlign: 'justify',
   },
   selectWrap: {
-    width: 80,
+    width: 90,
   },
   selectBox: {
     flexDirection: 'row',
@@ -538,18 +650,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    height: 34,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    height: 38,
   },
   selectText: {
-    fontSize: 12,
-    fontWeight: '600',
     color: Colors.text,
+    fontSize: 13,
   },
   selectTextPlaceholder: {
     color: Colors.textMuted,
-    fontWeight: 'normal',
   },
   imageCardWrapper: {
     backgroundColor: '#FFFFFF',
@@ -575,8 +686,9 @@ const styles = StyleSheet.create({
     height: 140,
   },
   emptyText: {
-    fontSize: 12.5,
-    lineHeight: 18,
+    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
     color: Colors.textMuted,
     fontStyle: 'italic',
   },
@@ -593,8 +705,25 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   zoomHintText: {
+    ...Typography.caption,
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
+  },
+  saveButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+    ...Shadow.md,
+  },
+  saveButtonText: {
+    ...Typography.button,
+    color: Colors.white,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

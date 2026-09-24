@@ -13,6 +13,8 @@ import {
 import { X, MapPin, Clock } from 'lucide-react-native';
 import { Colors, Spacing } from '../../theme';
 import { useInspectionStore } from '../../store/inspectionStore';
+import { formatImageUri } from '../../utils/helpers';
+import { resolveTelegramUri } from '../../services/telegramStorage';
 
 interface ImagePreviewModalProps {
   visible: boolean;
@@ -27,32 +29,58 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   imageUri,
   onClose,
 }) => {
-  const { activePopName, activePopLocation, currentLocation, formData, getPhotoTimestamp } = useInspectionStore();
+  const [displayUri, setDisplayUri] = useState<string>(formatImageUri(imageUri || ''));
+  const {
+    activePopName,
+    activePopLocation,
+    currentLocation,
+    formData,
+    getPhotoTimestamp,
+  } = useInspectionStore();
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
     if (imageUri) {
-      Image.getSize(
-        imageUri,
-        (w, h) => {
-          if (w && h && h > 0) {
-            setAspectRatio(w / h);
-          }
-        },
-        () => {
-          setAspectRatio(4 / 3);
+      resolveTelegramUri(imageUri).then(resolved => {
+        if (!isMounted) return;
+        const formatted = formatImageUri(resolved);
+        setDisplayUri(formatted);
+        if (formatted) {
+          Image.getSize(
+            formatted,
+            (w, h) => {
+              if (w && h && h > 0 && isMounted) {
+                setAspectRatio(w / h);
+              }
+            },
+            () => {
+              if (isMounted) setAspectRatio(4 / 3);
+            },
+          );
         }
-      );
+      });
     } else {
       setAspectRatio(null);
     }
+    return () => {
+      isMounted = false;
+    };
   }, [imageUri]);
 
   if (!imageUri) return null;
 
   const infoPop = formData.infoPop || {};
-  const coordsStr = infoPop.koordinat || (currentLocation ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}` : '');
-  const addressStr = currentLocation?.address || (infoPop.alamat && infoPop.alamat !== 'Kendari' ? infoPop.alamat : null) || activePopLocation || '';
+  const coordsStr =
+    infoPop.koordinat ||
+    (currentLocation
+      ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}`
+      : '');
+  const addressStr =
+    currentLocation?.address ||
+    (infoPop.alamat && infoPop.alamat !== 'Kendari' ? infoPop.alamat : null) ||
+    activePopLocation ||
+    '';
   const dateStr = imageUri ? getPhotoTimestamp(imageUri) : '';
 
   return (
@@ -70,17 +98,17 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         </View>
 
         <View style={styles.imageContainer}>
-          <View style={[styles.imageWrapper, aspectRatio ? { aspectRatio } : null]}>
+          <View
+            style={[styles.imageWrapper, aspectRatio ? { aspectRatio } : null]}
+          >
             <Image
-              source={{ uri: imageUri }}
+              source={{ uri: displayUri }}
               style={styles.image}
               resizeMode="cover"
             />
             {/* Watermark overlay directly inside the photo */}
             <View style={styles.watermarkOverlay}>
-              <Text style={styles.watermarkText}>
-                Tgl/Jam: {dateStr}
-              </Text>
+              <Text style={styles.watermarkText}>Tgl/Jam: {dateStr}</Text>
               <Text style={styles.watermarkTextSub}>
                 Koordinat: {coordsStr || 'Mendapatkan GPS...'}
               </Text>

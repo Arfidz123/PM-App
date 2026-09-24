@@ -21,6 +21,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LinearGradient from 'react-native-linear-gradient';
 import {
   Camera,
+  Navigation,
   Building2,
   FileText,
   Zap,
@@ -35,6 +36,8 @@ import {
   Wind,
   ServerCog,
   ServerCrash,
+  FileClock,
+  Trash2,
 } from 'lucide-react-native';
 
 import { Colors, Typography, Spacing, BorderRadius, Shadow } from '../../theme';
@@ -43,6 +46,11 @@ import database from '../../database';
 import { Asset } from '../../database/models';
 import { useAppStore } from '../../store/appStore';
 import { useInspectionStore } from '../../store/inspectionStore';
+import {
+  getInspectionDraft,
+  clearInspectionDraft,
+  DraftInspectionData,
+} from '../../services/draftService';
 import { cleanPopName } from '../../utils/helpers';
 import type { RootStackParamList } from '../../types';
 
@@ -50,7 +58,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const { width } = Dimensions.get('window');
 const GRID_SPACING = Spacing.md;
-const GRID_ITEM_WIDTH = Math.floor((width - Spacing.lg * 2 - GRID_SPACING * 2) / 3);
+const GRID_ITEM_WIDTH = Math.floor(
+  (width - Spacing.lg * 2 - GRID_SPACING * 2) / 3,
+);
 
 const getGreeting = (): string => {
   const hour = new Date().getHours();
@@ -102,7 +112,7 @@ const FloatingOrb: React.FC<{
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     const drift = Animated.loop(
       Animated.sequence([
@@ -118,11 +128,14 @@ const FloatingOrb: React.FC<{
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     float.start();
     drift.start();
-    return () => { float.stop(); drift.stop(); };
+    return () => {
+      float.stop();
+      drift.stop();
+    };
   }, []);
 
   return (
@@ -161,16 +174,27 @@ const FloatingOrb: React.FC<{
 export const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { inspectorName } = useAppStore();
-  const { activePopId, activePopName, activePopLocation } = useInspectionStore();
+  const {
+    activePopId,
+    activePopName,
+    activePopLocation,
+    loadExistingInspection,
+    resetInspection,
+  } = useInspectionStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [foundDraft, setFoundDraft] = useState<DraftInspectionData | null>(null);
 
   // Animated values
   const fadeAnim = useState(new Animated.Value(0))[0];
   const slideAnim = useState(new Animated.Value(40))[0];
   const pulseAnim = useState(new Animated.Value(1))[0];
-  const gridAnims = useState(() => MENU_ITEMS.map(() => new Animated.Value(0)))[0];
+  const gridAnims = useState(() =>
+    MENU_ITEMS.map(() => new Animated.Value(0)),
+  )[0];
   const headerScaleAnim = useRef(new Animated.Value(0)).current;
-  const gridPressAnims = useState(() => MENU_ITEMS.map(() => new Animated.Value(1)))[0];
+  const gridPressAnims = useState(() =>
+    MENU_ITEMS.map(() => new Animated.Value(1)),
+  )[0];
   const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -180,11 +204,15 @@ export const DashboardScreen: React.FC = () => {
         const updates: any[] = [];
         for (const asset of assets) {
           if (asset.name.match(/^POP_[a-zA-Z0-9]+_?/i)) {
-            const cleanName = asset.name.replace(/^POP_[a-zA-Z0-9]+_?/i, '').trim();
+            const cleanName = asset.name
+              .replace(/^POP_[a-zA-Z0-9]+_?/i, '')
+              .trim();
             if (cleanName !== asset.name) {
-              updates.push(asset.prepareUpdate(a => {
-                a.name = cleanName;
-              }));
+              updates.push(
+                asset.prepareUpdate(a => {
+                  a.name = cleanName;
+                }),
+              );
             }
           }
         }
@@ -215,7 +243,7 @@ export const DashboardScreen: React.FC = () => {
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
     glow.start();
     return () => glow.stop();
@@ -280,15 +308,30 @@ export const DashboardScreen: React.FC = () => {
             duration: 1100,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: true,
-          })
-        ])
+          }),
+        ]),
       );
       pulseLoop.start();
+
+      // Check if any unfinished draft exists in local SQLite
+      const checkDraft = async () => {
+        if (!activePopId) {
+          const draft = await getInspectionDraft();
+          if (draft && draft.assetId) {
+            setFoundDraft(draft);
+          } else {
+            setFoundDraft(null);
+          }
+        } else {
+          setFoundDraft(null);
+        }
+      };
+      checkDraft();
 
       return () => {
         pulseLoop.stop();
       };
-    }, [])
+    }, [activePopId]),
   );
 
   const handleGridPressIn = (index: number) => {
@@ -315,9 +358,63 @@ export const DashboardScreen: React.FC = () => {
     setTimeout(() => setRefreshing(false), 1000);
   };
 
-  const handleStartCamera = () => {
-    // Navigate to Photo detection logic
+  const handleStartGpsScan = () => {
+    // Navigate to GPS detection logic
     navigation.navigate('StartInspection');
+  };
+
+  const handleResumeDraft = () => {
+    if (!foundDraft) return;
+    loadExistingInspection(foundDraft.formData, {
+      id: foundDraft.assetId,
+      assetCode: foundDraft.assetId,
+      name: foundDraft.popName,
+      location: foundDraft.popLocation,
+    });
+    const draftName = foundDraft.popName;
+    setFoundDraft(null);
+    showAlert({
+      type: 'success',
+      title: 'Draft Dipulihkan!',
+      message: `Seluruh data pengerjaan untuk POP ${draftName} berhasil dipulihkan. Anda dapat melanjutkan pengisian form.`,
+    });
+  };
+
+  const handleDiscardDraft = () => {
+    showAlert({
+      type: 'warning',
+      title: 'Hapus Draft?',
+      message: `Apakah Anda yakin ingin membuang draft maintenance untuk POP ${foundDraft?.popName || ''}? Data isian yang belum tersimpan akan dihapus secara permanen.`,
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus Draft',
+          onPress: async () => {
+            await clearInspectionDraft();
+            setFoundDraft(null);
+          },
+        },
+      ],
+    });
+  };
+
+  const handleResetActiveTarget = () => {
+    showAlert({
+      type: 'warning',
+      title: 'Ganti POP Maintenance?',
+      message:
+        'Apakah Anda ingin mengganti target POP? Sesi maintenance saat ini dan draft pengerjaannya akan direset.',
+      buttons: [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Ganti POP',
+          onPress: () => {
+            resetInspection();
+            navigation.navigate('SelectPop');
+          },
+        },
+      ],
+    });
   };
 
   const handleMenuPress = (itemId: string) => {
@@ -325,7 +422,8 @@ export const DashboardScreen: React.FC = () => {
       showAlert({
         type: 'warning',
         title: 'Pilih POP Terlebih Dahulu',
-        message: 'Silakan pilih POP terlebih dahulu di menu POP sebelum membuka menu ini.',
+        message:
+          'Silakan pilih POP terlebih dahulu di menu POP sebelum membuka menu ini.',
       });
       return;
     }
@@ -364,11 +462,13 @@ export const DashboardScreen: React.FC = () => {
     } else if (itemId === 'fot_dwdm') {
       navigation.navigate('FotDwdm');
     } else {
-      const item = MENU_ITEMS.find((i) => i.id === itemId);
-      navigation.navigate('CategoryForm', { categoryId: itemId, categoryLabel: item?.label || 'Form' });
+      const item = MENU_ITEMS.find(i => i.id === itemId);
+      navigation.navigate('CategoryForm', {
+        categoryId: itemId,
+        categoryLabel: item?.label || 'Form',
+      });
     }
   };
-
 
   return (
     <View style={styles.container}>
@@ -377,10 +477,14 @@ export const DashboardScreen: React.FC = () => {
         colors={[Colors.backgroundSecondary, Colors.background]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.headerGradient}>
-
+        style={styles.headerGradient}
+      >
         {/* Floating decorative orbs */}
-        <FloatingOrb size={120} color="#3B82F6" style={{ top: -30, right: -20 }} />
+        <FloatingOrb
+          size={120}
+          color="#3B82F6"
+          style={{ top: -30, right: -20 }}
+        />
         <FloatingOrb size={80} color="#60A5FA" style={{ top: 20, right: 80 }} />
         <FloatingOrb size={50} color="#1E40AF" style={{ top: 60, right: 10 }} />
 
@@ -398,7 +502,8 @@ export const DashboardScreen: React.FC = () => {
                 },
               ],
             },
-          ]}>
+          ]}
+        >
           <View>
             <Text style={styles.headerOverline}>BERANDA</Text>
             <Text style={styles.headerTitle}>{getGreeting()}</Text>
@@ -439,32 +544,97 @@ export const DashboardScreen: React.FC = () => {
             tintColor={Colors.primary}
             colors={[Colors.primary]}
           />
-        }>
+        }
+      >
+        {/* Draft Recovery Card if app restarted/exited without saving */}
+        {foundDraft && !activePopId ? (
+          <View style={styles.draftCardContainer}>
+            <LinearGradient
+              colors={['#78350F', '#B45309']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.draftCardGradient}
+            >
+              <View style={styles.draftHeaderRow}>
+                <View style={styles.draftIconCircle}>
+                  <FileClock color={Colors.white} size={22} />
+                </View>
+                <View style={styles.draftHeaderTextWrap}>
+                  <Text style={styles.draftBadge}>DRAFT MAINTENANCE DITEMUKAN</Text>
+                  <Text style={styles.draftTitle} numberOfLines={1}>
+                    {foundDraft.popName}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.draftDesc}>
+                Sesi maintenance sebelumnya tersimpan otomatis pada {foundDraft.formattedTime}. Lanjutkan pengisian tanpa kehilangan data?
+              </Text>
+
+              <View style={styles.draftActionsRow}>
+                <TouchableOpacity
+                  style={styles.resumeDraftBtn}
+                  onPress={handleResumeDraft}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.resumeDraftBtnText}>Lanjutkan Draft</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.discardDraftBtn}
+                  onPress={handleDiscardDraft}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 color="rgba(255, 255, 255, 0.8)" size={15} />
+                  <Text style={styles.discardDraftBtnText}>Hapus</Text>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        ) : null}
 
         {/* Main Action Top Card */}
         <Animated.View
           style={[
             styles.section,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}>
+          ]}
+        >
           <LinearGradient
-            colors={activePopId ? ['#10B981', '#059669', '#047857'] : ['#3B82F6', '#2563EB', '#1E40AF']}
+            colors={
+              activePopId
+                ? ['#10B981', '#059669', '#047857']
+                : ['#3B82F6', '#2563EB', '#1E40AF']
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.mainActionGradient}>
+            style={styles.mainActionGradient}
+          >
             <TouchableOpacity
               style={styles.mainActionButton}
-              onPress={() => activePopId ? navigation.navigate('SelectPop') : handleStartCamera()}
-              activeOpacity={0.85}>
+              onPress={() =>
+                activePopId
+                  ? navigation.navigate('SelectPop')
+                  : handleStartGpsScan()
+              }
+              activeOpacity={0.85}
+            >
               {!activePopId ? (
                 <>
                   {/* Background decorative circles */}
                   <View style={styles.cardDecorCircle1} />
                   <View style={styles.cardDecorCircle2} />
-                  <Animated.View style={[styles.cameraIconContainer, { transform: [{ scale: pulseAnim }] }]}>
-                    <Camera color={Colors.white} size={40} />
+                  <Animated.View
+                    style={[
+                      styles.cameraIconContainer,
+                      { transform: [{ scale: pulseAnim }] },
+                    ]}
+                  >
+                    <Navigation color={Colors.white} size={38} />
                   </Animated.View>
-                  <Text style={styles.mainActionTitle}>Ambil Foto untuk Mulai</Text>
+                  <Text style={styles.mainActionTitle}>
+                    Scan GPS untuk Mulai
+                  </Text>
                 </>
               ) : (
                 <View style={styles.activeTargetContainer}>
@@ -485,21 +655,30 @@ export const DashboardScreen: React.FC = () => {
                             },
                           ],
                         },
-                      ]}>
+                      ]}
+                    >
                       <CheckCircle2 color={Colors.white} size={24} />
                     </Animated.View>
-                    <Text style={styles.activeTargetLabel}>Maintenance Aktif</Text>
+                    <Text style={styles.activeTargetLabel}>
+                      Maintenance Aktif
+                    </Text>
                   </View>
-                  <Text style={styles.activePopName}>{cleanPopName(activePopName || 'Unknown POP')}</Text>
+                  <Text style={styles.activePopName}>
+                    {cleanPopName(activePopName || 'Unknown POP')}
+                  </Text>
                   <View style={styles.locationRow}>
                     <MapPin color={Colors.white} size={14} opacity={0.8} />
                     <Text style={styles.activePopLocation}>
                       {activePopLocation || 'Lokasi tidak diketahui'}
                     </Text>
                   </View>
-                  <View style={styles.changeTargetBtn}>
+                  <TouchableOpacity
+                    style={styles.changeTargetBtn}
+                    onPress={handleResetActiveTarget}
+                    activeOpacity={0.8}
+                  >
                     <Text style={styles.changeTargetText}>Ganti POP</Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               )}
             </TouchableOpacity>
@@ -511,7 +690,8 @@ export const DashboardScreen: React.FC = () => {
           style={[
             styles.gridContainer,
             { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}>
+          ]}
+        >
           <View style={styles.grid}>
             {MENU_ITEMS.map((item, index) => {
               const isDisabled = !activePopId && item.id !== 'pop';
@@ -527,7 +707,7 @@ export const DashboardScreen: React.FC = () => {
                           gridAnims[index].interpolate({
                             inputRange: [0, 1],
                             outputRange: [0.6, 1],
-                          })
+                          }),
                         ),
                       },
                       {
@@ -537,42 +717,53 @@ export const DashboardScreen: React.FC = () => {
                         }),
                       },
                     ],
-                  }}>
+                  }}
+                >
                   <TouchableOpacity
                     style={[isDisabled && styles.gridItemDisabled]}
                     onPress={() => handleMenuPress(item.id)}
                     onPressIn={() => handleGridPressIn(index)}
                     onPressOut={() => handleGridPressOut(index)}
-                    activeOpacity={1}>
+                    activeOpacity={1}
+                  >
                     <LinearGradient
                       colors={
                         isDisabled
                           ? [Colors.surfaceLight, Colors.surface]
                           : index % 3 === 0
-                            ? ['#3B82F6', '#1D4ED8']
-                            : index % 3 === 1
-                              ? ['#2563EB', '#1E40AF']
-                              : ['#1D4ED8', '#1E3A8A']
+                          ? ['#3B82F6', '#1D4ED8']
+                          : index % 3 === 1
+                          ? ['#2563EB', '#1E40AF']
+                          : ['#1D4ED8', '#1E3A8A']
                       }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={[
                         styles.gridItem,
                         !isDisabled && styles.gridItemActive,
-                      ]}>
-                      <View style={[
-                        styles.gridIconWrapper,
-                        !isDisabled && styles.gridIconWrapperActive,
-                      ]}>
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.gridIconWrapper,
+                          !isDisabled && styles.gridIconWrapperActive,
+                        ]}
+                      >
                         <item.icon
                           color={isDisabled ? Colors.textMuted : Colors.white}
                           size={28}
                         />
                       </View>
-                      <Text style={[
-                        styles.gridItemLabel,
-                        { color: isDisabled ? Colors.textMuted : Colors.white },
-                      ]}>{item.label}</Text>
+                      <Text
+                        style={[
+                          styles.gridItemLabel,
+                          {
+                            color: isDisabled ? Colors.textMuted : Colors.white,
+                          },
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
                     </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
@@ -832,5 +1023,115 @@ const styles = StyleSheet.create({
     color: Colors.text,
     textAlign: 'center',
     fontWeight: 'bold',
+  },
+  draftCardContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadow.md,
+  },
+  draftCardGradient: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.35)',
+  },
+  draftHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  draftIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.sm,
+  },
+  draftHeaderTextWrap: {
+    flex: 1,
+  },
+  draftBadge: {
+    ...Typography.overline,
+    color: '#FDE68A',
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  draftTitle: {
+    ...Typography.h4,
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  draftDesc: {
+    ...Typography.caption,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
+    marginBottom: Spacing.md,
+  },
+  draftActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  resumeDraftBtn: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.sm,
+  },
+  resumeDraftBtnText: {
+    ...Typography.button,
+    color: '#92400E',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  discardDraftBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  discardDraftBtnText: {
+    ...Typography.caption,
+    color: Colors.white,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  autoSaveIndicatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.full,
+    marginBottom: Spacing.md,
+    alignSelf: 'flex-start',
+  },
+  autoSaveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34D399',
+    marginRight: 6,
+  },
+  autoSaveIndicatorText: {
+    ...Typography.caption,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

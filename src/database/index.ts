@@ -3,9 +3,9 @@
  * Sets up WatermelonDB with SQLite adapter
  */
 
-import {Database} from '@nozbe/watermelondb';
+import { Database } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
-import {schema} from './schema';
+import { schema } from './schema';
 import {
   Asset,
   ChecklistTemplate,
@@ -40,7 +40,11 @@ export default database;
 
 // Export collections for easy access
 export const assetsCollection = database.get<Asset>('assets');
-export const templatesCollection = database.get<ChecklistTemplate>('checklist_templates');
-export const checklistItemsCollection = database.get<ChecklistItem>('checklist_items');
+export const templatesCollection = database.get<ChecklistTemplate>(
+  'checklist_templates',
+);
+export const checklistItemsCollection =
+  database.get<ChecklistItem>('checklist_items');
 export const inspectionsCollection = database.get<Inspection>('inspections');
-export const inspectionItemsCollection = database.get<InspectionItem>('inspection_items');
+export const inspectionItemsCollection =
+  database.get<InspectionItem>('inspection_items');

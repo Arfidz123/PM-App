@@ -9,7 +9,7 @@ import { Animated, Easing } from 'react-native';
 
 export const fadeInUp = (
   anim: Animated.Value,
-  config?: { duration?: number; delay?: number; distance?: number }
+  config?: { duration?: number; delay?: number; distance?: number },
 ) => {
   const { duration = 500, delay = 0, distance = 30 } = config || {};
   anim.setValue(0);
@@ -24,7 +24,7 @@ export const fadeInUp = (
 
 export const fadeInDown = (
   anim: Animated.Value,
-  config?: { duration?: number; delay?: number }
+  config?: { duration?: number; delay?: number },
 ) => {
   const { duration = 400, delay = 0 } = config || {};
   anim.setValue(0);
@@ -39,7 +39,7 @@ export const fadeInDown = (
 
 export const springIn = (
   anim: Animated.Value,
-  config?: { friction?: number; tension?: number; delay?: number }
+  config?: { friction?: number; tension?: number; delay?: number },
 ) => {
   const { friction = 6, tension = 60, delay = 0 } = config || {};
   anim.setValue(0);
@@ -57,7 +57,7 @@ export const springIn = (
 export const staggerEntrance = (
   anims: Animated.Value[],
   staggerDelay = 50,
-  config?: { friction?: number; tension?: number }
+  config?: { friction?: number; tension?: number },
 ) => {
   const { friction = 6, tension = 60 } = config || {};
   anims.forEach(a => a.setValue(0));
@@ -69,8 +69,8 @@ export const staggerEntrance = (
         friction,
         tension,
         useNativeDriver: true,
-      })
-    )
+      }),
+    ),
   );
 };
 
@@ -78,7 +78,7 @@ export const staggerEntrance = (
 
 export const pulseLoop = (
   anim: Animated.Value,
-  config?: { minScale?: number; maxScale?: number; duration?: number }
+  config?: { minScale?: number; maxScale?: number; duration?: number },
 ) => {
   const { minScale = 1, maxScale = 1.06, duration = 1000 } = config || {};
   return Animated.loop(
@@ -95,13 +95,13 @@ export const pulseLoop = (
         easing: Easing.inOut(Easing.sin),
         useNativeDriver: true,
       }),
-    ])
+    ]),
   );
 };
 
 export const shimmerLoop = (
   anim: Animated.Value,
-  config?: { duration?: number }
+  config?: { duration?: number },
 ) => {
   const { duration = 1500 } = config || {};
   anim.setValue(0);
@@ -111,13 +111,13 @@ export const shimmerLoop = (
       duration,
       easing: Easing.linear,
       useNativeDriver: true,
-    })
+    }),
   );
 };
 
 export const breatheLoop = (
   anim: Animated.Value,
-  config?: { duration?: number }
+  config?: { duration?: number },
 ) => {
   const { duration = 2000 } = config || {};
   return Animated.loop(
@@ -134,7 +134,7 @@ export const breatheLoop = (
         easing: Easing.inOut(Easing.sin),
         useNativeDriver: true,
       }),
-    ])
+    ]),
   );
 };
 
@@ -158,10 +158,7 @@ export const pressOut = (anim: Animated.Value) =>
 
 // ─── Interpolation Helpers ────────────────────────────────────────────────────
 
-export const slideUpInterpolate = (
-  anim: Animated.Value,
-  distance = 30
-) => ({
+export const slideUpInterpolate = (anim: Animated.Value, distance = 30) => ({
   opacity: anim,
   transform: [
     {
@@ -187,7 +184,7 @@ export const scaleInInterpolate = (anim: Animated.Value) => ({
 
 export const slideInRightInterpolate = (
   anim: Animated.Value,
-  distance = 40
+  distance = 40,
 ) => ({
   opacity: anim,
   transform: [

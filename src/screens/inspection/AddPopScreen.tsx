@@ -29,7 +29,7 @@ import database from '../../database';
 import { Asset } from '../../database/models';
 import { useInspectionStore } from '../../store/inspectionStore';
 import { fetchCurrentLocation } from '../../utils/helpers';
-import { upsertAssetToSupabase } from '../../services/supabaseDb';
+import { upsertAssetToFirestore } from '../../services/firestoreDb';
 import type { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -65,7 +65,9 @@ export const AddPopScreen: React.FC = () => {
         showAlert({
           type: 'success',
           title: 'Lokasi Ditemukan',
-          message: `Koordinat GPS berhasil disematkan: ${loc.lat.toFixed(6)}, ${loc.lng.toFixed(6)}`,
+          message: `Koordinat GPS berhasil disematkan: ${loc.lat.toFixed(
+            6,
+          )}, ${loc.lng.toFixed(6)}`,
         });
       } else {
         showAlert({
@@ -125,9 +127,12 @@ export const AddPopScreen: React.FC = () => {
 
     try {
       // 1. Check if assetCode already exists in local DB
-      const existingAssets = await database.get<Asset>('assets').query().fetch();
+      const existingAssets = await database
+        .get<Asset>('assets')
+        .query()
+        .fetch();
       const isDuplicate = existingAssets.some(
-        (a) => a.assetCode.toLowerCase() === trimmedId.toLowerCase()
+        a => a.assetCode.toLowerCase() === trimmedId.toLowerCase(),
       );
 
       if (isDuplicate) {
@@ -153,7 +158,7 @@ export const AddPopScreen: React.FC = () => {
       // 3. Save to WatermelonDB (Local SQLite)
       let createdAsset: Asset | null = null;
       await database.write(async () => {
-        createdAsset = await database.get<Asset>('assets').create((asset) => {
+        createdAsset = await database.get<Asset>('assets').create(asset => {
           asset.assetCode = trimmedId;
           asset.name = trimmedNama;
           asset.category = 'other';
@@ -172,9 +177,9 @@ export const AddPopScreen: React.FC = () => {
         });
       });
 
-      // 4. Sync to Supabase in Background (Cloud persistence)
+      // 4. Sync to Firestore in Background (Cloud persistence)
       try {
-        await upsertAssetToSupabase({
+        await upsertAssetToFirestore({
           id: trimmedId,
           asset_code: trimmedId,
           name: trimmedNama,
@@ -185,11 +190,11 @@ export const AddPopScreen: React.FC = () => {
           specifications: specsObj,
           status: 'active',
         });
-        console.log(`Successfully synced new POP ${trimmedId} to Supabase`);
+        console.log(`Successfully synced new POP ${trimmedId} to Firestore`);
       } catch (cloudErr) {
         console.warn(
           'POP saved to local DB. Cloud sync will continue when online:',
-          cloudErr
+          cloudErr,
         );
       }
 
@@ -240,7 +245,11 @@ export const AddPopScreen: React.FC = () => {
         {/* Card: Informasi Utama */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Building2 size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+            <Building2
+              size={20}
+              color={Colors.primary}
+              style={{ marginRight: 8 }}
+            />
             <Text style={styles.cardTitle}>Informasi Utama POP</Text>
           </View>
 
@@ -257,9 +266,6 @@ export const AddPopScreen: React.FC = () => {
               onChangeText={setIdPop}
               autoCapitalize="characters"
             />
-            <Text style={styles.fieldHint}>
-              identitas unik untuk POP yang baru dibuat.
-            </Text>
           </View>
 
           {/* Field: Nama POP */}
@@ -279,7 +285,7 @@ export const AddPopScreen: React.FC = () => {
           {/* Field: Tipe POP (Input Manual) */}
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>
-              Tipe POP <Text style={styles.requiredMark}>*</Text>
+              Jenis POP <Text style={styles.requiredMark}>*</Text>
             </Text>
             <TextInput
               style={styles.input}
@@ -294,7 +300,11 @@ export const AddPopScreen: React.FC = () => {
         {/* Card: Lokasi & Koordinat */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <MapPin size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+            <MapPin
+              size={20}
+              color={Colors.primary}
+              style={{ marginRight: 8 }}
+            />
             <Text style={styles.cardTitle}>Lokasi & Titik Koordinat</Text>
           </View>
 
@@ -321,9 +331,17 @@ export const AddPopScreen: React.FC = () => {
             activeOpacity={0.75}
           >
             {isFetchingGps ? (
-              <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} />
+              <ActivityIndicator
+                size="small"
+                color="#ffffff"
+                style={{ marginRight: 8 }}
+              />
             ) : (
-              <Navigation size={18} color="#ffffff" style={{ marginRight: 8 }} />
+              <Navigation
+                size={18}
+                color="#ffffff"
+                style={{ marginRight: 8 }}
+              />
             )}
             <Text style={styles.gpsButtonText}>
               {isFetchingGps
@@ -368,7 +386,11 @@ export const AddPopScreen: React.FC = () => {
           activeOpacity={0.8}
         >
           {isSaving ? (
-            <ActivityIndicator size="small" color="#ffffff" style={{ marginRight: 8 }} />
+            <ActivityIndicator
+              size="small"
+              color="#ffffff"
+              style={{ marginRight: 8 }}
+            />
           ) : (
             <Save size={20} color="#ffffff" style={{ marginRight: 8 }} />
           )}
@@ -387,14 +409,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: Spacing.xl * 2,
+    padding: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
   },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.glassBorder,
     ...Shadow.sm,
